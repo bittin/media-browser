@@ -13,7 +13,7 @@ use cosmic::{
             Modifiers,
         },
         layout,
-        mouse::{self, click, Event as MouseEvent},
+        mouse::{self, click},
         overlay,
         renderer::{self, Quad, Renderer as _},
         touch,

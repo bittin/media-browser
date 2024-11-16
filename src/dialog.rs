@@ -40,7 +40,7 @@ use std::{
 
 use crate::{
     app::{Action, ContextPage, Message as AppMessage},
-    config::{Config, Favorite, IconSizes, TabConfig},
+    config::{Config, Favorite, TabConfig},
     fl, home_dir,
     localize::LANGUAGE_SORTER,
     menu,

@@ -1,6 +1,4 @@
-use cosmic::iced::{Element, Length};
-use cosmic::iced::widget::{Container, column, Space, Button};
-use cosmic::widget::{self, segmented_button, };
+use cosmic::iced::Element;
 
 
 #[derive(Debug, Clone)]

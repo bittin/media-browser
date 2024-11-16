@@ -2,21 +2,15 @@ use cosmic::iced::futures::{channel::mpsc::Sender, executor, SinkExt};
 use std::{
     borrow::Cow,
     fs,
-    io::{self, Read, Write},
     path::{Path, PathBuf},
-    sync::{
-        atomic::{self, AtomicU64},
-        Arc,
-    },
+    sync::Arc,
 };
 use tokio::sync::{mpsc, Mutex};
-use walkdir::WalkDir;
 
 use crate::{
     app::{DialogPage, Message},
     config::IconSizes,
     err_str, fl,
-    mime_icon::mime_for_path,
     tab,
 };
 

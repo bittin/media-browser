@@ -56,7 +56,6 @@ use trash::TrashItem;
 #[cfg(feature = "wayland")]
 use wayland_client::{protocol::wl_output::WlOutput, Proxy};
 
-use file_format::{FileFormat, Kind};
 
 use crate::{
     clipboard::{ClipboardCopy, ClipboardKind, ClipboardPaste},
@@ -839,7 +838,7 @@ impl App {
     }
 
     fn open_with(&self) -> Element<Message> {
-        let mut children = Vec::new();
+        let children = Vec::new();
         let entity = self.tab_model.active();
         if let Some(tab) = self.tab_model.data::<Tab>(entity) {
             if let Some(items) = tab.items_opt() {

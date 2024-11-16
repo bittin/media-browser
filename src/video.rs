@@ -1,6 +1,5 @@
 use cosmic::iced::{Element, Length};
 use cosmic::iced::widget::{Container, column, Space, Button};
-use cosmic::widget::{self, segmented_button};
 
 #[derive(Debug, Clone)]
 pub enum Message {

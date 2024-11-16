@@ -9,7 +9,7 @@ use cosmic::{
         clipboard::dnd::DndAction,
         event,
         futures::SinkExt,
-        keyboard::{self, Modifiers},
+        keyboard::{Modifiers},
         subscription::{self, Subscription},
         //TODO: export in cosmic::widget
         widget::{
@@ -39,7 +39,6 @@ use cosmic::{
 use chrono::{DateTime, Utc};
 use mime_guess::{mime, Mime};
 use once_cell::sync::Lazy;
-use recently_used_xbel::{Error, RecentlyUsed};
 use serde::{Deserialize, Serialize};
 use std::{
     cell::{Cell, RefCell},
