@@ -1314,6 +1314,7 @@ dependencies = [
  "dirs 5.0.1",
  "env_logger",
  "fastrand 2.1.1",
+ "file-format",
  "flate2",
  "fork",
  "freedesktop_entry_parser",
@@ -2002,6 +2003,12 @@ checksum = "4f9bfee30e4dedf0ab8b422f03af778d9612b63f502710fc500a334ebe2de645"
 dependencies = [
  "simd-adler32",
 ]
+
+[[package]]
+name = "file-format"
+version = "0.26.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e7ef3d5e8ae27277c8285ac43ed153158178ef0f79567f32024ca8140a0c7cd8"
 
 [[package]]
 name = "file-id"
