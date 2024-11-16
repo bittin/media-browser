@@ -1,0 +1,117 @@
+[package]
+name = "cosmic-media-browser"
+version = "0.1.0"
+authors = ["Alexander Schwarzkopf <schwarzkopf.alexander@web.de>"]
+edition = "2021"
+license = "GPL-3.0-only"
+rust-version = "1.71"
+
+[build-dependencies]
+vergen = { version = "8", features = ["git", "gitcl"] }
+
+[dependencies]
+chrono = { version = "0.4", features = ["unstable-locales"] }
+dirs = "5.0.1"
+env_logger = "0.11"
+freedesktop_entry_parser = "1.3"
+fs_extra = { git = "https://github.com/pop-os/fs_extra.git" }
+gio = { version = "0.20", optional = true }
+glib = { version = "0.20", optional = true }
+glob = "0.3"
+icu_collator = "1.5"
+icu_provider = { version = "1.5", features = ["sync"] }
+ignore = "0.4"
+image = "0.25.5"
+libc = "0.2"
+log = "0.4"
+mime_guess = "2"
+notify-debouncer-full = "0.3"
+notify-rust = { version = "4", optional = true }
+once_cell = "1.19"
+open = "5.0.2"
+paste = "1.0"
+rayon = "1"
+regex = "1"
+serde = { version = "1", features = ["serde_derive"] }
+shlex = { version = "1.3" }
+tokio = { version = "1", features = ["sync"] }
+trash = { git = "https://github.com/jackpot51/trash-rs.git", branch = "cosmic" }
+url = "2.5"
+walkdir = "2.5.0"
+wayland-client = { version = "0.31.5", optional = true }
+xdg = { version = "2.5.2", optional = true }
+xdg-mime = "0.3"
+# Compression
+bzip2 = { version = "0.4", optional = true } #TODO: replace with pure Rust crate
+flate2 = "1.0"
+liblzma = { version = "0.3", optional = true } #TODO: replace with pure Rust crate
+tar = "0.4.41"
+# Internationalization
+i18n-embed = { version = "0.14", features = [
+    "fluent-system",
+    "desktop-requester",
+] }
+i18n-embed-fl = "0.7"
+rust-embed = "8"
+slotmap = "1.0.7"
+recently-used-xbel = "1.1.0"
+zip = "2.1.6"
+unix_permissions_ext = "0.1.2"
+uzers = "0.12.0"
+
+[dependencies.libcosmic]
+git = "https://github.com/pop-os/libcosmic.git"
+default-features = false
+features = ["a11y", "clipboard", "multi-window", "tokio"]
+
+[dependencies.smol_str]
+version = "0.2.1"
+features = ["serde"]
+
+[features]
+default = ["bzip2", "desktop", "gvfs", "liblzma", "notify", "winit", "wgpu"]
+desktop = ["libcosmic/desktop", "dep:xdg"]
+gvfs = ["dep:gio", "dep:glib"]
+notify = ["dep:notify-rust"]
+wayland = ["libcosmic/wayland", "dep:wayland-client"]
+winit = ["libcosmic/winit"]
+wgpu = ["libcosmic/wgpu"]
+
+[profile.dev]
+opt-level = 1
+
+[profile.release-with-debug]
+inherits = "release"
+debug = true
+
+[target.'cfg(unix)'.dependencies]
+fork = "0.1"
+
+[dev-dependencies]
+# cap-std = "3"
+# cap-tempfile = "3"
+fastrand = "2"
+tempfile = "3"
+test-log = "0.2"
+tokio = { version = "1", features = ["rt", "macros"] }
+
+[patch.crates-io]
+# https://github.com/alexcrichton/filetime/pull/104
+filetime = { git = "https://github.com/jackpot51/filetime" }
+
+# [patch.'https://github.com/pop-os/cosmic-text']
+# cosmic-text = { path = "../cosmic-text" }
+
+# [patch.'https://github.com/pop-os/fs_extra']
+# fs_extra = { path = "../fs_extra" }
+
+# [patch.'https://github.com/pop-os/libcosmic']
+# libcosmic = { path = "../libcosmic" }
+# cosmic-config = { path = "../libcosmic/cosmic-config" }
+# cosmic-theme = { path = "../libcosmic/cosmic-theme" }
+
+# [patch.'https://github.com/pop-os/smithay-clipboard']
+# smithay-clipboard = { path = "../smithay-clipboard" }
+
+[workspace]
+members = ["cosmic-media-browser-applet"]

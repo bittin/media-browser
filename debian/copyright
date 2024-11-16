@@ -1,0 +1,7 @@
+Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
+Upstream-Name: cosmic-media-browser
+Upstream-Contact: Alexander Schwarzkopf <schwarzkopf.alexander@web.de>
+Source: https://github.com/pop-os/cosmic-media-browser
+Files: *
+Copyright: System76 <info@system76.com>
+License: GPL-3.0
