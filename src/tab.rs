@@ -55,7 +55,7 @@ use std::{
 };
 
 use crate::{
-    app::{self, Action, PreviewItem, PreviewKind},
+    app::{self, Action},
     clipboard::{ClipboardCopy, ClipboardKind, ClipboardPaste},
     config::{IconSizes, TabConfig, ICON_SCALE_MAX, ICON_SIZE_GRID},
     dialog::DialogKind,
@@ -814,10 +814,7 @@ pub enum Command {
     Iced(cosmic::Command<Message>),
     MoveToTrash(Vec<PathBuf>),
     OpenFile(PathBuf),
-    OpenInNewTab(PathBuf),
     OpenInNewWindow(PathBuf),
-    Preview(PreviewKind, Duration),
-    PreviewCancel,
     WindowDrag,
     WindowToggleMaximize,
 }
@@ -875,9 +872,7 @@ pub enum Message {
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub enum LocationMenuAction {
-    OpenInNewTab(usize),
     OpenInNewWindow(usize),
-    Preview(usize),
 }
 
 impl MenuAction for LocationMenuAction {
@@ -957,216 +952,6 @@ impl Item {
         self.location_opt.as_ref()?.path_opt()
     }
 
-    fn preview(&self, sizes: IconSizes) -> Element<'static, app::Message> {
-        // This loads the image only if thumbnailing worked
-        let icon = widget::icon::icon(self.icon_handle_grid.clone())
-            .content_fit(ContentFit::Contain)
-            .size(sizes.grid())
-            .into();
-        match self
-            .thumbnail_opt
-            .as_ref()
-            .unwrap_or(&ItemThumbnail::NotImage)
-        {
-            ItemThumbnail::NotImage => icon,
-            ItemThumbnail::Rgba(_, _) => {
-                if let Some(Location::Path(path)) = &self.location_opt {
-                    widget::image(widget::image::Handle::from_path(path)).into()
-                } else {
-                    icon
-                }
-            }
-            ItemThumbnail::Svg => {
-                if let Some(Location::Path(path)) = &self.location_opt {
-                    widget::Svg::from_path(path).into()
-                } else {
-                    icon
-                }
-            }
-        }
-    }
-
-    pub fn open_with_view(&self, sizes: IconSizes) -> Element<app::Message> {
-        let cosmic_theme::Spacing {
-            space_xs,
-            space_xxxs,
-            ..
-        } = theme::active().cosmic().spacing;
-
-        let mut column = widget::column().spacing(space_xxxs);
-
-        column = column.push(widget::row::with_children(vec![
-            widget::horizontal_space(Length::Fill).into(),
-            self.preview(sizes),
-            widget::horizontal_space(Length::Fill).into(),
-        ]));
-
-        column = column.push(widget::text::heading(&self.name));
-
-        column = column.push(widget::text(format!("Type: {}", self.mime)));
-
-        if let Some(Location::Path(path)) = &self.location_opt {
-            for app in self.open_with.iter() {
-                column = column.push(
-                    widget::button::custom(
-                        widget::row::with_children(vec![
-                            widget::icon(app.icon.clone()).into(),
-                            if app.is_default {
-                                widget::text(fl!("default-app", name = app.name.as_str())).into()
-                            } else {
-                                widget::text(&app.name).into()
-                            },
-                        ])
-                        .spacing(space_xs),
-                    )
-                    //TODO: do not clone so much?
-                    .on_press(app::Message::OpenWith(path.clone(), app.clone()))
-                    .padding(space_xs)
-                    .width(Length::Fill),
-                );
-            }
-        }
-
-        column.into()
-    }
-
-    pub fn preview_view(&self, sizes: IconSizes) -> Element<'static, app::Message> {
-        let cosmic_theme::Spacing {
-            space_xxxs,
-            space_xxs,
-            space_m,
-            ..
-        } = theme::active().cosmic().spacing;
-
-        let mut column = widget::column().spacing(space_m);
-
-        let mut row = widget::row::with_capacity(3).spacing(space_xxs);
-        row = row.push(
-            widget::button::icon(widget::icon::from_name("go-previous-symbolic"))
-                .on_press(app::Message::TabMessage(None, Message::ItemLeft)),
-        );
-        row = row.push(
-            widget::button::icon(widget::icon::from_name("go-next-symbolic"))
-                .on_press(app::Message::TabMessage(None, Message::ItemRight)),
-        );
-        match self
-            .thumbnail_opt
-            .as_ref()
-            .unwrap_or(&ItemThumbnail::NotImage)
-        {
-            ItemThumbnail::NotImage => {}
-            ItemThumbnail::Rgba(_, _) | ItemThumbnail::Svg => {
-                if let Some(path) = self.path_opt() {
-                    row = row.push(
-                        widget::button::icon(widget::icon::from_name("view-fullscreen-symbolic"))
-                            .on_press(app::Message::TabMessage(None, Message::Gallery(true))),
-                    );
-                }
-            }
-        }
-        column = column.push(row);
-
-        column = column.push(widget::row::with_children(vec![
-            widget::horizontal_space(Length::Fill).into(),
-            self.preview(sizes),
-            widget::horizontal_space(Length::Fill).into(),
-        ]));
-
-        let mut details = widget::column().spacing(space_xxxs);
-        details = details.push(widget::text::heading(self.name.clone()));
-        details = details.push(widget::text(format!("Type: {}", self.mime)));
-        let mut settings = Vec::new();
-        //TODO: translate!
-        //TODO: correct display of folder size?
-        match &self.metadata {
-            ItemMetadata::Path { metadata, children } => {
-                if metadata.is_dir() {
-                    details = details.push(widget::text(format!("Items: {}", children)));
-                } else {
-                    details = details.push(widget::text(format!(
-                        "Size: {}",
-                        format_size(metadata.len())
-                    )));
-                }
-
-                if let Ok(time) = metadata.created() {
-                    details = details.push(widget::text(format!("Created: {}", format_time(time))));
-                }
-
-                if let Ok(time) = metadata.modified() {
-                    details =
-                        details.push(widget::text(format!("Modified: {}", format_time(time))));
-                }
-
-                if let Ok(time) = metadata.accessed() {
-                    details =
-                        details.push(widget::text(format!("Accessed: {}", format_time(time))));
-                }
-
-                #[cfg(not(target_os = "windows"))]
-                {
-                    settings.push(
-                        widget::settings::item::builder(format_permissions_owner(
-                            metadata,
-                            PermissionOwner::Owner,
-                        ))
-                        .description(fl!("owner"))
-                        .control(widget::text(format_permissions(
-                            metadata,
-                            PermissionOwner::Owner,
-                        ))),
-                    );
-
-                    settings.push(
-                        widget::settings::item::builder(format_permissions_owner(
-                            metadata,
-                            PermissionOwner::Group,
-                        ))
-                        .description(fl!("group"))
-                        .control(widget::text(format_permissions(
-                            metadata,
-                            PermissionOwner::Group,
-                        ))),
-                    );
-
-                    settings.push(widget::settings::item::builder(fl!("other")).control(
-                        widget::text(format_permissions(metadata, PermissionOwner::Other)),
-                    ));
-                }
-            }
-            _ => {
-                //TODO: other metadata types
-            }
-        }
-        match self
-            .thumbnail_opt
-            .as_ref()
-            .unwrap_or(&ItemThumbnail::NotImage)
-        {
-            ItemThumbnail::Rgba(_, (width, height)) => {
-                details = details.push(widget::text(format!("{}x{}", width, height)));
-            }
-            _ => {}
-        }
-        column = column.push(details);
-
-        if let Some(path) = self.path_opt() {
-            column = column.push(widget::button::standard(fl!("open")).on_press(
-                app::Message::TabMessage(None, Message::Open(Some(path.to_path_buf()))),
-            ));
-        }
-
-        if !settings.is_empty() {
-            let mut section = widget::settings::section();
-            for setting in settings {
-                section = section.add(setting);
-            }
-            column = column.push(section);
-        }
-
-        column.into()
-    }
-
     pub fn replace_view(
         &self,
         heading: String,
@@ -1175,7 +960,6 @@ impl Item {
         let cosmic_theme::Spacing { space_xxxs, .. } = theme::active().cosmic().spacing;
 
         let mut row = widget::row().spacing(space_xxxs);
-        row = row.push(self.preview(sizes));
 
         let mut column = widget::column().spacing(space_xxxs);
         column = column.push(widget::text::heading(heading));
@@ -1245,6 +1029,10 @@ impl HeadingOptions {
 pub enum Mode {
     App,
     Desktop,
+    Browser,
+    Image,
+    Video,
+    Audio,
     Dialog(DialogKind),
 }
 
@@ -1252,7 +1040,8 @@ impl Mode {
     /// Whether multiple files can be selected in this mode
     pub fn multiple(&self) -> bool {
         match self {
-            Mode::App | Mode::Desktop => true,
+            Mode::App | Mode::Desktop | Mode::Browser => true,
+            Mode::Image | Mode::Video | Mode::Audio => false,
             Mode::Dialog(dialog) => dialog.multiple(),
         }
     }
@@ -1684,9 +1473,6 @@ impl Tab {
                 } else {
                     log::warn!("no item for click index {:?}", click_i_opt);
                 }
-
-                // Cancel any preview timers
-                commands.push(Command::PreviewCancel);
             }
             Message::Click(click_i_opt) => {
                 self.selected_clicked = false;
@@ -1852,31 +1638,9 @@ impl Tab {
                     .map(|path| path.to_path_buf())
                 };
                 match action {
-                    LocationMenuAction::OpenInNewTab(ancestor_index) => {
-                        if let Some(path) = path_for_index(ancestor_index) {
-                            commands.push(Command::OpenInNewTab(path));
-                        }
-                    }
                     LocationMenuAction::OpenInNewWindow(ancestor_index) => {
                         if let Some(path) = path_for_index(ancestor_index) {
                             commands.push(Command::OpenInNewWindow(path));
-                        }
-                    }
-                    LocationMenuAction::Preview(ancestor_index) => {
-                        if let Some(path) = path_for_index(ancestor_index) {
-                            //TODO: blocking code, run in command
-                            match item_from_path(&path, IconSizes::default()) {
-                                Ok(item) => {
-                                    // Show preview instantly
-                                    commands.push(Command::Preview(
-                                        PreviewKind::Custom(PreviewItem(item)),
-                                        Duration::new(0, 0),
-                                    ));
-                                }
-                                Err(err) => {
-                                    log::warn!("failed to get item from path {:?}: {}", path, err);
-                                }
-                            }
                         }
                     }
                 }
@@ -1902,7 +1666,7 @@ impl Tab {
                 self.edit_location = edit_location;
             }
             Message::OpenInNewTab(path) => {
-                commands.push(Command::OpenInNewTab(path));
+                commands.push(Command::OpenInNewWindow(path));
             }
             Message::EmptyTrash => {
                 commands.push(Command::EmptyTrash);
@@ -2191,7 +1955,7 @@ impl Tab {
                         if let Some(Location::Path(path)) = &clicked_item.location_opt {
                             if clicked_item.metadata.is_dir() {
                                 //cd = Some(Location::Path(path.clone()));
-                                commands.push(Command::OpenInNewTab(path.clone()))
+                                commands.push(Command::OpenInNewWindow(path.clone()))
                             } else {
                                 commands.push(Command::OpenFile(path.clone()));
                             }
@@ -2310,9 +2074,6 @@ impl Tab {
                         |x| x,
                     )));
                 }
-
-                // Clear preview timer
-                commands.push(Command::PreviewCancel);
             }
             Message::DndLeave(loc) => {
                 if Some(&loc) == self.dnd_hovered.as_ref().map(|(l, _)| l) {
@@ -2377,10 +2138,11 @@ impl Tab {
                     if let Some(item) = items.get(index) {
                         if let Some(location) = item.location_opt.clone() {
                             // Show preview after double click timeout
-                            commands.push(Command::Preview(
-                                PreviewKind::Location(location),
-                                DOUBLE_CLICK_DURATION,
-                            ));
+                            commands.push(Command::OpenFile(location.path_opt().unwrap().clone()));
+                            //commands.push(Command::Preview(
+                            //    PreviewKind::Location(location),
+                            //    DOUBLE_CLICK_DURATION,
+                            //));
                         }
                     }
                 }
@@ -3017,6 +2779,10 @@ impl Tab {
                     .into(),
                 ],
                 Mode::Desktop => Vec::new(),
+                Mode::Browser => Vec::new(),
+                Mode::Audio => Vec::new(),
+                Mode::Image => Vec::new(),
+                Mode::Video => Vec::new(),
             })
             .align_items(Alignment::Center)
             .spacing(space_xxs),

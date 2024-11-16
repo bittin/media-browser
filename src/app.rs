@@ -99,12 +99,10 @@ pub enum Action {
     OpenAudio,
     About,
     AddToSidebar,
-    Compress,
     Copy,
     Cut,
     EditHistory,
     EditLocation,
-    ExtractHere,
     HistoryNext,
     HistoryPrevious,
     ItemDown,
@@ -113,26 +111,17 @@ pub enum Action {
     ItemUp,
     LocationUp,
     MoveToTrash,
-    NewFile,
     NewFolder,
     Open,
-    OpenInNewTab,
     OpenInNewWindow,
     OpenItemLocation,
-    OpenTerminal,
-    OpenWith,
     Paste,
-    Preview,
     Rename,
     RestoreFromTrash,
     SearchActivate,
     SelectAll,
     SetSort(HeadingOptions, bool),
     Settings,
-    TabClose,
-    TabNew,
-    TabNext,
-    TabPrev,
     TabViewGrid,
     TabViewList,
     ToggleFoldersFirst,
@@ -151,7 +140,6 @@ impl Action {
         match self {
             Action::About => Message::ToggleContextPage(ContextPage::About),
             Action::AddToSidebar => Message::AddToSidebar(entity_opt),
-            Action::Compress => Message::Compress(entity_opt),
             Action::OpenBrowser => Message::Browser,
             Action::OpenImage => Message::Image(crate::image::Message::ToImage),
             Action::OpenVideo => Message::Video(crate::video::Message::ToVideo),
@@ -160,7 +148,6 @@ impl Action {
             Action::Cut => Message::Cut(entity_opt),
             Action::EditHistory => Message::ToggleContextPage(ContextPage::EditHistory),
             Action::EditLocation => Message::EditLocation(entity_opt),
-            Action::ExtractHere => Message::ExtractHere(entity_opt),
             Action::HistoryNext => Message::TabMessage(entity_opt, tab::Message::GoNext),
             Action::HistoryPrevious => Message::TabMessage(entity_opt, tab::Message::GoPrevious),
             Action::ItemDown => Message::TabMessage(entity_opt, tab::Message::ItemDown),
@@ -169,18 +156,11 @@ impl Action {
             Action::ItemUp => Message::TabMessage(entity_opt, tab::Message::ItemUp),
             Action::LocationUp => Message::TabMessage(entity_opt, tab::Message::LocationUp),
             Action::MoveToTrash => Message::MoveToTrash(entity_opt),
-            Action::NewFile => Message::NewItem(entity_opt, false),
             Action::NewFolder => Message::NewItem(entity_opt, true),
             Action::Open => Message::TabMessage(entity_opt, tab::Message::Open(None)),
-            Action::OpenInNewTab => Message::OpenInNewTab(entity_opt),
             Action::OpenInNewWindow => Message::OpenInNewWindow(entity_opt),
             Action::OpenItemLocation => Message::OpenItemLocation(entity_opt),
-            Action::OpenTerminal => Message::OpenTerminal(entity_opt),
-            Action::OpenWith => Message::ToggleContextPage(ContextPage::OpenWith),
             Action::Paste => Message::Paste(entity_opt),
-            Action::Preview => {
-                Message::ToggleContextPage(ContextPage::Preview(entity_opt, PreviewKind::Selected))
-            }
             Action::Rename => Message::Rename(entity_opt),
             Action::RestoreFromTrash => Message::RestoreFromTrash(entity_opt),
             Action::SearchActivate => Message::SearchActivate,
@@ -189,10 +169,6 @@ impl Action {
                 Message::TabMessage(entity_opt, tab::Message::SetSort(*sort, *dir))
             }
             Action::Settings => Message::ToggleContextPage(ContextPage::Settings),
-            Action::TabClose => Message::TabClose(entity_opt),
-            Action::TabNew => Message::TabNew,
-            Action::TabNext => Message::TabNext,
-            Action::TabPrev => Message::TabPrev,
             Action::TabViewGrid => {
                 Message::TabMessage(entity_opt, tab::Message::View(tab::View::Grid))
             }
@@ -226,29 +202,9 @@ impl MenuAction for Action {
     }
 }
 
-#[derive(Clone, Debug)]
-pub struct PreviewItem(pub tab::Item);
-
-impl PartialEq for PreviewItem {
-    fn eq(&self, other: &Self) -> bool {
-        self.0.location_opt == other.0.location_opt
-    }
-}
-
-impl Eq for PreviewItem {}
-
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub enum PreviewKind {
-    Custom(PreviewItem),
-    Location(Location),
-    Selected,
-}
-
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub enum NavMenuAction {
-    OpenInNewTab(segmented_button::Entity),
     OpenInNewWindow(segmented_button::Entity),
-    Preview(segmented_button::Entity),
     RemoveFromSidebar(segmented_button::Entity),
     EmptyTrash,
 }
@@ -271,7 +227,6 @@ pub enum Message {
     AddToSidebar(Option<Entity>),
     AppTheme(AppTheme),
     CloseToast(widget::ToastId),
-    Compress(Option<Entity>),
     Config(Config),
     Copy(Option<Entity>),
     Cut(Option<Entity>),
@@ -281,7 +236,6 @@ pub enum Message {
     DialogUpdate(DialogPage),
     DialogUpdateComplete(DialogPage),
     EditLocation(Option<Entity>),
-    ExtractHere(Option<Entity>),
     Key(Modifiers, Key),
     LaunchUrl(String),
     MaybeExit,
@@ -300,9 +254,6 @@ pub enum Message {
     Notification(Arc<Mutex<notify_rust::NotificationHandle>>),
     NotifyEvents(Vec<DebouncedEvent>),
     NotifyWatcher(WatcherWrapper),
-    OpenTerminal(Option<Entity>),
-    OpenWith(PathBuf, mime_app::MimeApp),
-    OpenInNewTab(Option<Entity>),
     OpenInNewWindow(Option<Entity>),
     OpenItemLocation(Option<Entity>),
     Paste(Option<Entity>),
@@ -310,7 +261,6 @@ pub enum Message {
     PendingComplete(u64),
     PendingError(u64, String),
     PendingProgress(u64, f32),
-    Preview(Entity, PreviewKind, time::Duration),
     RescanTrash,
     Rename(Option<Entity>),
     ReplaceResult(ReplaceResult),
@@ -321,12 +271,8 @@ pub enum Message {
     SearchSubmit,
     SystemThemeModeChange(cosmic_theme::ThemeMode),
     TabActivate(Entity),
-    TabNext,
-    TabPrev,
-    TabClose(Option<Entity>),
     TabConfig(TabConfig),
     TabMessage(Option<Entity>, tab::Message),
-    TabNew,
     TabRescan(Entity, Location, Vec<tab::Item>, Option<PathBuf>),
     ToggleContextPage(ContextPage),
     Undo(usize),
@@ -355,7 +301,6 @@ pub enum ContextPage {
     EditHistory,
     NetworkDrive,
     OpenWith,
-    Preview(Option<Entity>, PreviewKind),
     Settings,
 }
 
@@ -366,46 +311,13 @@ impl ContextPage {
             Self::EditHistory => fl!("edit-history"),
             Self::NetworkDrive => fl!("add-network-drive"),
             Self::OpenWith => fl!("open-with"),
-            Self::Preview(..) => String::default(),
             Self::Settings => fl!("settings"),
         }
     }
 }
 
-#[derive(Clone, Copy, Debug, Default, Eq, Hash, PartialEq)]
-pub enum ArchiveType {
-    Tgz,
-    #[default]
-    Zip,
-}
-
-impl ArchiveType {
-    pub fn all() -> &'static [Self] {
-        &[Self::Tgz, Self::Zip]
-    }
-
-    pub fn extension(&self) -> &str {
-        match self {
-            ArchiveType::Tgz => ".tgz",
-            ArchiveType::Zip => ".zip",
-        }
-    }
-}
-
-impl AsRef<str> for ArchiveType {
-    fn as_ref(&self) -> &str {
-        self.extension()
-    }
-}
-
 #[derive(Clone, Debug)]
 pub enum DialogPage {
-    Compress {
-        paths: Vec<PathBuf>,
-        to: PathBuf,
-        name: String,
-        archive_type: ArchiveType,
-    },
     EmptyTrash,
     FailedOperation(u64),
     NetworkAuth {
@@ -497,7 +409,6 @@ pub struct App {
     pending_operations: BTreeMap<u64, (Operation, f32)>,
     complete_operations: BTreeMap<u64, Operation>,
     failed_operations: BTreeMap<u64, (Operation, String)>,
-    preview_opt: Option<(Entity, PreviewKind, time::Instant)>,
     search_active: bool,
     search_id: widget::Id,
     search_input: String,
@@ -528,10 +439,10 @@ impl App {
                 tab.config.view = tab::View::Grid;
                 tab::Mode::Desktop
             }
-            Mode::Browser => tab::Mode::App,
-            Mode::Audio => tab::Mode::App,
-            Mode::Image => tab::Mode::App,
-            Mode::Video => tab::Mode::App,
+            Mode::Browser => tab::Mode::Browser,
+            Mode::Audio => tab::Mode::Audio,
+            Mode::Image => tab::Mode::Image,
+            Mode::Video => tab::Mode::Video,
         };
         let entity = self
             .tab_model
@@ -934,7 +845,7 @@ impl App {
             if let Some(items) = tab.items_opt() {
                 for item in items.iter() {
                     if item.selected {
-                        children.push(item.open_with_view(tab.config.icon_sizes));
+                        //children.push(item.open(tab.config.icon_sizes));
                         // Only show one property view to avoid issues like hangs when generating
                         // preview images on thousands of files
                         break;
@@ -987,45 +898,6 @@ impl App {
             children.push(widget::text::body(fl!("no-history")).into());
         }
 
-        widget::settings::view_column(children).into()
-    }
-
-    fn preview(&self, entity_opt: &Option<Entity>, kind: &PreviewKind) -> Element<Message> {
-        let mut children = Vec::with_capacity(1);
-        let entity = entity_opt.unwrap_or_else(|| self.tab_model.active());
-        match kind {
-            PreviewKind::Custom(PreviewItem(item)) => {
-                children.push(item.preview_view(IconSizes::default()));
-            }
-            PreviewKind::Location(location) => {
-                if let Some(tab) = self.tab_model.data::<Tab>(entity) {
-                    if let Some(items) = tab.items_opt() {
-                        for item in items.iter() {
-                            if item.location_opt.as_ref() == Some(location) {
-                                children.push(item.preview_view(tab.config.icon_sizes));
-                                // Only show one property view to avoid issues like hangs when generating
-                                // preview images on thousands of files
-                                break;
-                            }
-                        }
-                    }
-                }
-            }
-            PreviewKind::Selected => {
-                if let Some(tab) = self.tab_model.data::<Tab>(entity) {
-                    if let Some(items) = tab.items_opt() {
-                        for item in items.iter() {
-                            if item.selected {
-                                children.push(item.preview_view(tab.config.icon_sizes));
-                                // Only show one property view to avoid issues like hangs when generating
-                                // preview images on thousands of files
-                                break;
-                            }
-                        }
-                    }
-                }
-            }
-        }
         widget::settings::view_column(children).into()
     }
 
@@ -1237,7 +1109,6 @@ impl Application for App {
             pending_operations: BTreeMap::new(),
             complete_operations: BTreeMap::new(),
             failed_operations: BTreeMap::new(),
-            preview_opt: None,
             search_active: false,
             search_id: widget::Id::unique(),
             search_input: String::new(),
@@ -1294,7 +1165,7 @@ impl Application for App {
         .on_context(|entity| cosmic::app::Message::App(Message::NavBarContext(entity)))
         .on_close(|entity| cosmic::app::Message::App(Message::NavBarClose(entity)))
         .on_middle_press(|entity| {
-            cosmic::app::Message::App(Message::NavMenuAction(NavMenuAction::OpenInNewTab(entity)))
+            cosmic::app::Message::App(Message::NavMenuAction(NavMenuAction::OpenInNewWindow(entity)))
         })
         .context_menu(self.nav_context_menu(self.nav_bar_context_id))
         .close_icon(
@@ -1332,15 +1203,9 @@ impl Application for App {
             &HashMap::new(),
             vec![
                 cosmic::widget::menu::Item::Button(
-                    fl!("open-in-new-tab"),
-                    NavMenuAction::OpenInNewTab(id),
-                ),
-                cosmic::widget::menu::Item::Button(
                     fl!("open-in-new-window"),
                     NavMenuAction::OpenInNewWindow(id),
                 ),
-                cosmic::widget::menu::Item::Divider,
-                cosmic::widget::menu::Item::Button(fl!("show-details"), NavMenuAction::Preview(id)),
                 cosmic::widget::menu::Item::Divider,
                 if is_context_trash {
                     cosmic::widget::menu::Item::Button(
@@ -1589,23 +1454,6 @@ impl Application for App {
                 config_set!(app_theme, app_theme);
                 return self.update_config();
             }
-            Message::Compress(entity_opt) => {
-                let paths = self.selected_paths(entity_opt);
-                if let Some(current_path) = paths.first() {
-                    if let Some(destination) = current_path.parent().zip(current_path.file_stem()) {
-                        let to = destination.0.to_path_buf();
-                        let name = destination.1.to_str().unwrap_or_default().to_string();
-                        let archive_type = ArchiveType::default();
-                        self.dialog_pages.push_back(DialogPage::Compress {
-                            paths,
-                            to,
-                            name,
-                            archive_type,
-                        });
-                        return widget::text_input::focus(self.dialog_text_input.clone());
-                    }
-                }
-            }
             Message::Config(config) => {
                 if config != self.config {
                     log::info!("update config");
@@ -1633,21 +1481,6 @@ impl Application for App {
             Message::DialogComplete => {
                 if let Some(dialog_page) = self.dialog_pages.pop_front() {
                     match dialog_page {
-                        DialogPage::Compress {
-                            paths,
-                            to,
-                            name,
-                            archive_type,
-                        } => {
-                            let extension = archive_type.extension();
-                            let name = format!("{}{}", name, extension);
-                            let to = to.join(name);
-                            self.operation(Operation::Compress {
-                                paths,
-                                to,
-                                archive_type,
-                            })
-                        }
                         DialogPage::EmptyTrash => {
                             self.operation(Operation::EmptyTrash);
                         }
@@ -1684,7 +1517,7 @@ impl Application for App {
                             self.operation(if dir {
                                 Operation::NewFolder { path }
                             } else {
-                                Operation::NewFile { path }
+                                Operation::None{}
                             });
                         }
                         DialogPage::RenameItem {
@@ -1726,18 +1559,6 @@ impl Application for App {
                         Some(entity),
                         tab::Message::EditLocation(Some(location)),
                     ));
-                }
-            }
-            Message::ExtractHere(entity_opt) => {
-                let paths = self.selected_paths(entity_opt);
-                if let Some(current_path) = paths.get(0) {
-                    if let Some(destination) = current_path.parent().zip(current_path.file_stem()) {
-                        let destination_path = destination.0.to_path_buf();
-                        self.operation(Operation::Extract {
-                            paths,
-                            to: destination_path,
-                        });
-                    }
                 }
             }
             Message::Key(modifiers, key) => {
@@ -1974,79 +1795,6 @@ impl Application for App {
                     log::warn!("message did not contain notify watcher");
                 }
             },
-            Message::OpenTerminal(entity_opt) => {
-                if let Some(terminal) = mime_app::terminal() {
-                    let mut paths = Vec::new();
-                    let entity = entity_opt.unwrap_or_else(|| self.tab_model.active());
-                    if let Some(tab) = self.tab_model.data_mut::<Tab>(entity) {
-                        if let Location::Path(path) = &tab.location {
-                            if let Some(items) = tab.items_opt() {
-                                for item in items.iter() {
-                                    if item.selected {
-                                        if let Some(Location::Path(path)) = &item.location_opt {
-                                            paths.push(path.clone());
-                                        }
-                                    }
-                                }
-                            }
-                            if paths.is_empty() {
-                                paths.push(path.clone());
-                            }
-                        }
-                    }
-                    for path in paths {
-                        if let Some(mut command) = terminal.command(None) {
-                            command.current_dir(&path);
-                            match spawn_detached(&mut command) {
-                                Ok(()) => {}
-                                Err(err) => {
-                                    log::warn!(
-                                        "failed to open {:?} with terminal {:?}: {}",
-                                        path,
-                                        terminal.id,
-                                        err
-                                    )
-                                }
-                            }
-                        } else {
-                            log::warn!("failed to get command for {:?}", terminal.id);
-                        }
-                    }
-                }
-            }
-            Message::OpenWith(path, app) => {
-                if let Some(mut command) = app.command(Some(path.clone())) {
-                    match spawn_detached(&mut command) {
-                        Ok(()) => {
-                            let _ = recently_used_xbel::update_recently_used(
-                                &path,
-                                App::APP_ID.to_string(),
-                                "cosmic-media-browser".to_string(),
-                                None,
-                            );
-                        }
-                        Err(err) => {
-                            log::warn!("failed to open {:?} with {:?}: {}", path, app.id, err)
-                        }
-                    }
-                } else {
-                    log::warn!("failed to get command for {:?}", app.id);
-                }
-
-                // Close Open With context view
-                self.set_show_context(false);
-            }
-            Message::OpenInNewTab(entity_opt) => {
-                return Command::batch(self.selected_paths(entity_opt).into_iter().filter_map(
-                    |path| {
-                        if path.is_dir() {
-                            Some(self.open_tab(Location::Path(path), false, None))
-                        } else {
-                            None
-                        }
-                    },
-                ))
-            }
             Message::OpenInNewWindow(entity_opt) => match env::current_exe() {
                 Ok(exe) => self
                     .selected_paths(entity_opt)
@@ -2181,17 +1929,6 @@ impl Application for App {
                     *progress = new_progress;
                 }
                 return self.update_notification();
-            }
-            Message::Preview(entity, kind, timeout) => {
-                if self
-                    .preview_opt
-                    .as_ref()
-                    .is_some_and(|(e, k, i)| *e == entity && *k == kind && i.elapsed() > timeout)
-                {
-                    self.context_page = ContextPage::Preview(Some(entity), kind);
-                    self.set_show_context(true);
-                    self.set_context_title(self.context_page.title());
-                }
             }
             Message::RescanTrash => {
                 // Update trash icon if empty/full
@@ -2332,69 +2069,6 @@ impl Application for App {
                 }
                 return Command::batch(commands);
             }
-            Message::TabNext => {
-                let len = self.tab_model.iter().count();
-                let pos = self
-                    .tab_model
-                    .position(self.tab_model.active())
-                    // Wraparound to 0 if i + 1 > num of tabs
-                    .map(|i| (i as usize + 1) % len)
-                    .expect("should always be at least one tab open");
-
-                let entity = self.tab_model.iter().nth(pos);
-                if let Some(entity) = entity {
-                    return self.update(Message::TabActivate(entity));
-                }
-            }
-            Message::TabPrev => {
-                let pos = self
-                    .tab_model
-                    .position(self.tab_model.active())
-                    .and_then(|i| (i as usize).checked_sub(1))
-                    // Subtraction underflow => last tab; i.e. it wraps around
-                    .unwrap_or_else(|| {
-                        self.tab_model
-                            .iter()
-                            .count()
-                            .checked_sub(1)
-                            .unwrap_or_default()
-                    });
-
-                let entity = self.tab_model.iter().nth(pos);
-                if let Some(entity) = entity {
-                    return self.update(Message::TabActivate(entity));
-                }
-            }
-            Message::TabClose(entity_opt) => {
-                let entity = entity_opt.unwrap_or_else(|| self.tab_model.active());
-
-                // Activate closest item
-                if let Some(position) = self.tab_model.position(entity) {
-                    let new_position = if position > 0 {
-                        position - 1
-                    } else {
-                        position + 1
-                    };
-
-                    if self.tab_model.activate_position(new_position) {
-                        if let Some(new_entity) = self.tab_model.entity_at(new_position) {
-                            if let Some(tab) = self.tab_model.data::<Tab>(new_entity) {
-                                self.activate_nav_model_location(&tab.location.clone());
-                            }
-                        }
-                    }
-                }
-
-                // Remove item
-                self.tab_model.remove(entity);
-
-                // If that was the last tab, close window
-                if self.tab_model.iter().next().is_none() {
-                    return window::close(window::Id::MAIN);
-                }
-
-                return Command::batch([self.update_title(), self.update_watcher()]);
-            }
             Message::TabConfig(config) => {
                 if config != self.config.tab {
                     // Tabs are collected first to placate the borrowck
@@ -2516,9 +2190,6 @@ impl Application for App {
                                 }
                             }
                         }
-                        tab::Command::OpenInNewTab(path) => {
-                            commands.push(self.open_tab(Location::Path(path.clone()), false, None));
-                        }
                         tab::Command::OpenInNewWindow(path) => match env::current_exe() {
                             Ok(exe) => match process::Command::new(&exe).arg(path).spawn() {
                                 Ok(_child) => {}
@@ -2530,23 +2201,6 @@ impl Application for App {
                                 log::error!("failed to get current executable path: {}", err);
                             }
                         },
-                        tab::Command::Preview(kind, mut timeout) => {
-                            self.preview_opt = Some((entity, kind.clone(), Instant::now()));
-                            if self.core.window.show_context {
-                                // If the context window is already open, immediately show the preview
-                                timeout = time::Duration::new(0, 0)
-                            };
-                            commands.push(Command::perform(
-                                async move {
-                                    tokio::time::sleep(timeout).await;
-                                    message::app(Message::Preview(entity, kind, timeout))
-                                },
-                                |x| x,
-                            ));
-                        }
-                        tab::Command::PreviewCancel => {
-                            self.preview_opt = None;
-                        }
                         tab::Command::WindowDrag => {
                             commands.push(window::drag(self.main_window_id()));
                         }
@@ -2556,14 +2210,6 @@ impl Application for App {
                     }
                 }
                 return Command::batch(commands);
-            }
-            Message::TabNew => {
-                let active = self.tab_model.active();
-                let location = match self.tab_model.data::<Tab>(active) {
-                    Some(tab) => tab.location.clone(),
-                    None => Location::Path(home_dir()),
-                };
-                return self.open_tab(location, true, None);
             }
             Message::TabRescan(entity, location, items, selection_path) => {
                 match self.tab_model.data_mut::<Tab>(entity) {
@@ -2772,18 +2418,6 @@ impl Application for App {
 
             // Applies selected nav bar context menu operation.
             Message::NavMenuAction(action) => match action {
-                NavMenuAction::OpenInNewTab(entity) => {
-                    match self.nav_model.data::<Location>(entity) {
-                        Some(Location::Path(ref path)) => {
-                            return self.open_tab(Location::Path(path.clone()), false, None);
-                        }
-                        Some(Location::Trash) => {
-                            return self.open_tab(Location::Trash, false, None);
-                        }
-                        _ => {}
-                    }
-                }
-
                 // Open the selected path in a new cosmic-media-browser window.
                 NavMenuAction::OpenInNewWindow(entity) => {
                     if let Some(&Location::Path(ref path)) = self.nav_model.data::<Location>(entity)
@@ -2797,24 +2431,6 @@ impl Application for App {
                             },
                             Err(err) => {
                                 log::error!("failed to get current executable path: {}", err);
-                            }
-                        }
-                    }
-                }
-
-                NavMenuAction::Preview(entity) => {
-                    if let Some(Location::Path(path)) = self.nav_model.data::<Location>(entity) {
-                        match tab::item_from_path(path, IconSizes::default()) {
-                            Ok(item) => {
-                                self.context_page = ContextPage::Preview(
-                                    None,
-                                    PreviewKind::Custom(PreviewItem(item)),
-                                );
-                                self.set_show_context(true);
-                                self.set_context_title(self.context_page.title());
-                            }
-                            Err(err) => {
-                                log::warn!("failed to get item from path {:?}: {}", path, err);
                             }
                         }
                     }
@@ -2927,7 +2543,6 @@ impl Application for App {
             ContextPage::EditHistory => self.edit_history(),
             ContextPage::NetworkDrive => self.network_drive(),
             ContextPage::OpenWith => self.open_with(),
-            ContextPage::Preview(entity_opt, kind) => self.preview(entity_opt, kind),
             ContextPage::Settings => self.settings(),
         })
     }
@@ -2954,84 +2569,6 @@ impl Application for App {
         } = theme::active().cosmic().spacing;
 
         let dialog = match dialog_page {
-            DialogPage::Compress {
-                paths,
-                to,
-                name,
-                archive_type,
-            } => {
-                let mut dialog = widget::dialog(fl!("create-archive"));
-
-                let complete_maybe = if name.is_empty() {
-                    None
-                } else if name == "." || name == ".." {
-                    dialog = dialog.tertiary_action(widget::text::body(fl!(
-                        "name-invalid",
-                        filename = name.as_str()
-                    )));
-                    None
-                } else if name.contains('/') {
-                    dialog = dialog.tertiary_action(widget::text::body(fl!("name-no-slashes")));
-                    None
-                } else {
-                    let extension = archive_type.extension();
-                    let name = format!("{}{}", name, extension);
-                    let path = to.join(&name);
-                    if path.exists() {
-                        dialog =
-                            dialog.tertiary_action(widget::text::body(fl!("file-already-exists")));
-                        None
-                    } else {
-                        if name.starts_with('.') {
-                            dialog = dialog.tertiary_action(widget::text::body(fl!("name-hidden")));
-                        }
-                        Some(Message::DialogComplete)
-                    }
-                };
-
-                let archive_types = ArchiveType::all();
-                let selected = archive_types.iter().position(|&x| x == *archive_type);
-                dialog
-                    .primary_action(
-                        widget::button::suggested(fl!("create"))
-                            .on_press_maybe(complete_maybe.clone()),
-                    )
-                    .secondary_action(
-                        widget::button::standard(fl!("cancel")).on_press(Message::DialogCancel),
-                    )
-                    .control(
-                        widget::column::with_children(vec![
-                            widget::text::body(fl!("file-name")).into(),
-                            widget::row::with_children(vec![
-                                widget::text_input("", name.as_str())
-                                    .id(self.dialog_text_input.clone())
-                                    .on_input(move |name| {
-                                        Message::DialogUpdate(DialogPage::Compress {
-                                            paths: paths.clone(),
-                                            to: to.clone(),
-                                            name: name.clone(),
-                                            archive_type: *archive_type,
-                                        })
-                                    })
-                                    .on_submit_maybe(complete_maybe)
-                                    .into(),
-                                widget::dropdown(archive_types, selected, move |index| {
-                                    Message::DialogUpdate(DialogPage::Compress {
-                                        paths: paths.clone(),
-                                        to: to.clone(),
-                                        name: name.clone(),
-                                        archive_type: archive_types[index],
-                                    })
-                                })
-                                .into(),
-                            ])
-                            .align_items(Alignment::Center)
-                            .spacing(space_xxs)
-                            .into(),
-                        ])
-                        .spacing(space_xxs),
-                    )
-            }
             DialogPage::EmptyTrash => widget::dialog(fl!("empty-trash"))
                 .body(fl!("empty-trash-warning"))
                 .primary_action(
@@ -3208,7 +2745,6 @@ impl Application for App {
                         Some(Message::DialogComplete)
                     }
                 };
-
                 dialog
                     .primary_action(
                         widget::button::suggested(fl!("save"))
@@ -3422,7 +2958,6 @@ impl Application for App {
                         .button_height(32)
                         .button_spacing(space_xxs)
                         .on_activate(Message::TabActivate)
-                        .on_close(|entity| Message::TabClose(Some(entity)))
                         .on_dnd_enter(|entity, _| Message::DndEnterTab(entity))
                         .on_dnd_leave(|_| Message::DndExitTab)
                         .on_dnd_drop(|entity, data, action| {

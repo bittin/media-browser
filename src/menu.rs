@@ -99,19 +99,17 @@ pub fn context_menu<'a>(
     let mut children: Vec<Element<_>> = Vec::new();
     match (&tab.mode, &tab.location) {
         (
-            tab::Mode::App | tab::Mode::Desktop,
+            tab::Mode::Audio | tab::Mode::Image | tab::Mode::Video,
+            Location::Path(_) | Location::Search(_, _) | Location::Recents,
+        ) => {
+        }
+        (
+            tab::Mode::App | tab::Mode::Desktop | tab::Mode::Browser,
             Location::Path(_) | Location::Search(_, _) | Location::Recents,
         ) => {
             if selected > 0 {
                 if selected_dir == 1 && selected == 1 || selected_dir == 0 {
                     children.push(menu_item(fl!("open"), Action::Open).into());
-                }
-                if selected == 1 {
-                    children.push(menu_item(fl!("open-with"), Action::OpenWith).into());
-                    if selected_dir == 1 {
-                        children
-                            .push(menu_item(fl!("open-in-terminal"), Action::OpenTerminal).into());
-                    }
                 }
                 if matches!(tab.location, Location::Search(_, _)) {
                     children.push(
@@ -120,7 +118,6 @@ pub fn context_menu<'a>(
                 }
                 // All selected items are directories
                 if selected == selected_dir {
-                    children.push(menu_item(fl!("open-in-new-tab"), Action::OpenInNewTab).into());
                     children
                         .push(menu_item(fl!("open-in-new-window"), Action::OpenInNewWindow).into());
                 }
@@ -130,33 +127,7 @@ pub fn context_menu<'a>(
                 children.push(menu_item(fl!("copy"), Action::Copy).into());
 
                 children.push(divider::horizontal::light().into());
-                let supported_archive_types = [
-                    "application/gzip",
-                    "application/x-compressed-tar",
-                    "application/x-tar",
-                    "application/zip",
-                    #[cfg(feature = "bzip2")]
-                    "application/x-bzip",
-                    #[cfg(feature = "bzip2")]
-                    "application/x-bzip-compressed-tar",
-                    #[cfg(feature = "liblzma")]
-                    "application/x-xz",
-                    #[cfg(feature = "liblzma")]
-                    "application/x-xz-compressed-tar",
-                ]
-                .iter()
-                .filter_map(|mime_type| mime_type.parse::<Mime>().ok())
-                .collect::<Vec<_>>();
-                selected_types.retain(|t| !supported_archive_types.contains(t));
-                if selected_types.is_empty() {
-                    children.push(menu_item(fl!("extract-here"), Action::ExtractHere).into());
-                }
-                children.push(menu_item(fl!("compress"), Action::Compress).into());
-                children.push(divider::horizontal::light().into());
-
                 //TODO: Print?
-                children.push(menu_item(fl!("show-details"), Action::Preview).into());
-                children.push(divider::horizontal::light().into());
                 children.push(menu_item(fl!("add-to-sidebar"), Action::AddToSidebar).into());
                 children.push(divider::horizontal::light().into());
                 children.push(menu_item(fl!("move-to-trash"), Action::MoveToTrash).into());
@@ -164,8 +135,6 @@ pub fn context_menu<'a>(
                 //TODO: need better designs for menu with no selection
                 //TODO: have things like properties but they apply to the folder?
                 children.push(menu_item(fl!("new-folder"), Action::NewFolder).into());
-                children.push(menu_item(fl!("new-file"), Action::NewFile).into());
-                children.push(menu_item(fl!("open-in-terminal"), Action::OpenTerminal).into());
                 children.push(divider::horizontal::light().into());
                 if tab.mode.multiple() {
                     children.push(menu_item(fl!("select-all"), Action::SelectAll).into());
@@ -231,7 +200,6 @@ pub fn context_menu<'a>(
                 children.push(divider::horizontal::light().into());
             }
             if selected > 0 {
-                children.push(menu_item(fl!("show-details"), Action::Preview).into());
                 children.push(divider::horizontal::light().into());
                 children
                     .push(menu_item(fl!("restore-from-trash"), Action::RestoreFromTrash).into());
@@ -364,22 +332,16 @@ pub fn menu_bar<'a>(
             menu::items(
                 key_binds,
                 vec![
-                    menu::Item::Button(fl!("new-tab"), Action::TabNew),
                     menu::Item::Button(fl!("new-window"), Action::WindowNew),
                     menu::Item::Button(fl!("new-folder"), Action::NewFolder),
-                    menu::Item::Button(fl!("new-file"), Action::NewFile),
                     menu::Item::Button(fl!("open"), Action::Open),
-                    menu::Item::Button(fl!("open-with"), Action::OpenWith),
                     menu::Item::Divider,
                     menu::Item::Button(fl!("rename"), Action::Rename),
-                    menu::Item::Divider,
-                    menu::Item::Button(fl!("menu-show-details"), Action::Preview),
                     menu::Item::Divider,
                     menu::Item::Button(fl!("add-to-sidebar"), Action::AddToSidebar),
                     menu::Item::Divider,
                     menu::Item::Button(fl!("move-to-trash"), Action::MoveToTrash),
                     menu::Item::Divider,
-                    menu::Item::Button(fl!("close-tab"), Action::TabClose),
                     menu::Item::Button(fl!("quit"), Action::WindowClose),
                 ],
             ),
@@ -475,20 +437,9 @@ pub fn menu_bar<'a>(
 
 pub fn location_context_menu<'a>(ancestor_index: usize) -> Element<'a, tab::Message> {
     let children = vec![
-        menu_button!(text::body(fl!("open-in-new-tab")))
-            .on_press(tab::Message::LocationMenuAction(
-                LocationMenuAction::OpenInNewTab(ancestor_index),
-            ))
-            .into(),
         menu_button!(text::body(fl!("open-in-new-window")))
             .on_press(tab::Message::LocationMenuAction(
                 LocationMenuAction::OpenInNewWindow(ancestor_index),
-            ))
-            .into(),
-        divider::horizontal::light().into(),
-        menu_button!(text::body(fl!("show-details")))
-            .on_press(tab::Message::LocationMenuAction(
-                LocationMenuAction::Preview(ancestor_index),
             ))
             .into(),
     ];
