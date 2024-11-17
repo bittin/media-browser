@@ -1283,7 +1283,7 @@ impl Application for App {
                                 }),
                             );
                         }
-                        tab::Command::OpenFile(_item_path) => {
+                        tab::Command::OpenInExternalApp(_item_path) => {
                             if self.flags.kind.save() {
                                 commands.push(self.update(Message::Save(false)));
                             } else {

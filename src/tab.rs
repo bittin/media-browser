@@ -9,7 +9,7 @@ use cosmic::{
         clipboard::dnd::DndAction,
         event,
         futures::SinkExt,
-        keyboard::{Modifiers},
+        keyboard::Modifiers,
         subscription::{self, Subscription},
         //TODO: export in cosmic::widget
         widget::{
@@ -812,7 +812,8 @@ pub enum Command {
     EmptyTrash,
     Iced(cosmic::Command<Message>),
     MoveToTrash(Vec<PathBuf>),
-    OpenFile(PathBuf),
+    Open(PathBuf),
+    OpenInExternalApp(PathBuf),
     OpenInNewWindow(PathBuf),
     WindowDrag,
     WindowToggleMaximize,
@@ -832,6 +833,7 @@ pub enum Message {
     LocationContextMenuIndex(Option<usize>),
     LocationMenuAction(LocationMenuAction),
     Drag(Option<Rectangle>),
+    ChangeLocation(String, Location, PathBuf),
     EditLocation(Option<Location>),
     OpenInNewTab(PathBuf),
     EmptyTrash,
@@ -847,6 +849,7 @@ pub enum Message {
     Location(Location),
     LocationUp,
     Open(Option<PathBuf>),
+    OpenInExternalApp(Option<PathBuf>),
     RightClick(Option<usize>),
     MiddleClick(usize),
     Scroll(Viewport),
@@ -1461,7 +1464,7 @@ impl Tab {
                             cd = Some(location.clone());
                         } else {
                             if let Location::Path(path) = location {
-                                commands.push(Command::OpenFile(path.clone()));
+                                commands.push(Command::Open(path.clone()));
                             } else {
                                 log::warn!("no path for item {:?}", clicked_item);
                             }
@@ -1656,6 +1659,9 @@ impl Tab {
                 }
                 None => {}
             },
+            Message::ChangeLocation(title, location, path) => {
+                commands.push(Command::ChangeLocation(title, location, Some(path)));
+            }
             Message::EditLocation(edit_location) => {
                 if self.edit_location.is_none() && edit_location.is_some() {
                     commands.push(Command::Iced(widget::text_input::focus(
@@ -1875,7 +1881,7 @@ impl Tab {
                         if path.is_dir() {
                             cd = Some(location);
                         } else {
-                            commands.push(Command::OpenFile(path.clone()));
+                            commands.push(Command::Open(path.clone()));
                         }
                     }
                     _ => {
@@ -1898,7 +1904,7 @@ impl Tab {
                         if path.is_dir() {
                             cd = Some(Location::Path(path));
                         } else {
-                            commands.push(Command::OpenFile(path));
+                            commands.push(Command::Open(path));
                         }
                     }
                     None => {
@@ -1911,7 +1917,38 @@ impl Tab {
                                             cd = Some(location.clone());
                                         } else {
                                             if let Location::Path(path) = location {
-                                                commands.push(Command::OpenFile(path.clone()));
+                                                commands.push(Command::Open(path.clone()));
+                                            }
+                                        }
+                                    } else {
+                                        //TODO: open properties?
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            Message::OpenInExternalApp(path_opt) => {
+                match path_opt {
+                    Some(path) => {
+                        if path.is_dir() {
+                            cd = Some(Location::Path(path));
+                        } else {
+                            commands.push(Command::OpenInExternalApp(path));
+                        }
+                    }
+                    None => {
+                        if let Some(ref mut items) = self.items_opt {
+                            for item in items.iter() {
+                                if item.selected {
+                                    if let Some(location) = &item.location_opt {
+                                        if item.metadata.is_dir() {
+                                            //TODO: allow opening multiple tabs?
+                                            cd = Some(location.clone());
+                                        } else {
+                                            if let Location::Path(path) = location {
+                                                commands.push(Command::OpenInExternalApp(path.clone()));
                                             }
                                         }
                                     } else {
@@ -1954,9 +1991,9 @@ impl Tab {
                         if let Some(Location::Path(path)) = &clicked_item.location_opt {
                             if clicked_item.metadata.is_dir() {
                                 //cd = Some(Location::Path(path.clone()));
-                                commands.push(Command::OpenInNewWindow(path.clone()))
+                                cd = Some(Location::Path(path.clone()));
                             } else {
-                                commands.push(Command::OpenFile(path.clone()));
+                                commands.push(Command::Open(path.clone()));
                             }
                         } else {
                             log::warn!("no path for item {:?}", clicked_item);
@@ -2131,13 +2168,22 @@ impl Tab {
 
         // Update preview timer
         //TODO: make this configurable
+        /*
         if last_select_focus != self.select_focus {
             if let Some(index) = self.select_focus {
                 if let Some(ref items) = self.items_opt {
                     if let Some(item) = items.get(index) {
                         if let Some(location) = item.location_opt.clone() {
                             // Show preview after double click timeout
-                            commands.push(Command::OpenFile(location.path_opt().unwrap().clone()));
+                            if location.path_opt.is_some() {
+                                let path = location.path_opt.unwrap();
+                                if path.is_dir() {
+
+                                } else {
+                                    commands.push(Command::Open(location.path_opt().unwrap().clone()));
+                                }
+                            }
+                            //
                             //commands.push(Command::Preview(
                             //    PreviewKind::Location(location),
                             //    DOUBLE_CLICK_DURATION,
@@ -2147,17 +2193,10 @@ impl Tab {
                 }
             }
         }
-
+        */
         // Change directory if requested
         if let Some(location) = cd {
-            if matches!(self.mode, Mode::Desktop) {
-                match location {
-                    Location::Path(path) => {
-                        commands.push(Command::OpenFile(path));
-                    }
-                    _ => {}
-                }
-            } else if location != self.location {
+            if location != self.location {
                 if match &location {
                     Location::Path(path) => path.is_dir(),
                     Location::Search(path, _term) => path.is_dir(),

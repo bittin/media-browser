@@ -156,7 +156,7 @@ impl Action {
             Action::LocationUp => Message::TabMessage(entity_opt, tab::Message::LocationUp),
             Action::MoveToTrash => Message::MoveToTrash(entity_opt),
             Action::NewFolder => Message::NewItem(entity_opt, true),
-            Action::Open => Message::TabMessage(entity_opt, tab::Message::Open(None)),
+            Action::Open => Message::Open(entity_opt, dirs::home_dir().unwrap().display().to_string()),
             Action::OpenInNewWindow => Message::OpenInNewWindow(entity_opt),
             Action::OpenItemLocation => Message::OpenItemLocation(entity_opt),
             Action::Paste => Message::Paste(entity_opt),
@@ -203,7 +203,7 @@ impl MenuAction for Action {
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub enum NavMenuAction {
-    OpenInNewWindow(segmented_button::Entity),
+    Open(segmented_button::Entity),
     RemoveFromSidebar(segmented_button::Entity),
     EmptyTrash,
 }
@@ -253,6 +253,7 @@ pub enum Message {
     Notification(Arc<Mutex<notify_rust::NotificationHandle>>),
     NotifyEvents(Vec<DebouncedEvent>),
     NotifyWatcher(WatcherWrapper),
+    Open(Option<Entity>, String),
     OpenInNewWindow(Option<Entity>),
     OpenItemLocation(Option<Entity>),
     Paste(Option<Entity>),
@@ -1164,7 +1165,7 @@ impl Application for App {
         .on_context(|entity| cosmic::app::Message::App(Message::NavBarContext(entity)))
         .on_close(|entity| cosmic::app::Message::App(Message::NavBarClose(entity)))
         .on_middle_press(|entity| {
-            cosmic::app::Message::App(Message::NavMenuAction(NavMenuAction::OpenInNewWindow(entity)))
+            cosmic::app::Message::App(Message::NavMenuAction(NavMenuAction::Open(entity)))
         })
         .context_menu(self.nav_context_menu(self.nav_bar_context_id))
         .close_icon(
@@ -1203,7 +1204,7 @@ impl Application for App {
             vec![
                 cosmic::widget::menu::Item::Button(
                     fl!("open-in-new-window"),
-                    NavMenuAction::OpenInNewWindow(id),
+                    NavMenuAction::Open(id),
                 ),
                 cosmic::widget::menu::Item::Divider,
                 if is_context_trash {
@@ -1332,49 +1333,73 @@ impl Application for App {
         }
 
         match message {
-            /*
-            Message::Open(filepath) => {
+            Message::Open(entity_opt, filepath) => {
                 if filepath.len() > 0 {
-
-                    let ret = FileFormat::from_file(filepath.clone());
-                    if ret.is_err() {
-                        return Command::none();
-                    }
-                    let fmt = ret.unwrap();
-                    if fmt.kind() == Kind::Image {
-                        /*
-                        let mut dir = paths[0].clone(); // drop the file from the path
-                        dir.pop();
-                        // fill the image_model with the Image files in the directory
-                        let ret = std::fs::read_dir(dir.as_path());
+                    let path = std::path::PathBuf::from(&filepath.clone());
+                    if path.is_dir() {
+                        // change directory
+                        if entity_opt.is_some() {
+                            let location_opt = self.nav_model.data::<Location>(entity_opt.unwrap());
+                            if location_opt.is_some() {
+                                return self.update(Message::TabMessage(
+                                    Some(entity_opt.unwrap()),
+                                    tab::Message::ChangeLocation(
+                                        filepath.clone(), 
+                                        location_opt.unwrap().clone(), 
+                                        path),
+                                ));
+                            }
+                        }
+                    } else {
+                        // if the file is a supported media file, open it
+                        // else use mimetype to open in an external app
+                        let ret = file_format::FileFormat::from_file(filepath.clone());
                         if ret.is_err() {
                             return Command::none();
                         }
-                        let paths = ret.unwrap();
-                        let mut imagepaths = Vec::new();
-                        for path in paths {
-                            if path.is_err() {
-                                continue;
-                            }
-                            let filepath = path.unwrap();
-                            let ret = FileFormat::from_file(filepath.path());
+                        let fmt = ret.unwrap();
+                        if fmt.kind() == file_format::Kind::Image {
+                            /*
+                            let mut dir = paths[0].clone(); // drop the file from the path
+                            dir.pop();
+                            // fill the image_model with the Image files in the directory
+                            let ret = std::fs::read_dir(dir.as_path());
                             if ret.is_err() {
-                                continue;
+                                return Command::none();
                             }
-                            let fmt = ret.unwrap();
-                            if fmt.kind() == Kind::Image {
-                                imagepaths.push(filepath.path());
+                            let paths = ret.unwrap();
+                            let mut imagepaths = Vec::new();
+                            for path in paths {
+                                if path.is_err() {
+                                    continue;
+                                }
+                                let filepath = path.unwrap();
+                                let ret = FileFormat::from_file(filepath.path());
+                                if ret.is_err() {
+                                    continue;
+                                }
+                                let fmt = ret.unwrap();
+                                if fmt.kind() == Kind::Image {
+                                    imagepaths.push(filepath.path());
+                                }
+                            }
+                            */
+                            self.image.update(crate::image::Message::Open(filepath.clone()));
+                        } else if  fmt.kind() == file_format::Kind::Video {
+                            self.video.update(crate::video::Message::Open(filepath.clone()));
+                        } else if  fmt.kind() == file_format::Kind::Audio {
+                            self.audio.update(crate::audio::Message::Open(filepath.clone()));
+                        } else {
+                            if entity_opt.is_some() {
+                                return self.update(Message::TabMessage(
+                                    Some(entity_opt.unwrap()),
+                                    tab::Message::Open(Some(path)),
+                                ));
                             }
                         }
-                        */
-                        self.image.update(crate::image::Message::Open(filepath.clone()));
-                    } else if  fmt.kind() == Kind::Video {
-                        self.video.update(crate::video::Message::Open(filepath.clone()));
-                    } else if  fmt.kind() == Kind::Audio {
-                        self.audio.update(crate::audio::Message::Open(filepath.clone()));
                     }
                 }
-            } */
+            }
             Message::Browser => {
                 self.active_view = Mode::Browser;
             },
@@ -2136,7 +2161,56 @@ impl Application for App {
                         tab::Command::MoveToTrash(paths) => {
                             self.operation(Operation::Delete { paths });
                         }
-                        tab::Command::OpenFile(path) => {
+                        tab::Command::Open(filepath) => {
+                            let filepath_str = filepath.display().to_string();
+                            // if the file is a supported media file, open it
+                            // else use mimetype to open in an external app
+                            let ret = file_format::FileFormat::from_file(&filepath_str);
+                            if ret.is_err() {
+                                return Command::none();
+                            }
+                            let fmt = ret.unwrap();
+                            if fmt.kind() == file_format::Kind::Image {
+                                /*
+                                let mut dir = paths[0].clone(); // drop the file from the path
+                                dir.pop();
+                                // fill the image_model with the Image files in the directory
+                                let ret = std::fs::read_dir(dir.as_path());
+                                if ret.is_err() {
+                                    return Command::none();
+                                }
+                                let paths = ret.unwrap();
+                                let mut imagepaths = Vec::new();
+                                for path in paths {
+                                    if path.is_err() {
+                                        continue;
+                                    }
+                                    let filepath = path.unwrap();
+                                    let ret = FileFormat::from_file(filepath.path());
+                                    if ret.is_err() {
+                                        continue;
+                                    }
+                                    let fmt = ret.unwrap();
+                                    if fmt.kind() == Kind::Image {
+                                        imagepaths.push(filepath.path());
+                                    }
+                                }
+                                */
+                                self.image.update(crate::image::Message::Open(filepath_str.clone()));
+                            } else if  fmt.kind() == file_format::Kind::Video {
+                                self.video.update(crate::video::Message::Open(filepath_str.clone()));
+                            } else if  fmt.kind() == file_format::Kind::Audio {
+                                self.audio.update(crate::audio::Message::Open(filepath_str.clone()));
+                            } else {
+                                if entity_opt.is_some() {
+                                    return self.update(Message::TabMessage(
+                                        Some(entity_opt.unwrap()),
+                                        tab::Message::OpenInExternalApp(Some(filepath)),
+                                    ));
+                                }
+                            }
+                        }
+                        tab::Command::OpenInExternalApp(path) => {
                             let mut found_desktop_exec = false;
                             if mime_icon::mime_for_path(&path) == "application/x-desktop" {
                                 match freedesktop_entry_parser::parse_entry(&path) {
@@ -2418,20 +2492,10 @@ impl Application for App {
             // Applies selected nav bar context menu operation.
             Message::NavMenuAction(action) => match action {
                 // Open the selected path in a new cosmic-media-browser window.
-                NavMenuAction::OpenInNewWindow(entity) => {
+                NavMenuAction::Open(entity) => {
                     if let Some(&Location::Path(ref path)) = self.nav_model.data::<Location>(entity)
                     {
-                        match env::current_exe() {
-                            Ok(exe) => match process::Command::new(&exe).arg(path).spawn() {
-                                Ok(_child) => {}
-                                Err(err) => {
-                                    log::error!("failed to execute {:?}: {}", exe, err);
-                                }
-                            },
-                            Err(err) => {
-                                log::error!("failed to get current executable path: {}", err);
-                            }
-                        }
+                        return self.update(Message::Open(Some(entity), path.display().to_string()));
                     }
                 }
 
