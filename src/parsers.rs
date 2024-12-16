@@ -1,25 +1,22 @@
 use crate::tab::{Item, ItemMetadata, ItemThumbnail, Location, hidden_attribute};
 use crate::mime_icon::{mime_for_path, mime_icon};
-use crate::mime_app::{mime_apps, MimeApp};
-use crate::config::{IconSizes, TabConfig, ICON_SCALE_MAX, ICON_SIZE_GRID};
+use crate::mime_app::mime_apps;
+use crate::config::IconSizes;
 
-use chrono::{DateTime, Utc};
 use chrono::NaiveDate; 
 use cosmic::widget::{
-        self,
-        menu::{action::MenuAction, key_bind::KeyBind},
-        vertical_space, DndDestination, DndSource, Id, Widget,
+        self, Widget,
     };
-use mime_guess::{mime, Mime};
-use std::cell::{Cell, RefCell};
+use mime_guess::mime;
+use std::cell::Cell;
 use std::path::PathBuf;
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::{Duration, UNIX_EPOCH};
 
 fn parse_nfo(nfo_file: &PathBuf, metadata: &mut crate::sql::VideoMetadata) {
     use std::fs::File;
     use std::io::BufReader;
     
-    use xml::reader::{EventReader, XmlEvent};
+    use xml::reader::XmlEvent;
     let file = match File::open(nfo_file) {
         Ok(ok) => ok,
         Err(err) => {
@@ -175,11 +172,11 @@ fn parse_nfo(nfo_file: &PathBuf, metadata: &mut crate::sql::VideoMetadata) {
 
 
 fn parse_audiotags(nfo_file: &PathBuf, metadata: &mut crate::sql::AudioMetadata) {
-    use audiotags::{Tag, Picture, MimeType};
+    use audiotags::{Tag, MimeType};
 
     // using `default()` or `new()` alone so that the metadata format is
     // guessed (from the file extension) (in this case, Id3v2 tag is read)
-    let mut tag = Tag::new().read_from_path("test.mp3").unwrap();
+    let tag = Tag::new().read_from_path("test.mp3").unwrap();
 
     match tag.title() {
         Some(value) => metadata.title = value.to_string(),
@@ -436,7 +433,7 @@ pub fn item_from_nfo(
     } else {
         name = metadata.title.clone();
     }
-    let mut display_name = Item::display_name(&name);
+    let display_name = Item::display_name(&name);
 
     let hidden = name.starts_with(".") || hidden_attribute(&statdata);
 
@@ -534,7 +531,7 @@ pub fn item_from_audiotags(
     } else {
         name = metadata.title.clone();
     }
-    let mut display_name = Item::display_name(&name);
+    let display_name = Item::display_name(&name);
 
     let hidden = name.starts_with(".") || hidden_attribute(&statdata);
 

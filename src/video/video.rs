@@ -1,5 +1,4 @@
 use super::Error;
-use cosmic::iced::widget::image as img;
 use gstreamer as gst;
 use gstreamer_app as gst_app;
 use gstreamer_app::prelude::*;
@@ -554,7 +553,7 @@ impl Video {
 
         let mut v = Vec::new();
         {
-            let mut inner = self.write();
+            let inner = self.write();
             let width = inner.width;
             let height = inner.height;
             for pos in positions {
@@ -594,7 +593,7 @@ impl Video {
 }
 
 fn yuv_to_rgba(yuv: &[u8], width: u32, height: u32, downscale: u32) -> Vec<u8> {
-    use image::Pixel;
+    
     let uv_start = width * height;
     let mut rgba = vec![];
 

@@ -37,7 +37,7 @@ use cosmic::{
 };
 
 use chrono::{DateTime, Utc};
-use chrono::NaiveDate; 
+ 
 use mime_guess::{mime, Mime};
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
@@ -62,14 +62,13 @@ use crate::{
     fl,
     localize::{LANGUAGE_CHRONO, LANGUAGE_SORTER},
     menu,
-    mime_app::{mime_apps, MimeApp},
+    mime_app::MimeApp,
     mime_icon::{mime_for_path, mime_icon},
     mounter::Mounters,
     mouse_area,
 };
 use unix_permissions_ext::UNIXPermissionsExt;
 use uzers::{get_group_by_gid, get_user_by_uid};
-use rusqlite::{Connection, Result, params};
 
 pub const DOUBLE_CLICK_DURATION: Duration = Duration::from_millis(500);
 pub const HOVER_DURATION: Duration = Duration::from_millis(1600);

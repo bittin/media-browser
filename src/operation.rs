@@ -11,7 +11,6 @@ use crate::{
     app::{DialogPage, Message},
     config::IconSizes,
     err_str, fl,
-    tab,
 };
 
 fn handle_replace(

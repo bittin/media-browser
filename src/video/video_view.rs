@@ -1,5 +1,3 @@
-use cosmic::iced::widget::{Button, Column, Container, Row, Slider, Space, Text};
-use cosmic::iced::{Element, Length};
 //use cosmic::iced_wgpu::Renderer;
 
 #[derive(Debug, Clone)]

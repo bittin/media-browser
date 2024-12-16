@@ -1,4 +1,3 @@
-use rusqlite::types::{FromSql, FromSqlError, FromSqlResult, ToSql, ToSqlOutput, ValueRef};
 use rusqlite::{Connection, Result, params};
 use std::path::PathBuf;
 use std::collections::BTreeMap;
@@ -1204,7 +1203,7 @@ pub fn files(connection: &mut rusqlite::Connection) -> std::collections::BTreeMa
 
 pub fn connect() -> Result<rusqlite::Connection, rusqlite::Error> {
     let sqlite_file;
-    let mut connection;
+    let connection;
     match dirs::data_local_dir() {
         Some(pb) => {
             let mut dir = pb.join("cosmic-media-browser");

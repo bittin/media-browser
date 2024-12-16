@@ -22,7 +22,7 @@ use cosmic::{
         keyboard::{Event as KeyEvent, Key, Modifiers},
         subscription::{self, Subscription},
         widget::{
-            button::{self, Button},
+            button::Button,
             text::Text,
         },
         window::{self, Event as WindowEvent, Id as WindowId},
@@ -1048,7 +1048,7 @@ impl App {
 
     fn view_image_view(&self) -> Element<<App as cosmic::Application>::Message> {
         let cosmic_theme::Spacing {
-            space_xxs, space_s, ..
+             space_s, ..
         } = theme::active().cosmic().spacing;
         if self.image_view.image_path_loaded != self.image_view.image_path
         {
@@ -1149,7 +1149,7 @@ impl App {
 
     fn view_video_view(&self) -> Element<<App as cosmic::Application>::Message> {
         let cosmic_theme::Spacing {
-            space_xxs, space_s, ..
+              ..
         } = theme::active().cosmic().spacing;
         // draw Video GUI
         if !self.video_view.video_loaded
@@ -1326,7 +1326,7 @@ impl App {
 
     fn view_audio_view(&self) -> Element<<App as cosmic::Application>::Message> {
         let cosmic_theme::Spacing {
-            space_xxs, space_s, ..
+              ..
         } = theme::active().cosmic().spacing;
         // draw Audio GUI
         if !self.audio_view.audio_loaded
@@ -3630,7 +3630,7 @@ impl Application for App {
     /// Creates a view after each update.
     fn view(&self) -> Element<Self::Message> {
         let cosmic_theme::Spacing {
-            space_xxs, space_s, ..
+              ..
         } = theme::active().cosmic().spacing;
 
         if self.active_view == Mode::Image {

@@ -5,7 +5,7 @@ use cosmic::{
     app::{Application, Settings},
     iced::Limits,
 };
-use std::{env, fs, path::PathBuf, process};
+use std::{env, fs, path::PathBuf};
 
 use app::{App, Flags};
 pub mod app;

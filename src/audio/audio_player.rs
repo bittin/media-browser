@@ -1,13 +1,11 @@
 use crate::video::pipeline::VideoPrimitive;
 
-use gstreamer as gst;
 use cosmic::iced::{
-    advanced::{self, graphics::core::event::Status, layout, widget, Widget},
-    Element, Event, event
+    advanced::{self, layout, widget, Widget},
+    Element
 };
 use cosmic::iced_wgpu::primitive::pipeline::Renderer as PrimitiveRenderer;
-use log::error;
-use std::{marker::PhantomData, sync::atomic::Ordering, time::Duration};
+use std::{marker::PhantomData, sync::atomic::Ordering};
 use std::{sync::Arc, time::Instant};
 
 /// Video player widget which displays the current frame of a [`Video`](crate::Video).
