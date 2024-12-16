@@ -237,3 +237,34 @@ sort-newest-first = Newest first
 sort-oldest-first = Oldest first
 sort-smallest-to-largest = Smallest to largest
 sort-largest-to-smallest = Largest to smallest
+
+# Buttons
+button-back = Back
+button-previous-file = Previous
+button-next-file = Next
+button-play = Play
+button-pause = Pause
+button-mute = Mute
+button-loop-on = Loop active
+button-loop-off = Loop off
+button-subtitle = Subtitles
+button-audio = Audio
+button-zoom-plus = Zoom in
+button-zoom-minus = Zoom out
+button-zoom-fit = Fit View
+button-seek = ...
+
+descripttion-back = Back to File Browser
+description-previous-element = Previous element in list
+description-next-element = Next element in list
+description-play = Play the file
+description-pause = Pause the playback
+description-mute = Mute the audio
+description-loop-on = Repeat the current file
+description-loop-off = Repeat the current file
+description-subtitle = Select subtitle stream
+description-audio = Select audio stream
+description-zoom-plus = Zoom in
+description-zoom-minus = Zoom out
+description-zoom-fit = Fit View of image to the window size
+description-seek = Pick from neighbor images

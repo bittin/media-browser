@@ -20,7 +20,7 @@ fn handle_replace(
     file_to: PathBuf,
     multiple: bool,
 ) -> ReplaceResult {
-    let item_from = match tab::item_from_path(file_from, IconSizes::default()) {
+    let item_from = match crate::parsers::item_from_path(file_from, IconSizes::default()) {
         Ok(ok) => ok,
         Err(err) => {
             log::warn!("{}", err);
@@ -28,7 +28,7 @@ fn handle_replace(
         }
     };
 
-    let item_to = match tab::item_from_path(file_to, IconSizes::default()) {
+    let item_to = match crate::parsers::item_from_path(file_to, IconSizes::default()) {
         Ok(ok) => ok,
         Err(err) => {
             log::warn!("{}", err);

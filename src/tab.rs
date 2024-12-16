@@ -37,6 +37,7 @@ use cosmic::{
 };
 
 use chrono::{DateTime, Utc};
+use chrono::NaiveDate; 
 use mime_guess::{mime, Mime};
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
@@ -68,6 +69,7 @@ use crate::{
 };
 use unix_permissions_ext::UNIXPermissionsExt;
 use uzers::{get_group_by_gid, get_user_by_uid};
+use rusqlite::{Connection, Result, params};
 
 pub const DOUBLE_CLICK_DURATION: Duration = Duration::from_millis(500);
 pub const HOVER_DURATION: Duration = Duration::from_millis(1600);
@@ -268,7 +270,7 @@ impl Display for FormatTime {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let date_time = chrono::DateTime::<chrono::Local>::from(self.0);
         let now = chrono::Local::now();
-        if date_time.date() == now.date() {
+        if date_time.date_naive() == now.date_naive() {
             write!(
                 f,
                 "{}, {}",
@@ -288,7 +290,7 @@ fn format_time(time: std::time::SystemTime) -> FormatTime {
 }
 
 #[cfg(not(target_os = "windows"))]
-fn hidden_attribute(_metadata: &Metadata) -> bool {
+pub fn hidden_attribute(_metadata: &Metadata) -> bool {
     false
 }
 
@@ -320,128 +322,25 @@ pub fn parse_desktop_file(path: &Path) -> (Option<String>, Option<String>) {
     )
 }
 
-pub fn item_from_entry(
-    path: PathBuf,
-    name: String,
-    metadata: fs::Metadata,
-    sizes: IconSizes,
-) -> Item {
-    let mut display_name = Item::display_name(&name);
-
-    let hidden = name.starts_with(".") || hidden_attribute(&metadata);
-
-    let (mime, icon_handle_grid, icon_handle_list, icon_handle_list_condensed) =
-        if metadata.is_dir() {
-            (
-                //TODO: make this a static
-                "inode/directory".parse().unwrap(),
-                folder_icon(&path, sizes.grid()),
-                folder_icon(&path, sizes.list()),
-                folder_icon(&path, sizes.list_condensed()),
-            )
-        } else {
-            let mime = mime_for_path(&path);
-            //TODO: clean this up, implement for trash
-            let icon_name_opt = if mime == "application/x-desktop" {
-                let (desktop_name_opt, icon_name_opt) = parse_desktop_file(&path);
-                if let Some(desktop_name) = desktop_name_opt {
-                    display_name = Item::display_name(&desktop_name);
-                }
-                icon_name_opt
-            } else {
-                None
-            };
-            if let Some(icon_name) = icon_name_opt {
-                (
-                    mime.clone(),
-                    widget::icon::from_name(&*icon_name)
-                        .size(sizes.grid())
-                        .handle(),
-                    widget::icon::from_name(&*icon_name)
-                        .size(sizes.list())
-                        .handle(),
-                    widget::icon::from_name(&*icon_name)
-                        .size(sizes.list_condensed())
-                        .handle(),
-                )
-            } else {
-                (
-                    mime.clone(),
-                    mime_icon(mime.clone(), sizes.grid()),
-                    mime_icon(mime.clone(), sizes.list()),
-                    mime_icon(mime, sizes.list_condensed()),
-                )
-            }
-        };
-
-    let open_with = mime_apps(&mime);
-
-    let thumbnail_opt = if mime.type_() == mime::IMAGE {
-        if mime.subtype() == mime::SVG {
-            Some(ItemThumbnail::Svg)
-        } else {
-            None
-        }
-    } else {
-        Some(ItemThumbnail::NotImage)
-    };
-
-    let children = if metadata.is_dir() {
-        //TODO: calculate children in the background (and make it cancellable?)
-        match fs::read_dir(&path) {
-            Ok(entries) => entries.count(),
-            Err(err) => {
-                log::warn!("failed to read directory {:?}: {}", path, err);
-                0
-            }
-        }
-    } else {
-        0
-    };
-
-    Item {
-        name,
-        display_name,
-        metadata: ItemMetadata::Path { metadata, children },
-        hidden,
-        location_opt: Some(Location::Path(path)),
-        mime,
-        icon_handle_grid,
-        icon_handle_list,
-        icon_handle_list_condensed,
-        open_with,
-        thumbnail_opt,
-        button_id: widget::Id::unique(),
-        pos_opt: Cell::new(None),
-        rect_opt: Cell::new(None),
-        selected: false,
-        overlaps_drag_rect: false,
-    }
-}
-
-pub fn item_from_path<P: Into<PathBuf>>(path: P, sizes: IconSizes) -> Result<Item, String> {
-    let path = path.into();
-    let name_os = path
-        .file_name()
-        .ok_or_else(|| format!("failed to get file name from path {:?}", path))?;
-    let name = name_os
-        .to_str()
-        .ok_or_else(|| {
-            format!(
-                "failed to parse file name for {:?}: {:?} is not valid UTF-8",
-                path, name_os
-            )
-        })?
-        .to_string();
-    let metadata = fs::metadata(&path)
-        .map_err(|err| format!("failed to read metadata for {:?}: {}", path, err))?;
-    Ok(item_from_entry(path, name, metadata, sizes))
-}
-
 pub fn scan_path(tab_path: &PathBuf, sizes: IconSizes) -> Vec<Item> {
     let mut items = Vec::new();
+    let mut connection;
+    match crate::sql::connect() {
+        Ok(ok) => connection = ok,
+        Err(error) => {
+            log::error!("Could not open SQLite DB connection: {}", error);
+            return items;
+        }
+    }
+    let mut known_files = crate::sql::files(&mut connection);
+
     match fs::read_dir(tab_path) {
         Ok(entries) => {
+            let mut all: Vec<PathBuf> = Vec::new();
+            let mut nfos = Vec::new();
+            let mut audios = Vec::new();
+            let mut dirs = Vec::new();
+            let mut special_files = std::collections::BTreeSet::new();
             for entry_res in entries {
                 let entry = match entry_res {
                     Ok(ok) => ok,
@@ -452,18 +351,169 @@ pub fn scan_path(tab_path: &PathBuf, sizes: IconSizes) -> Vec<Item> {
                 };
 
                 let path = entry.path();
+                if path.is_dir() {
+                    dirs.push(path.clone());
+                } else {
+                    all.push(path.clone());
+                    if let Some(ext) = path.extension() {
+                        let extension = crate::parsers::osstr_to_string(ext.to_os_string()).to_ascii_lowercase();
+                        if &extension == ".nfo" {
+                            if let Some(basename) = path.file_stem() {
+                                nfos.push(crate::parsers::osstr_to_string(basename.to_os_string()));
+                            }
+                        } else if &extension == ".mp3" || &extension == ".m4a" || &extension == ".flac" {
+                            audios.push(path.clone());
+                        }
+                    }
+                }
+            }
 
-                let name = match entry.file_name().into_string() {
+            for video in nfos {
+                let mut meta_data = crate::sql::VideoMetadata {..Default::default()};
+                let mut nfo_file = PathBuf::from(&format!("{}.nfo", video));
+                for fp in all.iter() {
+                    let f = crate::parsers::osstr_to_string(fp.clone().into_os_string()).to_ascii_lowercase();
+                    if let Ok(re) = regex::Regex::new(&format!("(?i){}.*", video)) { 
+                        if re.is_match(&f) {
+                            // part of a local video or metadata
+                            if f.contains("poster.") {
+                                meta_data.poster = f.clone();
+                            }
+                            else if f.contains(".srt") {
+                                meta_data.subtitles.push(f.clone());
+                            }
+                            else if f.contains(".nfo") {
+                                nfo_file = fp.clone();
+                            }
+                            else if f.ends_with(".mkv") 
+                                || f.ends_with(".mp4") 
+                                || f.ends_with(".webm") {
+                                meta_data.path = f.clone();
+                            }
+                            special_files.insert(fp.clone());
+                        }
+                    }
+                }
+                if meta_data.path.len() == 0 {
+                    continue;
+                }
+                let statdata = match fs::metadata(&meta_data.path) {
                     Ok(ok) => ok,
-                    Err(name_os) => {
-                        log::warn!(
-                            "failed to parse entry at {:?}: {:?} is not valid UTF-8",
-                            path,
-                            name_os,
-                        );
+                    Err(err) => {
+                        log::warn!("failed to read metadata for entry at {:?}: {}", meta_data.path, err);
                         continue;
                     }
                 };
+                items.push(
+                    crate::parsers::item_from_nfo(
+                        nfo_file, 
+                        &mut meta_data, 
+                        &statdata, 
+                        sizes, 
+                        &mut known_files, 
+                        &mut connection
+                    )
+                );
+            }
+
+            for dp in dirs.iter() {
+                // test if we have a single movie with NFO in this dir
+                let mut meta_data = crate::sql::VideoMetadata {..Default::default()};
+                let mut alreadyset = false;
+                let mut nfo_file = PathBuf::from("movie.nfo");
+                match fs::read_dir(tab_path) {
+                    Ok(entries) => {
+                        for entry_res in entries {
+                            let entry = match entry_res {
+                                Ok(ok) => ok,
+                                Err(err) => {
+                                    log::warn!("failed to read entry in {:?}: {}", tab_path, err);
+                                    continue;
+                                }
+                            };
+                            let path = entry.path();
+                            let f = path.display().to_string().to_ascii_lowercase();
+                            if f.contains("poster.") {
+                                meta_data.poster = f.clone();
+                                alreadyset = true;
+                            }
+                            else if f.contains(".srt") {
+                                meta_data.subtitles.push(f.clone());
+                            }
+                            else if f.contains(".nfo") {
+                                nfo_file = path.clone();
+                                alreadyset = true;
+                            }
+                            else if f.ends_with(".mkv") 
+                                || f.ends_with(".mp4") 
+                                || f.ends_with(".webm") {
+                                meta_data.path = f.clone();
+                                alreadyset = true;
+                            }
+                        }
+                    },              
+                    Err(err) => {
+                        log::warn!("failed to read directory {:?}: {}", tab_path, err);
+                    }
+                }
+                if meta_data.path.len() == 0 {
+                    continue;
+                }
+                let statdata = match fs::metadata(&meta_data.path) {
+                    Ok(ok) => ok,
+                    Err(err) => {
+                        log::warn!("failed to read metadata for entry at {:?}: {}", meta_data.path, err);
+                        continue;
+                    }
+                };
+
+                items.push(
+                    crate::parsers::item_from_nfo(
+                        nfo_file, 
+                        &mut meta_data, 
+                        &statdata, 
+                        sizes, 
+                        &mut known_files, 
+                        &mut connection
+                    )
+                );
+            }
+
+            for audio in audios {
+                let mut meta_data = crate::sql::AudioMetadata {..Default::default()};
+
+                meta_data.path = audio.display().to_string();
+                if let Some(basename) = audio.file_stem() {
+                    meta_data.name = crate::parsers::osstr_to_string(basename.to_os_string());
+                }
+                if meta_data.path.len() == 0 {
+                    continue;
+                }
+                let statdata = match fs::metadata(&meta_data.path) {
+                    Ok(ok) => ok,
+                    Err(err) => {
+                        log::warn!("failed to read metadata for entry at {:?}: {}", meta_data.path, err);
+                        continue;
+                    }
+                };
+                special_files.insert(audio.clone());
+                items.push(
+                    crate::parsers::item_from_audiotags(
+                        audio, 
+                        &mut meta_data, 
+                        &statdata, 
+                        sizes, 
+                        &mut known_files, 
+                        &mut connection
+                    )
+                );
+            }
+
+            for path in all {
+                if special_files.contains(&path.clone()) {
+                    continue;
+                }
+                let name =  path.display().to_string();
 
                 let metadata = match fs::metadata(&path) {
                     Ok(ok) => ok,
@@ -473,7 +523,9 @@ pub fn scan_path(tab_path: &PathBuf, sizes: IconSizes) -> Vec<Item> {
                     }
                 };
 
-                items.push(item_from_entry(path, name, metadata, sizes));
+                items.push(
+                    crate::parsers::item_from_entry(path, name, metadata, sizes)
+                );
             }
         }
         Err(err) => {
@@ -535,12 +587,14 @@ pub fn scan_search(tab_path: &PathBuf, term: &str, sizes: IconSizes) -> Vec<Item
                     };
 
                     let mut items = items_arc.lock().unwrap();
-                    items.push(item_from_entry(
-                        path.to_path_buf(),
-                        file_name.to_string(),
-                        metadata,
-                        IconSizes::default(),
-                    ));
+                    items.push(
+                        crate::parsers::item_from_entry(
+                            path.to_path_buf(),
+                            file_name.to_string(),
+                            metadata,
+                            IconSizes::default(),
+                        )
+                    );
                 }
 
                 ignore::WalkState::Continue
@@ -724,7 +778,7 @@ pub fn scan_recents(sizes: IconSizes) -> Vec<Item> {
                                 continue;
                             }
                         };
-                        let item = item_from_entry(path_buf, name, metadata, sizes);
+                        let item = crate::parsers::item_from_entry(path_buf, name, metadata, sizes);
                         recents.push((
                             item,
                             if last_edit.le(&last_visit) {
@@ -945,7 +999,7 @@ pub struct Item {
 }
 
 impl Item {
-    fn display_name(name: &str) -> String {
+    pub fn display_name(name: &str) -> String {
         // In order to wrap at periods and underscores, add a zero width space after each one
         name.replace(".", ".\u{200B}").replace("_", "_\u{200B}")
     }
@@ -1155,6 +1209,20 @@ impl Tab {
 
     pub fn items_opt_mut(&mut self) -> Option<&mut Vec<Item>> {
         self.items_opt.as_mut()
+    }
+
+    pub fn selected_file_paths(&mut self) -> Vec<PathBuf> {
+        let mut v = Vec::new();
+        if let Some(ref mut items) = self.items_opt {
+            for item in items.iter_mut() {
+                if item.selected {
+                    if let Some(pathbuf) = item.path_opt().clone() {
+                        v.push(pathbuf.to_owned());
+                    }
+                }
+            }
+        }
+        v
     }
 
     pub fn set_items(&mut self, items: Vec<Item>) {
@@ -1642,7 +1710,7 @@ impl Tab {
                 match action {
                     LocationMenuAction::OpenInNewWindow(ancestor_index) => {
                         if let Some(path) = path_for_index(ancestor_index) {
-                            commands.push(Command::OpenInNewWindow(path));
+                            commands.push(Command::Open(path));
                         }
                     }
                 }
@@ -1671,7 +1739,7 @@ impl Tab {
                 self.edit_location = edit_location;
             }
             Message::OpenInNewTab(path) => {
-                commands.push(Command::OpenInNewWindow(path));
+                commands.push(Command::Open(path));
             }
             Message::EmptyTrash => {
                 commands.push(Command::EmptyTrash);
@@ -3663,7 +3731,7 @@ impl Tab {
                         |mut output| async move {
                             let (path, thumbnail) = tokio::task::spawn_blocking(move || {
                                 let start = std::time::Instant::now();
-                                let thumbnail = match image::io::Reader::open(&path)
+                                let thumbnail = match image::ImageReader::open(&path)
                                     .and_then(|img| img.with_guessed_format())
                                 {
                                     Ok(reader) => match reader.decode() {

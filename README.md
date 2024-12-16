@@ -1,4 +1,5 @@
 # cosmic-media-browser
+
 File manager for the COSMIC desktop environment
 
 > [!NOTE]

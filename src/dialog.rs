@@ -598,8 +598,7 @@ impl App {
                 if !old_paths.contains(path) {
                     //TODO: should this be recursive?
                     match watcher
-                        .watcher()
-                        .watch(path, notify::RecursiveMode::NonRecursive)
+                        .watcher().watch(path, notify::RecursiveMode::NonRecursive)
                     {
                         Ok(()) => {
                             log::debug!("watching {:?}", path);

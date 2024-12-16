@@ -19,7 +19,7 @@ pub const CONFIG_VERSION: u64 = 1;
 // Default icon sizes
 pub const ICON_SIZE_LIST: u16 = 32;
 pub const ICON_SIZE_LIST_CONDENSED: u16 = 48;
-pub const ICON_SIZE_GRID: u16 = 64;
+pub const ICON_SIZE_GRID: u16 = 128;
 // TODO: 5 is an arbitrary number. Maybe there's a better icon size max
 pub const ICON_SCALE_MAX: u16 = 5;
 
@@ -168,7 +168,7 @@ pub struct TabConfig {
 impl Default for TabConfig {
     fn default() -> Self {
         Self {
-            view: View::List,
+            view: View::Grid,
             folders_first: true,
             show_hidden: false,
             sort_name: HeadingOptions::Name,

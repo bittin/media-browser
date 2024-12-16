@@ -168,3 +168,33 @@ show-hidden-files = Versteckte Dateien anzeigen
 list-directories-first = Verzeichnisse zuerst auflisten
 menu-settings = Einstellungen...
 menu-about = Über COSMIC Dateien...
+
+# Buttons
+button-back = Zurück
+button-previous-file = Vorherige
+button-next-file = Nächste
+button-play = Abspielen
+button-pause = Pause
+button-mute = Stumm
+button-loop-on = Wiederholen
+button-loop-off = nicht wiederholen
+button-subtitle = Untertitel
+button-audio = Tonspur
+button-zoom-plus = Zoom +
+button-zoom-minus = Zoom -
+button-zoom-fit = Anpassen
+button-seek = ...
+
+description-back = Zurück zum Dateimanager
+description-previous-element = Vorheriges Element in der Liste
+description-next-element = Nächstes Element in der Liste
+description-play = Die Datei abspielen
+description-pause = Das abspielen pausieren
+description-mute = Den Ton stumm schalten
+description-loop = Die aktuelle Datei wiederholen
+description-subtitle = Wähle die Untertitel
+description-audio = Wähle die Tonspur
+description-zoom-plus = Bild vergrößern
+description-zoom-minus = Bild verkleinern
+description-zoom-fit = Bild an Fenstergröße anpassen
+description-seek = Wähle aus Dateien in der Liste

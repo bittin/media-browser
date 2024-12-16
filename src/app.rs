@@ -21,6 +21,10 @@ use cosmic::{
         futures::{self, SinkExt},
         keyboard::{Event as KeyEvent, Key, Modifiers},
         subscription::{self, Subscription},
+        widget::{
+            button::{self, Button},
+            text::Text,
+        },
         window::{self, Event as WindowEvent, Id as WindowId},
         Alignment, Event, Length,
     },
@@ -31,6 +35,7 @@ use cosmic::{
         dnd_destination::DragId,
         menu::{action::MenuAction, key_bind::KeyBind},
         segmented_button::{self, Entity},
+        Column, Container, Row, Slider,
     },
     Application, ApplicationExt, Element,
 };
@@ -56,7 +61,6 @@ use trash::TrashItem;
 #[cfg(feature = "wayland")]
 use wayland_client::{protocol::wl_output::WlOutput, Proxy};
 
-
 use crate::{
     clipboard::{ClipboardCopy, ClipboardKind, ClipboardPaste},
     config::{AppTheme, Config, Favorite, IconSizes, TabConfig},
@@ -72,7 +76,7 @@ use crate::{
     tab::{self, HeadingOptions, ItemMetadata, Location, Tab, HOVER_DURATION},
 };
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum Mode {
     App,
     Desktop,
@@ -140,9 +144,9 @@ impl Action {
             Action::About => Message::ToggleContextPage(ContextPage::About),
             Action::AddToSidebar => Message::AddToSidebar(entity_opt),
             Action::OpenBrowser => Message::Browser,
-            Action::OpenImage => Message::Image(crate::image::Message::ToImage),
-            Action::OpenVideo => Message::Video(crate::video::Message::ToVideo),
-            Action::OpenAudio => Message::Audio(crate::audio::Message::ToAudio),
+            Action::OpenImage => Message::Image(crate::image::image_view::Message::ToImage),
+            Action::OpenVideo => Message::Video(crate::video::video_view::Message::ToVideo),
+            Action::OpenAudio => Message::Audio(crate::audio::audio_view::Message::ToAudio),
             Action::Copy => Message::Copy(entity_opt),
             Action::Cut => Message::Cut(entity_opt),
             Action::EditHistory => Message::ToggleContextPage(ContextPage::EditHistory),
@@ -156,7 +160,9 @@ impl Action {
             Action::LocationUp => Message::TabMessage(entity_opt, tab::Message::LocationUp),
             Action::MoveToTrash => Message::MoveToTrash(entity_opt),
             Action::NewFolder => Message::NewItem(entity_opt, true),
-            Action::Open => Message::Open(entity_opt, dirs::home_dir().unwrap().display().to_string()),
+            Action::Open => {
+                Message::Open(entity_opt, dirs::home_dir().unwrap().display().to_string())
+            }
             Action::OpenInNewWindow => Message::OpenInNewWindow(entity_opt),
             Action::OpenItemLocation => Message::OpenItemLocation(entity_opt),
             Action::Paste => Message::Paste(entity_opt),
@@ -220,11 +226,12 @@ impl MenuAction for NavMenuAction {
 #[derive(Clone, Debug)]
 pub enum Message {
     Browser,
-    Image(crate::image::Message),
-    Video(crate::video::Message),
-    Audio(crate::audio::Message),
+    Image(crate::image::image_view::Message),
+    Video(crate::video::video_view::Message),
+    Audio(crate::audio::audio_view::Message),
     AddToSidebar(Option<Entity>),
     AppTheme(AppTheme),
+    AudioMessage(crate::audio::audio_view::Message),
     CloseToast(widget::ToastId),
     Config(Config),
     Copy(Option<Entity>),
@@ -235,6 +242,7 @@ pub enum Message {
     DialogUpdate(DialogPage),
     DialogUpdateComplete(DialogPage),
     EditLocation(Option<Entity>),
+    ImageMessage(crate::image::image_view::Message),
     Key(Modifiers, Key),
     LaunchUrl(String),
     MaybeExit,
@@ -278,6 +286,7 @@ pub enum Message {
     Undo(usize),
     UndoTrash(widget::ToastId, Arc<[PathBuf]>),
     UndoTrashStart(Vec<TrashItem>),
+    VideoMessage(crate::video::video_view::Message),
     WindowClose,
     WindowNew,
     DndHoverLocTimeout(Location),
@@ -379,14 +388,15 @@ impl PartialEq for WatcherWrapper {
 
 /// The [`App`] stores application-specific state.
 pub struct App {
-    image: crate::image::Image,
-    video: crate::video::Video,
-    audio: crate::audio::Audio,
+    image_view: crate::image::image_view::ImageView,
+    video_view: crate::video::video_view::VideoView,
+    audio_view: crate::audio::audio_view::AudioView,
     active_view: Mode,
     core: Core,
     nav_bar_context_id: segmented_button::Entity,
     nav_model: segmented_button::SingleSelectModel,
     tab_model: segmented_button::Model<segmented_button::SingleSelect>,
+    tab_model_id: Entity,
     config_handler: Option<cosmic_config::Config>,
     config: Config,
     mode: Mode,
@@ -456,7 +466,7 @@ impl App {
         } else {
             entity.id()
         };
-
+        self.tab_model_id = entity;
         Command::batch([
             self.update_title(),
             self.update_watcher(),
@@ -671,6 +681,7 @@ impl App {
         self.nav_model = nav_model.build();
 
         let tab_entity = self.tab_model.active();
+        self.tab_model_id = tab_entity.clone();
         if let Some(tab) = self.tab_model.data::<Tab>(tab_entity) {
             self.activate_nav_model_location(&tab.location.clone());
         }
@@ -738,10 +749,7 @@ impl App {
             for path in new_paths.iter() {
                 if !old_paths.contains(path) {
                     //TODO: should this be recursive?
-                    match watcher
-                        .watcher()
-                        .watch(path, notify::RecursiveMode::NonRecursive)
-                    {
+                    match watcher.watcher().watch(path, notify::RecursiveMode::NonRecursive) {
                         Ok(()) => {
                             log::debug!("watching {:?}", path);
                         }
@@ -766,26 +774,29 @@ impl App {
         let short_hash: String = hash.chars().take(7).collect();
         let date = env!("VERGEN_GIT_COMMIT_DATE");
         widget::column::with_children(vec![
-                widget::svg(widget::svg::Handle::from_memory(
-                    &include_bytes!(
-                        "../res/icons/hicolor/128x128/apps/com.system76.CosmicMediaBrowser.svg"
-                    )[..],
-                ))
+            widget::svg(widget::svg::Handle::from_memory(
+                &include_bytes!(
+                    "../res/icons/hicolor/128x128/apps/com.system76.CosmicMediaBrowser.svg"
+                )[..],
+            ))
+            .into(),
+            widget::text::title3(fl!("cosmic-media-browser")).into(),
+            widget::button::link(repository)
+                .on_press(Message::LaunchUrl(repository.to_string()))
+                .padding(0)
                 .into(),
-                widget::text::title3(fl!("cosmic-media-browser")).into(),
-                widget::button::link(repository)
-                    .on_press(Message::LaunchUrl(repository.to_string()))
-                    .padding(0)
-                    .into(),
-                widget::button::link(fl!(
-                    "git-description",
-                    hash = short_hash.as_str(),
-                    date = date
-                ))
-                    .on_press(Message::LaunchUrl(format!("{}/commits/{}", repository, hash)))
-                    .padding(0)
-                .into(),
-            ])
+            widget::button::link(fl!(
+                "git-description",
+                hash = short_hash.as_str(),
+                date = date
+            ))
+            .on_press(Message::LaunchUrl(format!(
+                "{}/commits/{}",
+                repository, hash
+            )))
+            .padding(0)
+            .into(),
+        ])
         .align_items(Alignment::Center)
         .spacing(space_xxs)
         .into()
@@ -863,7 +874,7 @@ impl App {
         let progress_bar_height = Length::Fixed(4.0);
 
         if !self.pending_operations.is_empty() {
-            let mut section = widget::settings::view_section(fl!("pending"));
+            let mut section = cosmic::widget::settings::section().title(fl!("pending"));
             for (_id, (op, progress)) in self.pending_operations.iter().rev() {
                 section = section.add(widget::column::with_children(vec![
                     widget::text(op.pending_text()).into(),
@@ -876,7 +887,7 @@ impl App {
         }
 
         if !self.failed_operations.is_empty() {
-            let mut section = widget::settings::view_section(fl!("failed"));
+            let mut section = cosmic::widget::settings::section().title(fl!("failed"));
             for (_id, (op, error)) in self.failed_operations.iter().rev() {
                 section = section.add(widget::column::with_children(vec![
                     widget::text(op.pending_text()).into(),
@@ -887,7 +898,7 @@ impl App {
         }
 
         if !self.complete_operations.is_empty() {
-            let mut section = widget::settings::view_section(fl!("complete"));
+            let mut section = cosmic::widget::settings::section().title(fl!("complete"));
             for (_id, op) in self.complete_operations.iter().rev() {
                 section = section.add(widget::text(op.completed_text()));
             }
@@ -904,7 +915,8 @@ impl App {
     fn settings(&self) -> Element<Message> {
         // TODO: Should dialog be updated here too?
         widget::settings::view_column(vec![
-            widget::settings::view_section(fl!("appearance"))
+            cosmic::widget::settings::section()
+                .title(fl!("appearance"))
                 .add({
                     let app_theme_selected = match self.config.app_theme {
                         AppTheme::Dark => 1,
@@ -1015,7 +1027,8 @@ impl App {
                     ))
                 })
                 .into(),
-            widget::settings::view_section(fl!("settings-tab"))
+            cosmic::widget::settings::section()
+                .title(fl!("settings-tab"))
                 .add({
                     let tab_config = self.config.tab.clone();
                     widget::settings::item::builder(fl!("settings-show-hidden")).toggler(
@@ -1032,6 +1045,580 @@ impl App {
         ])
         .into()
     }
+
+    fn view_image_view(&self) -> Element<<App as cosmic::Application>::Message> {
+        let cosmic_theme::Spacing {
+            space_xxs, space_s, ..
+        } = theme::active().cosmic().spacing;
+        if self.image_view.image_path_loaded != self.image_view.image_path
+        {
+            // construct the video player first
+            return self.view_browser_view();
+        }
+        // draw Image GUI
+        let mut tab_column = Column::new()
+            .push(
+                Container::new(cosmic::iced::widget::image::Viewer::new(
+                    cosmic::widget::image::Handle::from_path(self.image_view.image_path.clone()),
+                ))
+                .style(style::Container::Background)
+                .width(Length::Fill)
+                .padding([0, space_s]),
+            )
+            .push(
+                Row::new()
+                    .spacing(5)
+                    //.align_items(cosmic::iced::alignment::Center)
+                    .padding(cosmic::iced::Padding::new(10.0))
+                    .push(
+                        Button::new(Text::new(fl!("button-back")))
+                            .name("button-back")
+                            //.description_widget(Text::new(fl!("description-back")))
+                            .width(80.0)
+                            .on_press(Message::ImageMessage(
+                                crate::image::image_view::Message::ToBrowser,
+                            )),
+                    )
+                    .push(
+                        Button::new(Text::new(fl!("button-previous-file")))
+                            .name("button-previous-file")
+                            //.description_widget(Text::new(fl!("description-previous-element")))
+                            .width(80.0)
+                            .on_press(Message::ImageMessage(
+                                crate::image::image_view::Message::PreviousFile,
+                            )),
+                    )
+                    .push(
+                        Button::new(Text::new(fl!("button-next-file")))
+                            .name("button-next-file")
+                            //.description_widget(Text::new(iced_accessibility::description:: fl!("description-next-element")))
+                            .width(80.0)
+                            .on_press(Message::ImageMessage(
+                                crate::image::image_view::Message::NextFile,
+                            )),
+                    )
+                    .push(
+                        Button::new(Text::new(fl!("button-zoom-plus")))
+                            .name("button-zoom-plus")
+                            //.description_widget(cosmic(fl!("description-zoom-plus")))
+                            .width(80.0)
+                            .on_press(Message::ImageMessage(
+                                crate::image::image_view::Message::ZoomPlus,
+                            )),
+                    )
+                    .push(
+                        Button::new(Text::new(fl!("button-zoom-minus")))
+                            .name("button-zoom-minus")
+                            //.description_widget(Text::new(fl!("description-zoom-minus")))
+                            .width(80.0)
+                            .on_press(Message::ImageMessage(
+                                crate::image::image_view::Message::ZoomMinus,
+                            )),
+                    )
+                    .push(
+                        Button::new(Text::new(fl!("button-zoom-fit")))
+                            .name("button-zoom-fit")
+                            //.description_widget(Text::new(fl!("description-zoom-fit")))
+                            .width(80.0)
+                            .on_press(Message::ImageMessage(
+                                crate::image::image_view::Message::ZoomFit,
+                            )),
+                    )
+                    .push(
+                        Button::new(Text::new(fl!("button-seek")))
+                            .name("button-seek")
+                            //.description_widget(Text::new(fl!("description-seek")))
+                            .width(80.0)
+                            .on_press(Message::ImageMessage(
+                                crate::image::image_view::Message::Seek,
+                            )),
+                    ),
+            );
+        // The toaster is added on top of an empty element to ensure that it does not override context menus
+        tab_column = tab_column.push(widget::toaster(
+            &self.toasts,
+            widget::horizontal_space(Length::Fill),
+        ));
+
+        let content: Element<_> = tab_column.into();
+
+        // Uncomment to debug layout:
+        //content.explain(cosmic::iced::Color::WHITE)
+        content
+    }
+
+    fn view_video_view(&self) -> Element<<App as cosmic::Application>::Message> {
+        let cosmic_theme::Spacing {
+            space_xxs, space_s, ..
+        } = theme::active().cosmic().spacing;
+        // draw Video GUI
+        if !self.video_view.video_loaded
+            || self.video_view.video_path_loaded != self.video_view.video_path
+        {
+            // construct the video player first
+            return self.view_browser_view();
+        }
+        let mut tab_column = Column::new()
+            .push(
+                Container::new(
+                    crate::video::video_player::VideoPlayer::new(
+                        &self
+                            .video_view
+                            .video.as_ref()
+                            .expect("Failed to access Video stream"),
+                    )
+                    .width(cosmic::iced::Length::Fill)
+                    .height(cosmic::iced::Length::Fill)
+                    .content_fit(cosmic::iced::ContentFit::Contain)
+                    .on_end_of_stream(Message::VideoMessage(
+                        crate::video::video_view::Message::EndOfStream,
+                    ))
+                    .on_new_frame(Message::VideoMessage(
+                        crate::video::video_view::Message::NewFrame,
+                    )),
+                )
+                //.align_x(cosmic::iced::Alignment::Horizontal::Center)
+                //.align_y(cosmic::iced::Alignment::Vertical::Center)
+                .width(cosmic::iced::Length::Fill)
+                .height(cosmic::iced::Length::Fill),
+            )
+            .push(
+                Container::new(
+                    Slider::new(
+                        0.0..=self
+                            .video_view
+                            .video.as_ref()
+                            .expect("Failed to access Video stream")
+                            .duration()
+                            .as_secs_f64(),
+                        self.video_view.position,
+                        slider_change_value_video,
+                    )
+                    .step(0.1)
+                    .on_release(Message::VideoMessage(
+                        crate::video::video_view::Message::SeekRelease,
+                    )),
+                )
+                .padding(cosmic::iced::Padding::new(5.0)),
+            )
+            .push(
+                Row::new()
+                    .spacing(5)
+                    //.align_items(cosmic::iced::alignment::Center)
+                    .padding(cosmic::iced::Padding::new(10.0))
+                    .push(
+                        Button::new(Text::new(fl!("button-back")))
+                            .name("button-back")
+                            //.description_widget(Text::new(fl!("description-back")))
+                            .width(80.0)
+                            .on_press(Message::VideoMessage(
+                                crate::video::video_view::Message::ToBrowser,
+                            )),
+                    )
+                    .push(
+                        Button::new(Text::new(fl!("button-previous-file")))
+                            .name("button-previous-file")
+                            //.description_widget(fl!("description-previous-element"))
+                            .width(80.0)
+                            .on_press(Message::VideoMessage(
+                                crate::video::video_view::Message::PreviousFile,
+                            )),
+                    )
+                    .push(
+                        Button::new(Text::new(
+                            if self
+                                .video_view
+                                .video.as_ref()
+                                .expect("Failed to access Video stream")
+                                .paused()
+                            {
+                                fl!("button-play")
+                            } else {
+                                fl!("button-pause")
+                            },
+                        ))
+                        .name("button-play-pause")
+                        //.description_widget(if self.video_view.video.paused() {
+                        //    fl!("description-play")
+                        //} else {
+                        //    fl!("description-pause")
+                        //})
+                        .width(80.0)
+                        .on_press(Message::VideoMessage(
+                            crate::video::video_view::Message::TogglePause,
+                        )),
+                    )
+                    .push(
+                        Button::new(Text::new(fl!("button-mute")))
+                            .name("button-mute")
+                            //.description_widget(fl!("description-mute"))
+                            .width(80.0)
+                            .on_press(Message::VideoMessage(
+                                crate::video::video_view::Message::ToggleMute,
+                            )),
+                    )
+                    .push(
+                        Button::new(Text::new(
+                            if self
+                                .video_view
+                                .video.as_ref()
+                                .expect("Failed to access Video stream")
+                                .looping()
+                            {
+                                fl!("button-loop-on")
+                            } else {
+                                fl!("button-loop-off")
+                            },
+                        ))
+                        .name("button-loop")
+                        //.description_widget(if self.video_view.video.paused() {
+                        //    fl!("description-loop-on")
+                        //} else {
+                        //    fl!("description-loop-off")
+                        //})
+                        .width(80.0)
+                        .on_press(Message::VideoMessage(
+                            crate::video::video_view::Message::ToggleLoop,
+                        )),
+                    )
+                    .push(
+                        Button::new(Text::new(fl!("button-next-file")))
+                            .name("button-next-file")
+                            //.description_widget(fl!("description-next-element"))
+                            .width(80.0)
+                            .on_press(Message::VideoMessage(
+                                crate::video::video_view::Message::NextFile,
+                            )),
+                    )
+                    .push(
+                        Text::new(format!(
+                            "{}:{:02}s / {}:{:02}s",
+                            self.video_view.position as u64 / 60,
+                            self.video_view.position as u64 % 60,
+                            self.video_view
+                                .video.as_ref()
+                                .expect("Failed to access Video stream")
+                                .duration()
+                                .as_secs()
+                                / 60,
+                            self.video_view
+                                .video.as_ref()
+                                .expect("Failed to access Video stream")
+                                .duration()
+                                .as_secs()
+                                % 60,
+                        ))
+                        .width(cosmic::iced::Length::Fill), //.align_x(cosmic::iced::alignment::Horizontal::Right),
+                    ),
+            );
+
+        tab_column = tab_column.push(widget::toaster(
+            &self.toasts,
+            widget::horizontal_space(Length::Fill),
+        ));
+
+        let content: Element<_> = tab_column.into();
+
+        // Uncomment to debug layout:
+        //content.explain(cosmic::iced::Color::WHITE)
+        content
+    }
+
+    fn view_audio_view(&self) -> Element<<App as cosmic::Application>::Message> {
+        let cosmic_theme::Spacing {
+            space_xxs, space_s, ..
+        } = theme::active().cosmic().spacing;
+        // draw Audio GUI
+        if !self.audio_view.audio_loaded
+            || self.audio_view.audio_path_loaded != self.audio_view.audio_path
+        {
+            return self.view_browser_view();
+        }
+
+        let mut tab_column = Column::new()
+            .push(
+                Container::new(
+                    crate::audio::audio_player::AudioPlayer::new(
+                        &self
+                            .audio_view
+                            .audio.as_ref()
+                            .expect("Failed to access Audio stream"),
+                    )
+                    .width(cosmic::iced::Length::Fill)
+                    .height(cosmic::iced::Length::Fill)
+                    .content_fit(cosmic::iced::ContentFit::Contain)
+                    .on_end_of_stream(Message::AudioMessage(
+                        crate::audio::audio_view::Message::EndOfStream,
+                    ))
+                    .on_new_frame(Message::AudioMessage(
+                        crate::audio::audio_view::Message::NewFrame,
+                    )),
+                )
+                //.align_x(cosmic::iced::Alignment::Horizontal::Center)
+                //.align_y(cosmic::iced::Alignment::Vertical::Center)
+                .width(cosmic::iced::Length::Fill)
+                .height(cosmic::iced::Length::Fill),
+            )
+            .push(
+                Container::new(
+                    Slider::new(
+                        0.0..=self
+                            .audio_view
+                            .audio.as_ref()
+                            .expect("Failed to access Audio stream")
+                            .duration()
+                            .as_secs_f64(),
+                        self.audio_view.position,
+                        slider_change_value_audio,
+                    )
+                    .step(0.1)
+                    .on_release(Message::AudioMessage(
+                        crate::audio::audio_view::Message::SeekRelease,
+                    )),
+                )
+                .padding(cosmic::iced::Padding::new(5.0)),
+            )
+            .push(
+                Row::new()
+                    .spacing(5)
+                    //.align_items(cosmic::iced::alignment::Center)
+                    .padding(cosmic::iced::Padding::new(10.0))
+                    .push(
+                        Button::new(Text::new(fl!("button-back")))
+                            .name("button-back")
+                            //.description_widget(Text::new(fl!("description-back")))
+                            .width(80.0)
+                            .on_press(Message::AudioMessage(
+                                crate::audio::audio_view::Message::ToBrowser,
+                            )),
+                    )
+                    .push(
+                        Button::new(Text::new(fl!("button-previous-file").to_string()))
+                            .name("button-previous-file")
+                            //.description_widget(fl!("description-previous-element"))
+                            .width(80.0)
+                            .on_press(Message::AudioMessage(
+                                crate::audio::audio_view::Message::PreviousFile,
+                            )),
+                    )
+                    .push(
+                        Button::new(Text::new(
+                            if self
+                                .audio_view
+                                .audio.as_ref()
+                                .expect("Failed to access Audio stream")
+                                .paused()
+                            {
+                                fl!("button-play").to_string()
+                            } else {
+                                fl!("button-pause").to_string()
+                            },
+                        ))
+                        .name("button-play-pause")
+                        //.description_widget(if self.audio_view.audio.paused() {
+                        //    fl!("description-play").to_string()
+                        //} else {
+                        //    fl!("description-pause").to_string()
+                        //})
+                        .width(80.0)
+                        .on_press(Message::AudioMessage(
+                            crate::audio::audio_view::Message::TogglePause,
+                        )),
+                    )
+                    .push(
+                        Button::new(Text::new(fl!("button-zoom-minus").to_string()))
+                            .name("button-mute")
+                            //.description_widget(fl!("description-mute")).to_string()
+                            .width(80.0)
+                            .on_press(Message::AudioMessage(
+                                crate::audio::audio_view::Message::ToggleMute,
+                            )),
+                    )
+                    .push(
+                        Button::new(Text::new(
+                            if self
+                                .audio_view
+                                .audio.as_ref()
+                                .expect("Failed to access Audio stream")
+                                .looping()
+                            {
+                                fl!("button-loop-on").to_string()
+                            } else {
+                                fl!("button-loop-off").to_string()
+                            },
+                        ))
+                        .name("button-loop")
+                        //.description_widget(if self.audio_view.audio.paused() {
+                        //    &fl!("description-loop-on").to_string()
+                        //} else {
+                        //    &fl!("description-loop-off").to_string()
+                        //})
+                        .width(80.0)
+                        .on_press(Message::AudioMessage(
+                            crate::audio::audio_view::Message::ToggleLoop,
+                        )),
+                    )
+                    .push(
+                        Button::new(Text::new(fl!("button-next-file").to_string()))
+                            .name("button-next-file")
+                            //.description_widget(&fl!("description-next-element").to_string())
+                            .width(80.0)
+                            .on_press(Message::AudioMessage(
+                                crate::audio::audio_view::Message::NextFile,
+                            )),
+                    )
+                    .push(
+                        Text::new(format!(
+                            "{}:{:02}s / {}:{:02}s",
+                            self.audio_view.position as u64 / 60,
+                            self.audio_view.position as u64 % 60,
+                            self.audio_view
+                                .audio.as_ref()
+                                .expect("Failed to access Audio stream")
+                                .duration()
+                                .as_secs()
+                                / 60,
+                            self.audio_view
+                                .audio.as_ref()
+                                .expect("Failed to access Audio stream")
+                                .duration()
+                                .as_secs()
+                                % 60,
+                        ))
+                        .width(cosmic::iced::Length::Fill), //.align_x(cosmic::iced::alignment::Horizontal::Right),
+                    ),
+            );
+
+        tab_column = tab_column.push(widget::toaster(
+            &self.toasts,
+            widget::horizontal_space(Length::Fill),
+        ));
+
+        let content: Element<_> = tab_column.into();
+
+        // Uncomment to debug layout:
+        //content.explain(cosmic::iced::Color::WHITE)
+        content
+    }
+
+    fn view_browser_view(&self) -> Element<<App as cosmic::Application>::Message> {
+        let cosmic_theme::Spacing {
+            space_xxs, space_s, ..
+        } = theme::active().cosmic().spacing;
+        let mut tab_column = widget::column::with_capacity(3);
+
+        if self.tab_model.iter().count() > 1 {
+            tab_column = tab_column.push(
+                widget::container(
+                    widget::tab_bar::horizontal(&self.tab_model)
+                        .button_height(32)
+                        .button_spacing(space_xxs)
+                        .on_activate(Message::TabActivate)
+                        .on_dnd_enter(|entity, _| Message::DndEnterTab(entity))
+                        .on_dnd_leave(|_| Message::DndExitTab)
+                        .on_dnd_drop(|entity, data, action| {
+                            Message::DndDropTab(entity, data, action)
+                        })
+                        .drag_id(self.tab_drag_id),
+                )
+                .style(style::Container::Background)
+                .width(Length::Fill)
+                .padding([0, space_s]),
+            );
+        }
+
+        let entity = self.tab_model.active();
+        match self.tab_model.data::<Tab>(entity) {
+            Some(tab) => {
+                let tab_view = tab
+                    .view(&self.key_binds)
+                    .map(move |message| Message::TabMessage(Some(entity), message));
+                tab_column = tab_column.push(tab_view);
+            }
+            None => {
+                //TODO
+            }
+        }
+
+        // The toaster is added on top of an empty element to ensure that it does not override context menus
+        tab_column = tab_column.push(widget::toaster(
+            &self.toasts,
+            widget::horizontal_space(Length::Fill),
+        ));
+
+        let content: Element<_> = tab_column.into();
+
+        // Uncomment to debug layout:
+        //content.explain(cosmic::iced::Color::WHITE)
+        content
+    }
+
+    fn open_path(&mut self, path: PathBuf) -> Option<Command<crate::app::Message>> {
+        if path.is_dir() {
+            // change directory
+            if let Some(location_ref) =
+                self.tab_model.data::<Location>(self.tab_model_id)
+            {
+                let location = location_ref.to_owned();
+                if let Some(tab) = self.tab_model.data_mut::<Tab>(self.tab_model_id) {
+                    let _ret = tab.update(
+                        tab::Message::ChangeLocation(
+                            path.display().to_string(),
+                            location,
+                            path.clone(),
+                        ), 
+                        self.modifiers);
+                    }
+                return None;
+            }
+        } else {
+            // if the file is a supported media file, open it
+            // else use mimetype to open in an external app
+            let ret = file_format::FileFormat::from_file(path.clone());
+            if ret.is_err() {
+                return Some(Command::none());
+            }
+            let fmt = ret.unwrap();
+            let filepath = path.display().to_string();
+            match fmt.kind() {
+                file_format::Kind::Image => {
+                    self.image_view
+                        .update(crate::image::image_view::Message::Open(filepath.clone()));
+                    self.core.window.content_container = true;
+                    self.core.window.show_window_menu = true;
+                    self.core.window.show_headerbar = true;
+                    self.active_view = Mode::Image;
+                    self.view();
+                },
+                file_format::Kind::Video => {
+                    self.video_view
+                        .update(crate::video::video_view::Message::Open(filepath.clone()));
+                    self.core.window.content_container = true;
+                    self.core.window.show_window_menu = true;
+                    self.core.window.show_headerbar = true;
+                    self.active_view = Mode::Video;
+                    self.view();
+                }, 
+                file_format::Kind::Audio => {
+                    self.audio_view
+                        .update(crate::audio::audio_view::Message::Open(filepath.clone()));
+                    self.core.window.content_container = true;
+                    self.core.window.show_window_menu = true;
+                    self.core.window.show_headerbar = true;
+                    self.active_view = Mode::Audio;
+                    self.view();
+                }, 
+                _ => {
+                    if let Some(tab) = self.tab_model.data_mut::<Tab>(self.tab_model_id) {
+                        let _ret = tab.update(
+                            tab::Message::Open(Some(path)), self.modifiers);
+                        }
+                }
+            }
+        }
+        return Some(Command::none());
+    }
+
 }
 
 /// Implement [`Application`] to integrate with COSMIC.
@@ -1071,22 +1658,35 @@ impl Application for App {
                 core.window.use_template = true;
             }
             Mode::Browser => {}
-            Mode::Image => {}
-            Mode::Audio => {}
-            Mode::Video => {}
+            Mode::Image => {
+                core.window.content_container = true;
+                core.window.show_window_menu = true;
+                core.window.show_headerbar = true;
+            }
+            Mode::Audio => {
+                core.window.content_container = true;
+                core.window.show_window_menu = true;
+                core.window.show_headerbar = true;
+            }
+            Mode::Video => {
+                core.window.content_container = true;
+                core.window.show_window_menu = true;
+                core.window.show_headerbar = true;
+            }
         }
 
         let app_themes = vec![fl!("match-desktop"), fl!("dark"), fl!("light")];
 
         let mut app = App {
-            image: crate::image::Image::new(),
-            video: crate::video::Video::new(),
-            audio: crate::audio::Audio::new(),
+            image_view: crate::image::image_view::ImageView::new(),
+            video_view: crate::video::video_view::VideoView::new(),
+            audio_view: crate::audio::audio_view::AudioView::new(),
             active_view: Mode::Browser,
             core,
             nav_bar_context_id: segmented_button::Entity::null(),
             nav_model: segmented_button::ModelBuilder::default().build(),
             tab_model: segmented_button::ModelBuilder::default().build(),
+            tab_model_id: Entity::default(),
             config_handler: flags.config_handler,
             config: flags.config,
             mode: flags.mode,
@@ -1124,7 +1724,7 @@ impl Application for App {
             nav_drag_id: DragId::new(),
             tab_drag_id: DragId::new(),
         };
-
+        app.tab_model_id = app.tab_model.active();
         let mut commands = vec![app.update_config()];
 
         for location in flags.locations {
@@ -1334,138 +1934,79 @@ impl Application for App {
 
         match message {
             Message::Open(entity_opt, filepath) => {
-                if filepath.len() > 0 {
-                    let path = std::path::PathBuf::from(&filepath.clone());
-                    if path.is_dir() {
-                        // change directory
-                        if entity_opt.is_some() {
-                            let location_opt = self.nav_model.data::<Location>(entity_opt.unwrap());
-                            if location_opt.is_some() {
-                                return self.update(Message::TabMessage(
-                                    Some(entity_opt.unwrap()),
-                                    tab::Message::ChangeLocation(
-                                        filepath.clone(), 
-                                        location_opt.unwrap().clone(), 
-                                        path),
-                                ));
-                            }
-                        }
-                    } else {
-                        // if the file is a supported media file, open it
-                        // else use mimetype to open in an external app
-                        let ret = file_format::FileFormat::from_file(filepath.clone());
-                        if ret.is_err() {
-                            return Command::none();
-                        }
-                        let fmt = ret.unwrap();
-                        if fmt.kind() == file_format::Kind::Image {
-                            /*
-                            let mut dir = paths[0].clone(); // drop the file from the path
-                            dir.pop();
-                            // fill the image_model with the Image files in the directory
-                            let ret = std::fs::read_dir(dir.as_path());
-                            if ret.is_err() {
-                                return Command::none();
-                            }
-                            let paths = ret.unwrap();
-                            let mut imagepaths = Vec::new();
-                            for path in paths {
-                                if path.is_err() {
-                                    continue;
-                                }
-                                let filepath = path.unwrap();
-                                let ret = FileFormat::from_file(filepath.path());
-                                if ret.is_err() {
-                                    continue;
-                                }
-                                let fmt = ret.unwrap();
-                                if fmt.kind() == Kind::Image {
-                                    imagepaths.push(filepath.path());
-                                }
-                            }
-                            */
-                            self.image.update(crate::image::Message::Open(filepath.clone()));
-                        } else if  fmt.kind() == file_format::Kind::Video {
-                            self.video.update(crate::video::Message::Open(filepath.clone()));
-                        } else if  fmt.kind() == file_format::Kind::Audio {
-                            self.audio.update(crate::audio::Message::Open(filepath.clone()));
-                        } else {
-                            if entity_opt.is_some() {
-                                return self.update(Message::TabMessage(
-                                    Some(entity_opt.unwrap()),
-                                    tab::Message::Open(Some(path)),
-                                ));
-                            }
-                        }
+                for path in self.selected_paths(entity_opt).into_iter() {
+                    return match self.open_path(path) {
+                        Some(command) => command,
+                        _ => Command::none(),
                     }
                 }
             }
             Message::Browser => {
                 self.active_view = Mode::Browser;
-            },
+            }
             Message::Image(msg) => {
                 match msg {
-                    crate::image::Message::ToBrowser => {
+                    crate::image::image_view::Message::ToBrowser => {
                         self.active_view = Mode::Browser;
                         self.view();
-                    },
-                    crate::image::Message::ToVideo => {
+                    }
+                    crate::image::image_view::Message::ToVideo => {
                         self.active_view = Mode::Video;
                         self.view();
-                    },
-                    crate::image::Message::ToAudio => {
+                    }
+                    crate::image::image_view::Message::ToAudio => {
                         self.active_view = Mode::Audio;
                         self.view();
-                    },
+                    }
                     //and here we decide that if it has more messages, we will let it handle them itself.
                     _ => {
                         //and give it back it's own message
-                        self.image.update(msg);
-                    },
+                        self.image_view.update(msg);
+                    }
                 };
-            },
+            }
             Message::Video(msg) => {
                 match msg {
-                    crate::video::Message::ToBrowser => {
+                    crate::video::video_view::Message::ToBrowser => {
                         self.active_view = Mode::Browser;
                         self.view();
-                    },
-                    crate::video::Message::ToImage => {
+                    }
+                    crate::video::video_view::Message::ToImage => {
                         self.active_view = Mode::Image;
                         self.view();
-                    },
-                    crate::video::Message::ToAudio => {
+                    }
+                    crate::video::video_view::Message::ToAudio => {
                         self.active_view = Mode::Audio;
                         self.view();
-                    },
+                    }
                     //and here we decide that if it has more messages, we will let it handle them itself.
                     _ => {
                         //and give it back it's own message
-                        self.video.update(msg);
-                    },
+                        self.video_view.update(msg);
+                    }
                 };
-            },
+            }
             Message::Audio(msg) => {
                 match msg {
-                    crate::audio::Message::ToBrowser => {
+                    crate::audio::audio_view::Message::ToBrowser => {
                         self.active_view = Mode::Browser;
                         self.view();
-                    },
-                    crate::audio::Message::ToImage => {
+                    }
+                    crate::audio::audio_view::Message::ToImage => {
                         self.active_view = Mode::Image;
                         self.view();
-                    },
-                    crate::audio::Message::ToVideo => {
+                    }
+                    crate::audio::audio_view::Message::ToVideo => {
                         self.active_view = Mode::Video;
                         self.view();
-                    },
+                    }
                     //and here we decide that if it has more messages, we will let it handle them itself.
                     _ => {
                         //and give it back it's own message
-                        self.audio.update(msg);
-                    },
+                        self.audio_view.update(msg);
+                    }
                 };
-            },
+            }
             Message::AddToSidebar(entity_opt) => {
                 let mut favorites = self.config.favorites.clone();
                 for path in self.selected_paths(entity_opt) {
@@ -1478,6 +2019,47 @@ impl Application for App {
                 config_set!(app_theme, app_theme);
                 return self.update_config();
             }
+            Message::AudioMessage(audio_message) => match audio_message {
+                crate::audio::audio_view::Message::ToBrowser => {
+                    self.active_view = Mode::Browser;
+                    self.view();
+                },
+                crate::audio::audio_view::Message::ToImage => {},
+                crate::audio::audio_view::Message::ToVideo => {},
+                crate::audio::audio_view::Message::ToAudio => {},
+                crate::audio::audio_view::Message::Open(imagepath) => {
+                    self.audio_view.update(crate::audio::audio_view::Message::Open(imagepath));
+                    self.active_view = Mode::Audio;
+                    self.view();
+                },
+                crate::audio::audio_view::Message::NextFile => {
+                    // open next file in the sorted list if possible
+                    if let Some(tab) = self.tab_model.data_mut::<Tab>(self.tab_model_id) {
+                        let _ret = tab.update(tab::Message::ItemRight, self.modifiers);
+                        let v = tab.selected_file_paths();
+                        for path in v {
+                            return match self.open_path(path) {
+                                Some(command) => command,
+                                _ => Command::none(),
+                            }
+                        }
+                    }
+                },
+                crate::audio::audio_view::Message::PreviousFile => {
+                    // open next file in the sorted list if possible
+                    if let Some(tab) = self.tab_model.data_mut::<Tab>(self.tab_model_id) {
+                        let _ret = tab.update(tab::Message::ItemLeft, self.modifiers);
+                        let v = tab.selected_file_paths();
+                        for path in v {
+                            return match self.open_path(path) {
+                                Some(command) => command,
+                                _ => Command::none(),
+                            }
+                        }
+                    }               
+                },
+                _ => self.audio_view.update(audio_message),
+            },
             Message::Config(config) => {
                 if config != self.config {
                     log::info!("update config");
@@ -1541,7 +2123,7 @@ impl Application for App {
                             self.operation(if dir {
                                 Operation::NewFolder { path }
                             } else {
-                                Operation::None{}
+                                Operation::None {}
                             });
                         }
                         DialogPage::RenameItem {
@@ -1585,6 +2167,49 @@ impl Application for App {
                     ));
                 }
             }
+            Message::ImageMessage(image_message) => match image_message {
+                crate::image::image_view::Message::ToBrowser => {
+                    self.active_view = Mode::Browser;
+                    self.view();
+                },
+                crate::image::image_view::Message::ToImage => {},
+                crate::image::image_view::Message::ToVideo => {},
+                crate::image::image_view::Message::ToAudio => {},
+                crate::image::image_view::Message::Open(imagepath) => {
+                    self.image_view.update(crate::image::image_view::Message::Open(imagepath));
+                    self.active_view = Mode::Image;
+                    self.view();
+                },
+                crate::image::image_view::Message::NextFile => {
+                    // open next file in the sorted list if possible
+                    if let Some(tab) = self.tab_model.data_mut::<Tab>(self.tab_model_id) {
+                        let _ret = tab.update(tab::Message::ItemRight, self.modifiers);
+                        let v = tab.selected_file_paths();
+                        for path in v {
+                            return match self.open_path(path) {
+                                Some(command) => command,
+                                _ => Command::none(),
+                            }
+                        }
+                    }
+                },
+                crate::image::image_view::Message::PreviousFile => {
+                    // open previous file in the sorted list if possible
+                    if let Some(tab) = self.tab_model.data_mut::<Tab>(self.tab_model_id) {
+                        let _ret = tab.update(tab::Message::ItemLeft, self.modifiers);
+                        let v = tab.selected_file_paths();
+                        for path in v {
+                            return match self.open_path(path) {
+                                Some(command) => command,
+                                _ => Command::none(),
+                            }
+                        }
+                    }
+                },
+                _ => {
+                    self.image_view.update(image_message);
+                },
+            },
             Message::Key(modifiers, key) => {
                 let entity = self.tab_model.active();
                 for (key_bind, action) in self.key_binds.iter() {
@@ -2162,53 +2787,7 @@ impl Application for App {
                             self.operation(Operation::Delete { paths });
                         }
                         tab::Command::Open(filepath) => {
-                            let filepath_str = filepath.display().to_string();
-                            // if the file is a supported media file, open it
-                            // else use mimetype to open in an external app
-                            let ret = file_format::FileFormat::from_file(&filepath_str);
-                            if ret.is_err() {
-                                return Command::none();
-                            }
-                            let fmt = ret.unwrap();
-                            if fmt.kind() == file_format::Kind::Image {
-                                /*
-                                let mut dir = paths[0].clone(); // drop the file from the path
-                                dir.pop();
-                                // fill the image_model with the Image files in the directory
-                                let ret = std::fs::read_dir(dir.as_path());
-                                if ret.is_err() {
-                                    return Command::none();
-                                }
-                                let paths = ret.unwrap();
-                                let mut imagepaths = Vec::new();
-                                for path in paths {
-                                    if path.is_err() {
-                                        continue;
-                                    }
-                                    let filepath = path.unwrap();
-                                    let ret = FileFormat::from_file(filepath.path());
-                                    if ret.is_err() {
-                                        continue;
-                                    }
-                                    let fmt = ret.unwrap();
-                                    if fmt.kind() == Kind::Image {
-                                        imagepaths.push(filepath.path());
-                                    }
-                                }
-                                */
-                                self.image.update(crate::image::Message::Open(filepath_str.clone()));
-                            } else if  fmt.kind() == file_format::Kind::Video {
-                                self.video.update(crate::video::Message::Open(filepath_str.clone()));
-                            } else if  fmt.kind() == file_format::Kind::Audio {
-                                self.audio.update(crate::audio::Message::Open(filepath_str.clone()));
-                            } else {
-                                if entity_opt.is_some() {
-                                    return self.update(Message::TabMessage(
-                                        Some(entity_opt.unwrap()),
-                                        tab::Message::OpenInExternalApp(Some(filepath)),
-                                    ));
-                                }
-                            }
+                            self.open_path(filepath);
                         }
                         tab::Command::OpenInExternalApp(path) => {
                             let mut found_desktop_exec = false;
@@ -2346,6 +2925,47 @@ impl Application for App {
             Message::UndoTrashStart(paths) => {
                 self.operation(Operation::Restore { paths });
             }
+            Message::VideoMessage(video_message) => match video_message {
+                crate::video::video_view::Message::ToBrowser => {
+                    self.active_view = Mode::Browser;
+                    self.view();
+                },
+                crate::video::video_view::Message::ToImage => {},
+                crate::video::video_view::Message::ToVideo => {},
+                crate::video::video_view::Message::ToAudio => {},
+                crate::video::video_view::Message::Open(imagepath) => {
+                    self.video_view.update(crate::video::video_view::Message::Open(imagepath));
+                    self.active_view = Mode::Video;
+                    self.view();
+                },
+                crate::video::video_view::Message::NextFile => {
+                    // open next file in the sorted list if possible
+                    if let Some(tab) = self.tab_model.data_mut::<Tab>(self.tab_model_id) {
+                        let _ret = tab.update(tab::Message::ItemRight, self.modifiers);
+                        let v = tab.selected_file_paths();
+                        for path in v {
+                            return match self.open_path(path) {
+                                Some(command) => command,
+                                _ => Command::none(),
+                            }
+                        }
+                    }                
+                },
+                crate::video::video_view::Message::PreviousFile => {
+                    // open next file in the sorted list if possible
+                    if let Some(tab) = self.tab_model.data_mut::<Tab>(self.tab_model_id) {
+                        let _ret = tab.update(tab::Message::ItemLeft, self.modifiers);
+                        let v = tab.selected_file_paths();
+                        for path in v {
+                            return match self.open_path(path) {
+                                Some(command) => command,
+                                _ => Command::none(),
+                            }
+                        }
+                    }                
+                },
+                _ => self.video_view.update(video_message),
+            },
             Message::WindowClose => {
                 if let Some(window_id) = self.window_id_opt.take() {
                     return Command::batch([
@@ -2495,7 +3115,8 @@ impl Application for App {
                 NavMenuAction::Open(entity) => {
                     if let Some(&Location::Path(ref path)) = self.nav_model.data::<Location>(entity)
                     {
-                        return self.update(Message::Open(Some(entity), path.display().to_string()));
+                        return self
+                            .update(Message::Open(Some(entity), path.display().to_string()));
                     }
                 }
 
@@ -3012,61 +3633,15 @@ impl Application for App {
             space_xxs, space_s, ..
         } = theme::active().cosmic().spacing;
 
-        let mut tab_column = widget::column::with_capacity(3);
-
-        if self.tab_model.iter().count() > 1 {
-            tab_column = tab_column.push(
-                widget::container(
-                    widget::tab_bar::horizontal(&self.tab_model)
-                        .button_height(32)
-                        .button_spacing(space_xxs)
-                        .on_activate(Message::TabActivate)
-                        .on_dnd_enter(|entity, _| Message::DndEnterTab(entity))
-                        .on_dnd_leave(|_| Message::DndExitTab)
-                        .on_dnd_drop(|entity, data, action| {
-                            Message::DndDropTab(entity, data, action)
-                        })
-                        .drag_id(self.tab_drag_id),
-                )
-                .style(style::Container::Background)
-                .width(Length::Fill)
-                .padding([0, space_s]),
-            );
+        if self.active_view == Mode::Image {
+            return self.view_image_view();
+         } else if self.active_view == Mode::Video {
+            return self.view_video_view();
+        } else if self.active_view == Mode::Audio {
+            return self.view_audio_view();
+        } else {
+            return self.view_browser_view();
         }
-
-        let entity = self.tab_model.active();
-        match self.tab_model.data::<Tab>(entity) {
-            Some(tab) => {
-                let tab_view = tab
-                    .view(&self.key_binds)
-                    .map(move |message| Message::TabMessage(Some(entity), message));
-                tab_column = tab_column.push(tab_view);
-            }
-            None => {
-                //TODO
-            }
-        }
-
-        // The toaster is added on top of an empty element to ensure that it does not override context menus
-        tab_column = tab_column.push(widget::toaster(
-            &self.toasts,
-            widget::horizontal_space(Length::Fill),
-        ));
-
-        let content: Element<_> = tab_column.into();
-
-        // Uncomment to debug layout:
-        //content.explain(cosmic::iced::Color::WHITE)
-        content
-    }
-
-    fn view_window(&self, id: WindowId) -> Element<Self::Message> {
-        //TODO: distinct views per window?
-        self.view_main().map(|message| match message {
-            app::Message::App(app) => app,
-            app::Message::Cosmic(cosmic) => Message::Cosmic(cosmic),
-            app::Message::None => Message::None,
-        })
     }
 
     fn subscription(&self) -> Subscription<Self::Message> {
@@ -3179,7 +3754,7 @@ impl Application for App {
                         Ok(watcher) => {
                             match output
                                 .send(Message::NotifyWatcher(WatcherWrapper {
-                                    watcher_opt: Some(watcher),
+                                    watcher_opt: Some(watcher.into()),
                                 }))
                                 .await
                             {
@@ -3189,6 +3764,7 @@ impl Application for App {
                                 }
                             }
                         }
+                        .into(),
                         Err(err) => {
                             log::warn!("failed to create file watcher: {:?}", err);
                         }
@@ -3238,9 +3814,8 @@ impl Application for App {
                     match (watcher_res, trash::os_limited::trash_folders()) {
                         (Ok(mut watcher), Ok(trash_bins)) => {
                             for path in trash_bins {
-                                if let Err(e) = watcher
-                                    .watcher()
-                                    .watch(&path, notify::RecursiveMode::Recursive)
+                                if let Err(e) =
+                                    watcher.watcher().watch(&path, notify::RecursiveMode::Recursive)
                                 {
                                     log::warn!(
                                         "failed to add trash bin `{}` to watcher: {e:?}",
@@ -3358,6 +3933,15 @@ impl Application for App {
         }
 
         Subscription::batch(subscriptions)
+    }
+
+    fn view_window(&self, id: WindowId) -> Element<Self::Message> {
+        //TODO: distinct views per window?
+        self.view_main().map(|message| match message {
+            app::Message::App(app) => app,
+            app::Message::Cosmic(cosmic) => Message::Cosmic(cosmic),
+            app::Message::None => Message::None,
+        })
     }
 }
 
@@ -3636,4 +4220,14 @@ pub(crate) mod test_utils {
             tab_path.display()
         );
     }
+}
+
+fn slider_change_value_video(val: f64) -> Message {
+    let newval = val;
+    Message::VideoMessage(crate::video::video_view::Message::Seek(newval))
+}
+
+fn slider_change_value_audio(val: f64) -> Message {
+    let newval = val;
+    Message::AudioMessage(crate::audio::audio_view::Message::Seek(newval))
 }
