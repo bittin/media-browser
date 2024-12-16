@@ -226,57 +226,59 @@ fn parse_audiotags(nfo_file: &PathBuf, metadata: &mut crate::sql::AudioMetadata)
         Some(picture) => {
             let mut thumbpath = metadata.path.clone();
             thumbpath.push_str(".png");
-            match picture.mime_type {
-                MimeType::Jpeg => {
-                    match image::load_from_memory_with_format(picture.data, image::ImageFormat::Jpeg) {
-                        Ok(buf) => {
-                            let _ = buf.save_with_format(&thumbpath, image::ImageFormat::Png);
-                        },
-                        Err(error) => {
-                            log::warn!("failed to read audio album art jpeg: {}", error);
+            if !PathBuf::from(&thumbpath).is_file() {
+                match picture.mime_type {
+                    MimeType::Jpeg => {
+                        match image::load_from_memory_with_format(picture.data, image::ImageFormat::Jpeg) {
+                            Ok(buf) => {
+                                let _ = buf.save_with_format(&thumbpath, image::ImageFormat::Png);
+                            },
+                            Err(error) => {
+                                log::warn!("failed to read audio album art jpeg: {}", error);
+                            }
                         }
-                    }
-                },
-                MimeType::Png => {
-                    match image::load_from_memory_with_format(picture.data, image::ImageFormat::Png) {
-                        Ok(buf) => {
-                            let _ = buf.save_with_format(&thumbpath, image::ImageFormat::Png);
-                        },
-                        Err(error) => {
-                            log::warn!("failed to read audio album art jpeg: {}", error);
+                    },
+                    MimeType::Png => {
+                        match image::load_from_memory_with_format(picture.data, image::ImageFormat::Png) {
+                            Ok(buf) => {
+                                let _ = buf.save_with_format(&thumbpath, image::ImageFormat::Png);
+                            },
+                            Err(error) => {
+                                log::warn!("failed to read audio album art jpeg: {}", error);
+                            }
                         }
-                    }
-                },
-                MimeType::Bmp => {
-                    match image::load_from_memory_with_format(picture.data, image::ImageFormat::Jpeg) {
-                        Ok(buf) => {
-                            let _ = buf.save_with_format(&thumbpath, image::ImageFormat::Bmp);
-                        },
-                        Err(error) => {
-                            log::warn!("failed to read audio album art jpeg: {}", error);
+                    },
+                    MimeType::Bmp => {
+                        match image::load_from_memory_with_format(picture.data, image::ImageFormat::Jpeg) {
+                            Ok(buf) => {
+                                let _ = buf.save_with_format(&thumbpath, image::ImageFormat::Bmp);
+                            },
+                            Err(error) => {
+                                log::warn!("failed to read audio album art jpeg: {}", error);
+                            }
                         }
-                    }
-                },   
-                MimeType::Gif => {
-                    match image::load_from_memory_with_format(picture.data, image::ImageFormat::Gif) {
-                        Ok(buf) => {
-                            let _ = buf.save_with_format(&thumbpath, image::ImageFormat::Png);
-                        },
-                        Err(error) => {
-                            log::warn!("failed to read audio album art jpeg: {}", error);
+                    },   
+                    MimeType::Gif => {
+                        match image::load_from_memory_with_format(picture.data, image::ImageFormat::Gif) {
+                            Ok(buf) => {
+                                let _ = buf.save_with_format(&thumbpath, image::ImageFormat::Png);
+                            },
+                            Err(error) => {
+                                log::warn!("failed to read audio album art jpeg: {}", error);
+                            }
                         }
-                    }
-                },   
-                MimeType::Tiff => {
-                    match image::load_from_memory_with_format(picture.data, image::ImageFormat::Tiff) {
-                        Ok(buf) => {
-                            let _ = buf.save_with_format(&thumbpath, image::ImageFormat::Png);
-                        },
-                        Err(error) => {
-                            log::warn!("failed to read audio album art jpeg: {}", error);
+                    },   
+                    MimeType::Tiff => {
+                        match image::load_from_memory_with_format(picture.data, image::ImageFormat::Tiff) {
+                            Ok(buf) => {
+                                let _ = buf.save_with_format(&thumbpath, image::ImageFormat::Png);
+                            },
+                            Err(error) => {
+                                log::warn!("failed to read audio album art jpeg: {}", error);
+                            }
                         }
-                    }
-                },   
+                    },   
+                }
             }
             metadata.poster = thumbpath;
         },
