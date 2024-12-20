@@ -68,7 +68,7 @@ pub fn insert_video(
             match statement.query(params![]) {
                 Ok(mut rows) => {
                     while let Ok(Some(row)) = rows.next() {
-                        let s_opt = row.get(1);
+                        let s_opt = row.get(0);
                         if s_opt.is_ok() {
                             video_id = s_opt.unwrap();
                         }
@@ -84,41 +84,7 @@ pub fn insert_video(
             return;
         }
     }
-
-    let mut creationtime: u64 = 0;
-    if let Ok(created) = statdata.created() {
-        match created.duration_since(std::time::UNIX_EPOCH) {
-            Ok(n) => creationtime = n.as_secs(),
-            Err(_) => panic!("SystemTime before UNIX EPOCH!"),
-        }
-    }
-    let mut modifiedtime: u64 = 0;
-    if let Ok(modified) = statdata.modified() {
-        match modified.duration_since(std::time::UNIX_EPOCH) {
-            Ok(n) => modifiedtime = n.as_secs(),
-            Err(_) => panic!("SystemTime before UNIX EPOCH!"),
-        }
-    }
-    match connection.execute(
-        "INSERT INTO file_metadata (filepath, creation_time, modificattion_time, file_type, video_id) VALUES (?1, ?2, ?3, ?4, ?5)",
-        params![&metadata.path, &creationtime, &modifiedtime, &2, &video_id],
-    ) {
-        Ok(_retval) => {}, //log::warn!("Inserted {} video with ID {} and location {} into candidates.", video.id, video.index, candidate_id),
-        Err(error) => {
-            log::error!("Failed to insert video into  database: {}", error);
-            return;
-        }
-    }
-    let meta = FileMetadata {
-        filepath: PathBuf::from(&metadata.path),
-        creation_time: creationtime,
-        modification_time: modifiedtime,
-        file_type: 2,
-        metadata_id: video_id,
-        ..Default::default()
-    };
-    known_files.insert(meta.filepath.clone(), meta);
-
+    insert_file(connection, &metadata.path, statdata, 2, video_id, known_files);
     for i in 0..metadata.subtitles.len() {
         match connection.execute(
             "INSERT INTO subtitles (video_id, subpath) VALUES (?1, ?2)",
@@ -156,30 +122,102 @@ pub fn insert_video(
         }
     }
     for i in 0..metadata.director.len() {
-        match connection.execute(
-            "INSERT INTO directors (video_id, director_name) VALUES (?1, ?2)",
-            params![&video_id, &metadata.director[i]],
-        ) {
-            Ok(_retval) => {}, //log::warn!("Inserted {} video with ID {} and location {} into candidates.", video.id, video.index, candidate_id),
-            Err(error) => {
-                log::error!("Failed to insert video into  database: {}", error);
-                return;
-            }
+        let director_id = insert_person(connection, metadata.director[i].clone());
+        if director_id == -1 {
+            continue;
         }
-    }
-    for i in 0..metadata.actors.len() {
         match connection.execute(
-            "INSERT INTO actors (video_id, actor_name) VALUES (?1, ?2)",
-            params![&video_id, &metadata.actors[i]],
+            "INSERT INTO directors (director_id, video_id) VALUES (?1, ?2)",
+            params![&director_id, &video_id],
         ) {
             Ok(_retval) => {}, //log::warn!("Inserted {} video with ID {} and location {} into candidates.", video.id, video.index, candidate_id),
             Err(error) => {
-                log::error!("Failed to insert video into  database: {}", error);
+                log::error!("Failed to insert director into  database: {}", error);
                 return;
             }
         }
     }
 
+    for i in 0..metadata.actors.len() {
+        let actor_id = insert_person(connection, metadata.actors[i].clone());
+        if actor_id == -1 {
+            continue;
+        }
+        match connection.execute(
+            "INSERT INTO actors (actor_id, video_id) VALUES (?1, ?2)",
+            params![&actor_id, &video_id],
+        ) {
+            Ok(_retval) => {}, //log::warn!("Inserted {} video with ID {} and location {} into candidates.", video.id, video.index, candidate_id),
+            Err(error) => {
+                log::error!("Failed to insert actor into  database: {}", error);
+                return;
+            }
+        }
+    }
+
+}
+
+fn insert_person(connection: &mut rusqlite::Connection, name: String) -> i32 {
+    let mut person_id= -1;
+    let query = "SELECT person_id FROM people WHERE person_name = ?1";
+    match connection.prepare(query) {
+        Ok(mut statement) => {
+            match statement.query(params![&name]) {
+                Ok(mut rows) => {
+                    while let Ok(Some(row)) = rows.next() {
+                        let s_opt = row.get(1);
+                        if s_opt.is_ok() {
+                            person_id = s_opt.unwrap();
+                            return person_id;
+                        }
+                    }
+                },
+                Err(err) => {
+                    log::error!("could not read line from people database: {}", err);
+                }
+            }
+        },
+        Err(error) => {
+            log::error!("Failed to get person_id for {} from database: {}", name, error);
+            return person_id;
+        }
+    }
+    if person_id == -1 {
+        match connection.execute(
+            "INSERT INTO people (person_name) VALUES (?1)",
+            params![&name],
+        ) {
+            Ok(_retval) => {}, //log::warn!("Inserted {} video with ID {} and location {} into candidates.", video.id, video.index, candidate_id),
+            Err(error) => {
+                log::error!("Failed to insert video into  database: {}", error);
+                return person_id;
+            }
+        }
+
+        let query = "SELECT last_insert_rowid()";
+        match connection.prepare(query) {
+            Ok(mut statement) => {
+                match statement.query(params![]) {
+                    Ok(mut rows) => {
+                        while let Ok(Some(row)) = rows.next() {
+                            let s_opt = row.get(0);
+                            if s_opt.is_ok() {
+                                person_id = s_opt.unwrap();
+                            }
+                        }
+                    },
+                    Err(err) => {
+                        log::error!("could not read last generated id from database: {}", err);
+                    }
+                }
+            },
+            Err(error) => {
+                log::error!("Failed to get person_id for from database: {}", error);
+                return person_id;
+            }
+        }
+    }
+    person_id
 }
 
 pub fn delete_video(
@@ -190,7 +228,7 @@ pub fn delete_video(
     // Get the index.
     //let index = self.ids[id];
     let mut video_id: u32 = 0;
-    let query = "SELECT video_id FROM file_metadata WHERE filepath = ?1";
+    let query = "SELECT metadata_id FROM file_metadata WHERE filepath = ?1";
     match connection.prepare(query) {
         Ok(mut statement) => {
             match statement.query(params![&metadata.path]) {
@@ -501,7 +539,10 @@ pub fn video(
             log::error!("could not prepare SQL statement: {}", err);
         }
     }
-    let query = "SELECT director_name FROM directors WHERE video_id = ?1";
+    let query = "SELECT person_name FROM people 
+                        INNER JOIN directors 
+                        ON directors.director_id = people.person_id 
+                        WHERE directors.video_id = ?1";
     match connection.prepare(query) {
         Ok(mut statement) => {
             match statement.query(params![&video_id]) {
@@ -537,7 +578,10 @@ pub fn video(
             log::error!("could not prepare SQL statement: {}", err);
         }
     }
-    let query = "SELECT actor_name FROM actors WHERE video_id = ?1";
+    let query = "SELECT person_name FROM people 
+                        INNER JOIN actors 
+                        ON actors.actor_id = people.person_id 
+                        WHERE actors.video_id = ?1";
     match connection.prepare(query) {
         Ok(mut statement) => {
             match statement.query(params![&video_id]) {
@@ -572,6 +616,9 @@ pub fn video(
         Err(err) => {
             log::error!("could not prepare SQL statement: {}", err);
         }
+    }
+    if !known_files.contains_key(&PathBuf::from(&v.path)) {
+        known_files.insert(PathBuf::from(&v.path), filedata.clone());
     }
 
     v
@@ -648,100 +695,169 @@ pub fn insert_audio(
         }
     }
 
-    let mut creationtime: u64 = 0;
-    if let Ok(creatted) = statdata.created() {
-        match creatted.duration_since(std::time::UNIX_EPOCH) {
-            Ok(n) => creationtime = n.as_secs(),
-            Err(_) => panic!("SystemTime before UNIX EPOCH!"),
-        }
-    }
-    let mut modifiedtime: u64 = 0;
-    if let Ok(modified) = statdata.modified() {
-        match modified.duration_since(std::time::UNIX_EPOCH) {
-            Ok(n) => modifiedtime = n.as_secs(),
-            Err(_) => panic!("SystemTime before UNIX EPOCH!"),
-        }
-    }
-    match connection.execute(
-        "INSERT INTO file_metadata (filepath, creation_time, modificattion_time, file_type, metadata_id) VALUES (?1, ?2, ?3, ?4, ?5)",
-        params![&metadata.path, &creationtime, &modifiedtime, &3, &audio_id],
-    ) {
-        Ok(_retval) => {}, //log::warn!("Inserted {} video with ID {} and location {} into candidates.", video.id, video.index, candidate_id),
-        Err(error) => {
-            log::error!("Failed to insert file into  database: {}", error);
-            return;
-        }
-    }
-    let meta = FileMetadata {
-        filepath: PathBuf::from(&metadata.path),
-        creation_time: creationtime,
-        modification_time: modifiedtime,
-        file_type: 2,
-        metadata_id: audio_id,
-        ..Default::default()
-    };
-    known_files.insert(meta.filepath.clone(), meta.clone());
-    let thumbpath = PathBuf::from(&metadata.path);
-    known_files.insert(thumbpath.join(".png"), meta);
+    insert_file(connection, &metadata.path, statdata, 3, audio_id, known_files);
+
     for i in 0..metadata.artist.len() {
+        let albumartist_id = insert_artist(connection, metadata.artist[i].clone());
+        if albumartist_id == -1 {
+            continue;
+        }
         match connection.execute(
-            "INSERT INTO artists (audio_id, artist_name) VALUES (?1, ?2)",
-            params![&audio_id, &metadata.artist[i]],
+            "INSERT INTO actors (actor_id, video_id) VALUES (?1, ?2)",
+            params![&albumartist_id, &audio_id],
         ) {
             Ok(_retval) => {}, //log::warn!("Inserted {} video with ID {} and location {} into candidates.", video.id, video.index, candidate_id),
             Err(error) => {
-                log::error!("Failed to insert audio {} into  database: {}", audio_id, error);
+                log::error!("Failed to insert actor into  database: {}", error);
                 return;
             }
         }
     }
-    match connection.execute(
-        "INSERT INTO albums (audio_id, album_name) VALUES (?1, ?2)",
-        params![&audio_id, &metadata.album],
-    ) {
-        Ok(_retval) => {}, //log::warn!("Inserted {} video with ID {} and location {} into candidates.", video.id, video.index, candidate_id),
-        Err(error) => {
-            log::error!("Failed to insert audio {} into  database: {}", metadata.album, error);
-            return;
+
+    let _album_id = insert_album(connection, metadata.album.clone());
+    for i in 0..metadata.albumartist.len() {
+        let albumartist_id = insert_artist(connection, metadata.albumartist[i].clone());
+        if albumartist_id == -1 {
+            continue;
+        }
+        match connection.execute(
+            "INSERT INTO actors (actor_id, video_id) VALUES (?1, ?2)",
+            params![&albumartist_id, &audio_id],
+        ) {
+            Ok(_retval) => {}, //log::warn!("Inserted {} video with ID {} and location {} into candidates.", video.id, video.index, candidate_id),
+            Err(error) => {
+                log::error!("Failed to insert actor into  database: {}", error);
+                return;
+            }
         }
     }
-    let mut album_id: u32 = 0;
-    let query = "SELECT last_insert_rowid()";
+}
+
+
+fn insert_album(connection: &mut rusqlite::Connection, name: String) -> i32 {
+    let mut album_id= -1;
+    let query = "SELECT album_id FROM albums WHERE album_name = ?1";
     match connection.prepare(query) {
         Ok(mut statement) => {
-            match statement.query(params![]) {
+            match statement.query(params![&name]) {
                 Ok(mut rows) => {
                     while let Ok(Some(row)) = rows.next() {
                         let s_opt = row.get(1);
                         if s_opt.is_ok() {
                             album_id = s_opt.unwrap();
+                            return album_id;
                         }
                     }
                 },
                 Err(err) => {
-                    log::error!("could not read line from audio_metadata database: {}", err);
+                    log::error!("could not read line from people database: {}", err);
                 }
             }
         },
         Err(error) => {
-            log::error!("Failed to get audio_id for from database: {}", error);
-            return;
+            log::error!("Failed to get album_id for {} from database: {}", name, error);
+            return album_id;
         }
     }
-    for i in 0..metadata.albumartist.len() {
+    if album_id == -1 {
         match connection.execute(
-            "INSERT INTO album_artists (audio_id, album_id, albumartist_name) VALUES (?1, ?2, ?3)",
-            params![&audio_id, &album_id, &metadata.albumartist[i]],
+            "INSERT INTO albums (album_name) VALUES (?1)",
+            params![&name],
         ) {
             Ok(_retval) => {}, //log::warn!("Inserted {} video with ID {} and location {} into candidates.", video.id, video.index, candidate_id),
             Err(error) => {
-                log::error!("Failed to insert albumartist {} into  database: {}", metadata.albumartist[i], error);
-                return;
+                log::error!("Failed to insert video into  database: {}", error);
+                return album_id;
+            }
+        }
+
+        let query = "SELECT last_insert_rowid()";
+        match connection.prepare(query) {
+            Ok(mut statement) => {
+                match statement.query(params![]) {
+                    Ok(mut rows) => {
+                        while let Ok(Some(row)) = rows.next() {
+                            let s_opt = row.get(0);
+                            if s_opt.is_ok() {
+                                album_id = s_opt.unwrap();
+                            }
+                        }
+                    },
+                    Err(err) => {
+                        log::error!("could not read last generated id from database: {}", err);
+                    }
+                }
+            },
+            Err(error) => {
+                log::error!("Failed to get album_id for from database: {}", error);
+                return album_id;
             }
         }
     }
+    album_id
+}
 
+fn insert_artist(connection: &mut rusqlite::Connection, name: String) -> i32 {
+    let mut artist_id= -1;
+    let query = "SELECT artist_id FROM artists WHERE artist_name = ?1";
+    match connection.prepare(query) {
+        Ok(mut statement) => {
+            match statement.query(params![&name]) {
+                Ok(mut rows) => {
+                    while let Ok(Some(row)) = rows.next() {
+                        let s_opt = row.get(1);
+                        if s_opt.is_ok() {
+                            artist_id = s_opt.unwrap();
+                            return artist_id;
+                        }
+                    }
+                },
+                Err(err) => {
+                    log::error!("could not read line from people database: {}", err);
+                }
+            }
+        },
+        Err(error) => {
+            log::error!("Failed to get artist_id for {} from database: {}", name, error);
+            return artist_id;
+        }
+    }
+    if artist_id == -1 {
+        match connection.execute(
+            "INSERT INTO artists (artist_name) VALUES (?1)",
+            params![&name],
+        ) {
+            Ok(_retval) => {}, //log::warn!("Inserted {} video with ID {} and location {} into candidates.", video.id, video.index, candidate_id),
+            Err(error) => {
+                log::error!("Failed to insert artist into  database: {}", error);
+                return artist_id;
+            }
+        }
 
+        let query = "SELECT last_insert_rowid()";
+        match connection.prepare(query) {
+            Ok(mut statement) => {
+                match statement.query(params![]) {
+                    Ok(mut rows) => {
+                        while let Ok(Some(row)) = rows.next() {
+                            let s_opt = row.get(0);
+                            if s_opt.is_ok() {
+                                artist_id = s_opt.unwrap();
+                            }
+                        }
+                    },
+                    Err(err) => {
+                        log::error!("could not read last generated id from database: {}", err);
+                    }
+                }
+            },
+            Err(error) => {
+                log::error!("Failed to get albumartist_id for from database: {}", error);
+                return artist_id;
+            }
+        }
+    }
+    artist_id
 }
 
 pub fn delete_audio(
@@ -752,7 +868,7 @@ pub fn delete_audio(
     // Get the index.
     //let index = self.ids[id];
     let mut audio_id: u32 = 0;
-    let query = "SELECT video_id FROM file_metadata WHERE filepath = ?1";
+    let query = "SELECT metadata_id FROM file_metadata WHERE filepath = ?1";
     match connection.prepare(query) {
         Ok(mut statement) => {
             match statement.query(params![&metadata.path]) {
@@ -792,9 +908,25 @@ pub fn delete_audio(
         log::error!("Failed to delete subtitles {}!", audio_id);
         return;
     }    
+    let ret = connection.execute(
+        "DELETE FROM artist_audio_map WHERE audio_id = ?1",
+        params![&audio_id],
+    );
+    if ret.is_err() {
+        log::error!("Failed to delete artist_audio_map {}!", audio_id);
+        return;
+    }    
     // clear the entry in the candidates list without deleting it
     let ret = connection.execute(
         "DELETE FROM albums WHERE audio_id = ?1",
+        params![&audio_id],
+    );
+    if ret.is_err() {
+        log::error!("Failed to delete albums {}!", audio_id);
+        return;
+    }    
+    let ret = connection.execute(
+        "DELETE FROM album_audio_map WHERE audio_id = ?1",
         params![&audio_id],
     );
     if ret.is_err() {
@@ -808,6 +940,14 @@ pub fn delete_audio(
     );
     if ret.is_err() {
         log::error!("Failed to delete album_artists {}!", audio_id);
+        return;
+    }    
+    let ret = connection.execute(
+        "DELETE FROM albumartist_audio_map WHERE audio_id = ?1",
+        params![&audio_id],
+    );
+    if ret.is_err() {
+        log::error!("Failed to delete albumartist_audio_map {}!", audio_id);
         return;
     }    
     // clear the entry in the candidates list without deleting it
@@ -842,7 +982,8 @@ pub fn audio(
     v.path = filepath.to_string();
     let filedata = file(connection, filepath);
     let audio_id = filedata.metadata_id;
-    let query = "SELECT name, title, released, poster, duration, bitrate FROM audio_metadata WHERE audio_id = ?1";
+    let query = "SELECT name, title, released, poster, duration, bitrate 
+                        FROM audio_metadata WHERE audio_id = ?1";
     match connection.prepare(query) {
         Ok(mut statement) => {
             match statement.query(params![&audio_id]) {
@@ -913,7 +1054,10 @@ pub fn audio(
             log::error!("could not prepare SQL statement: {}", err);
         }
     }
-    let query = "SELECT artist_name FROM artists WHERE audio_id = ?1";
+    let query = "SELECT artist_name FROM artists 
+                        INNER JOIN artist_audio_map 
+                        ON artist_audio_map.artist_id = artists.artist_id 
+                        WHERE artist_audio_map.audio_id = ?1";
     match connection.prepare(query) {
         Ok(mut statement) => {
             match statement.query(params![&audio_id]) {
@@ -952,7 +1096,10 @@ pub fn audio(
             log::error!("could not prepare SQL statement: {}", err);
         }
     }
-    let query = "SELECT album_name FROM albums WHERE audio_id = ?1";
+    let query = "SELECT album_name FROM albums 
+                        INNER JOIN album_audio_map 
+                        ON album_audio_map.album_id = albums.album_id 
+                        WHERE album_audio_map.audio_id = ?1";
     match connection.prepare(query) {
         Ok(mut statement) => {
             match statement.query(params![&audio_id]) {
@@ -988,7 +1135,10 @@ pub fn audio(
             log::error!("could not prepare SQL statement: {}", err);
         }
     }
-    let query = "SELECT albumartist_name FROM album_artists WHERE audio_id = ?1";
+    let query = "SELECT albumartist_name FROM album_artists 
+                        INNER JOIN albumartist_audio_map 
+                        ON albumartist_audio_map.albumartist_id = artists.artist_id 
+                        WHERE albumartist_audio_map.audio_id = ?1";
     match connection.prepare(query) {
         Ok(mut statement) => {
             match statement.query(params![&audio_id]) {
@@ -1023,6 +1173,9 @@ pub fn audio(
         Err(err) => {
             log::error!("could not prepare SQL statement: {}", err);
         }
+    }
+    if !known_files.contains_key(&PathBuf::from(&v.path)) {
+        known_files.insert(PathBuf::from(&v.path), filedata.clone());
     }
     v
 }
@@ -1201,6 +1354,78 @@ pub fn files(connection: &mut rusqlite::Connection) -> std::collections::BTreeMa
     v
 }
 
+pub fn insert_file(
+    connection: &mut rusqlite::Connection, 
+    path: &str,
+    metadata: &std::fs::Metadata,
+    file_type: i32,
+    metadata_id: i64,
+    known_files: &mut std::collections::BTreeMap<PathBuf, crate::sql::FileMetadata>,
+) {
+    let mut creation_time: u64 = 0;
+    if let Ok(created) = metadata.created() {
+        match created.duration_since(std::time::UNIX_EPOCH) {
+            Ok(n) => creation_time = n.as_secs(),
+            Err(_) => panic!("SystemTime before UNIX EPOCH!"),
+        }
+    }
+    let mut modification_time: u64 = 0;
+    if let Ok(modified) = metadata.modified() {
+        match modified.duration_since(std::time::UNIX_EPOCH) {
+            Ok(n) => modification_time = n.as_secs(),
+            Err(_) => panic!("SystemTime before UNIX EPOCH!"),
+        }
+    }
+    match connection.execute(
+        "INSERT INTO file_metadata (filepath, creation_time, modificattion_time, file_type, metadata_id) VALUES (?1, ?2, ?3, ?4, ?5)",
+        params![&path, &creation_time, &modification_time, &file_type, &metadata_id],
+    ) {
+        Ok(_retval) => {}, //log::warn!("Inserted {} video with ID {} and location {} into candidates.", video.id, video.index, candidate_id),
+        Err(error) => {
+            log::error!("Failed to insert video into  database: {}", error);
+            return;
+        }
+    }
+    let meta = FileMetadata {
+        filepath: PathBuf::from(&path),
+        creation_time,
+        modification_time,
+        file_type,
+        metadata_id,
+        ..Default::default()
+    };
+    known_files.insert(meta.filepath.clone(), meta.clone());
+
+    if file_type == 3 {
+        let thumbpath = PathBuf::from(&path);
+        known_files.insert(thumbpath.join(".png"), meta);
+    }
+}
+
+pub fn delete_file(    
+    connection: &mut rusqlite::Connection, 
+    path: &str,
+    known_files: &mut std::collections::BTreeMap<PathBuf, crate::sql::FileMetadata>,
+) {
+    let _ret = connection.execute(
+        "DELETE FROM file_metadata WHERE filepath = ?1",
+        params![&path],
+    );
+    known_files.remove(&PathBuf::from(path));
+}
+
+pub fn update_file(    
+    connection: &mut rusqlite::Connection, 
+    path: &str,
+    metadata: &std::fs::Metadata,
+    file_type: i32,
+    metadata_id: i64,
+    known_files: &mut std::collections::BTreeMap<PathBuf, crate::sql::FileMetadata>,
+) {
+    delete_file(connection, path, known_files);
+    insert_file(connection, path, metadata, file_type, metadata_id, known_files);
+}   
+
 pub fn connect() -> Result<rusqlite::Connection, rusqlite::Error> {
     let sqlite_file;
     let connection;
@@ -1224,12 +1449,13 @@ pub fn connect() -> Result<rusqlite::Connection, rusqlite::Error> {
     if !sqlite_file.is_file() {
         connection = Connection::open(sqlite_file)?;
         println!("{}", connection.is_autocommit());
+        // file_type: 0 other file, 1 image, 2, video, 3 audio
         match connection.execute(
             "CREATE TABLE file_metadata (
                 filepath TEXT NOT NULL unique PRIMARY KEY NOT NULL, 
                 creation_time UNSIGNED BIG INT, 
                 modificattion_time UNSIGNED BIG INT, 
-                file_type INT,   // 0 other file, 1 image, 2, video, 3 audio
+                file_type INT,   
                 metadata_id BIG INT
             )", (),
         ) {
@@ -1264,7 +1490,7 @@ pub fn connect() -> Result<rusqlite::Connection, rusqlite::Error> {
         match connection.execute("
             CREATE TABLE subtitles (
                 subtitle_id INTEGER, 
-                video_id BIG INT, 
+                video_id INTEGER, 
                 subpath TEXT, 
                 PRIMARY KEY(subtitle_id AUTOINCREMENT)
             )", [],
@@ -1287,7 +1513,7 @@ pub fn connect() -> Result<rusqlite::Connection, rusqlite::Error> {
         match connection.execute("
             CREATE TABLE audiolangs (
                 audiolang_id INTEGER, 
-                video_id BIG INT, 
+                video_id INTEGER, 
                 audiolang TEXT, 
                 PRIMARY KEY(audiolang_id AUTOINCREMENT)
             )", [],
@@ -1310,7 +1536,7 @@ pub fn connect() -> Result<rusqlite::Connection, rusqlite::Error> {
         match connection.execute("
             CREATE TABLE sublangs (
                 sublang_id INTEGER, 
-                video_id BIG INT, 
+                video_id INTEGER, 
                 sublang TEXT, 
                 PRIMARY KEY(sublang_id AUTOINCREMENT)
             )", [],
@@ -1331,16 +1557,38 @@ pub fn connect() -> Result<rusqlite::Connection, rusqlite::Error> {
             }
         }
         match connection.execute("
+        CREATE TABLE people (
+            person_id INTEGER, 
+            person_name TEXT, 
+            PRIMARY KEY(person_id AUTOINCREMENT)
+        )", [],
+        ) {
+            Ok(_ret) => {},
+            Err(error) => {
+                log::error!("Failed to create table people: {}", error);
+                return Err(error);
+            }
+        }
+        match connection.execute(
+            "CREATE INDEX index_people_name ON people (person_name)", (),
+        ) {
+            Ok(_ret) => {},
+            Err(error) => {
+                log::error!("Failed to create index on directors: {}", error);
+                return Err(error);
+            }
+        }
+        match connection.execute("
             CREATE TABLE directors (
+                entry_id INTEGER,
                 director_id INTEGER, 
-                video_id BIG INT, 
-                director_name TEXT, 
-                PRIMARY KEY(director_id AUTOINCREMENT)
+                video_id INTEGER, 
+                PRIMARY KEY(entry_id AUTOINCREMENT)
             )", [],
         ) {
             Ok(_ret) => {},
             Err(error) => {
-                log::error!("Failed to create table parameters: {}", error);
+                log::error!("Failed to create table directors: {}", error);
                 return Err(error);
             }
         }
@@ -1355,10 +1603,10 @@ pub fn connect() -> Result<rusqlite::Connection, rusqlite::Error> {
         }
         match connection.execute("
             CREATE TABLE actors (
+                entry_id INTEGER,
                 actor_id INTEGER, 
-                video_id BIG INT, 
-                actor_name TEXT, 
-                PRIMARY KEY(actor_id AUTOINCREMENT)
+                video_id INTEGER, 
+                PRIMARY KEY(entry_id AUTOINCREMENT)
             )", [],
         ) {
             Ok(_ret) => {},
@@ -1367,7 +1615,7 @@ pub fn connect() -> Result<rusqlite::Connection, rusqlite::Error> {
                 return Err(error);
             }
         }
-        match connection.execute(
+         match connection.execute(
             "CREATE INDEX index_actors_video_id ON actors (video_id)", (),
         ) {
             Ok(_ret) => {},
@@ -1396,32 +1644,8 @@ pub fn connect() -> Result<rusqlite::Connection, rusqlite::Error> {
             }
         }
         match connection.execute("
-            CREATE TABLE artists (
-                artist_id INTEGER, 
-                audio_id BIG INT, 
-                artist_name TEXT, 
-                PRIMARY KEY(artist_id AUTOINCREMENT)
-            )", [],
-        ) {
-            Ok(_ret) => {},
-            Err(error) => {
-                log::error!("Failed to create table parameters: {}", error);
-                return Err(error);
-            }
-        }
-        match connection.execute(
-            "CREATE INDEX index_artists_audio_id ON artists (audio_id)", (),
-        ) {
-            Ok(_ret) => {},
-            Err(error) => {
-                log::error!("Failed to create index on artists: {}", error);
-                return Err(error);
-            }
-        }
-        match connection.execute("
             CREATE TABLE albums (
                 album_id INTEGER, 
-                audio_id BIG INT, 
                 album_name TEXT, 
                 PRIMARY KEY(album_id AUTOINCREMENT)
             )", [],
@@ -1433,7 +1657,7 @@ pub fn connect() -> Result<rusqlite::Connection, rusqlite::Error> {
             }
         }
         match connection.execute(
-            "CREATE INDEX index_albums_audio_id ON albums (audio_id)", (),
+            "CREATE INDEX index_albums_name ON albums (album_name)", (),
         ) {
             Ok(_ret) => {},
             Err(error) => {
@@ -1442,30 +1666,98 @@ pub fn connect() -> Result<rusqlite::Connection, rusqlite::Error> {
             }
         }
         match connection.execute("
-            CREATE TABLE album_artists (
-                albumartist_id INTEGER, 
-                audio_id BIG INT, 
-                album_id BIG INT,
-                albumartist_name TEXT, 
-                PRIMARY KEY(albumartist_id AUTOINCREMENT)
+        CREATE TABLE album_audio_map (
+            entry_id INTEGER,
+            audio_id INTEGER,
+            album_id INTEGER,
+            PRIMARY KEY(entry_id AUTOINCREMENT) 
             )", [],
         ) {
             Ok(_ret) => {},
             Err(error) => {
-                log::error!("Failed to create table parameters: {}", error);
+                log::error!("Failed to create table albums: {}", error);
                 return Err(error);
             }
         }
         match connection.execute(
-            "CREATE INDEX index_album_artists_audio_id ON album_artists (audio_id)", (),
+            "CREATE INDEX index_album_audio_audio_id ON album_audio_map (audio_id)", (),
         ) {
             Ok(_ret) => {},
             Err(error) => {
-                log::error!("Failed to create index on album_artists: {}", error);
+                log::error!("Failed to create index on albums: {}", error);
+                return Err(error);
+            }
+        }
+
+        match connection.execute("
+            CREATE TABLE artists (
+                artist_id INTEGER, 
+                artist_name TEXT, 
+                PRIMARY KEY(artist_id AUTOINCREMENT)
+            )", [],
+        ) {
+            Ok(_ret) => {},
+            Err(error) => {
+                log::error!("Failed to create table artists: {}", error);
+                return Err(error);
+            }
+        }
+        match connection.execute(
+            "CREATE INDEX index_artists_name_id ON artists (artist_name)", (),
+        ) {
+            Ok(_ret) => {},
+            Err(error) => {
+                log::error!("Failed to create index on artists: {}", error);
+                return Err(error);
+            }
+        }
+        match connection.execute("
+        CREATE TABLE artist_audio_map (
+            entry_id INTEGER,
+            audio_id INTEGER,
+            artist_id INTEGER, 
+            PRIMARY KEY(entry_id AUTOINCREMENT)
+            )", [],
+        ) {
+            Ok(_ret) => {},
+            Err(error) => {
+                log::error!("Failed to create table artist_audio_map: {}", error);
+                return Err(error);
+            }
+        }
+        match connection.execute(
+            "CREATE INDEX index_artist_audio_map_audio_id ON artist_audio_map (audio_id)", (),
+        ) {
+            Ok(_ret) => {},
+            Err(error) => {
+                log::error!("Failed to create index on artist_audio_map: {}", error);
                 return Err(error);
             }
         }
  
+        match connection.execute("
+        CREATE TABLE albumartist_audio_map (
+            entry_id INTEGER,
+            audio_id INTEGER,
+            albumartist_id INTEGER, 
+            PRIMARY KEY(entry_id AUTOINCREMENT)
+            )", [],
+        ) {
+            Ok(_ret) => {},
+            Err(error) => {
+                log::error!("Failed to create table albumartist_audio_map: {}", error);
+                return Err(error);
+            }
+        }
+        match connection.execute(
+            "CREATE INDEX index_albumartist_audio_map_audio_id ON artist_audio_map (audio_id)", (),
+        ) {
+            Ok(_ret) => {},
+            Err(error) => {
+                log::error!("Failed to create index on albumartist_audio_map: {}", error);
+                return Err(error);
+            }
+        }
     } else {
         connection = Connection::open(sqlite_file)?;
     }

@@ -99,7 +99,6 @@ restored = {$items} {$items ->
         [one] Element wurde
         *[other] Elemente wurden
     } aus dem {trash} wiederhergestellt
-undo = Rückgängig
 unknown-folder = unbekannter Ordner
 
 ## Öffnen mit

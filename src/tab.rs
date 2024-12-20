@@ -37,7 +37,7 @@ use cosmic::{
 };
 
 use chrono::{DateTime, Utc};
- 
+
 use mime_guess::{mime, Mime};
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
@@ -48,6 +48,7 @@ use std::{
     fmt::{self, Display},
     fs::{self, Metadata},
     num::NonZeroU16,
+    ops::ControlFlow,
     os::unix::fs::MetadataExt,
     path::{Path, PathBuf},
     sync::{Arc, Mutex},
@@ -338,7 +339,9 @@ pub fn scan_path(tab_path: &PathBuf, sizes: IconSizes) -> Vec<Item> {
             let mut all: Vec<PathBuf> = Vec::new();
             let mut nfos = Vec::new();
             let mut audios = Vec::new();
+            let mut videos = Vec::new();
             let mut dirs = Vec::new();
+            let mut justdirs = Vec::new();
             let mut special_files = std::collections::BTreeSet::new();
             for entry_res in entries {
                 let entry = match entry_res {
@@ -355,176 +358,92 @@ pub fn scan_path(tab_path: &PathBuf, sizes: IconSizes) -> Vec<Item> {
                 } else {
                     all.push(path.clone());
                     if let Some(ext) = path.extension() {
-                        let extension = crate::parsers::osstr_to_string(ext.to_os_string()).to_ascii_lowercase();
-                        if &extension == ".nfo" {
+                        let extension = crate::parsers::osstr_to_string(ext.to_os_string())
+                            .to_ascii_lowercase();
+                        if &extension == "nfo" {
                             if let Some(basename) = path.file_stem() {
                                 nfos.push(crate::parsers::osstr_to_string(basename.to_os_string()));
                             }
-                        } else if &extension == ".mp3" || &extension == ".m4a" || &extension == ".flac" {
+                        } else if &extension == "mp3" || &extension == "m4a" || &extension == "flac"
+                        {
                             audios.push(path.clone());
+                        } else if &extension == "mkv" || &extension == "mp4" || &extension == "webm"
+                        {
+                            videos.push(path.clone());
                         }
                     }
                 }
             }
 
             for video in nfos {
-                let mut meta_data = crate::sql::VideoMetadata {..Default::default()};
-                let mut nfo_file = PathBuf::from(&format!("{}.nfo", video));
-                for fp in all.iter() {
-                    let f = crate::parsers::osstr_to_string(fp.clone().into_os_string()).to_ascii_lowercase();
-                    if let Ok(re) = regex::Regex::new(&format!("(?i){}.*", video)) { 
-                        if re.is_match(&f) {
-                            // part of a local video or metadata
-                            if f.contains("poster.") {
-                                meta_data.poster = f.clone();
-                            }
-                            else if f.contains(".srt") {
-                                meta_data.subtitles.push(f.clone());
-                            }
-                            else if f.contains(".nfo") {
-                                nfo_file = fp.clone();
-                            }
-                            else if f.ends_with(".mkv") 
-                                || f.ends_with(".mp4") 
-                                || f.ends_with(".webm") {
-                                meta_data.path = f.clone();
-                            }
-                            special_files.insert(fp.clone());
-                        }
-                    }
-                }
-                if meta_data.path.len() == 0 {
+                if let ControlFlow::Break(_) = crate::parsers::scan_nfos_in_dir(
+                    video,
+                    &all,
+                    &mut special_files,
+                    &mut items,
+                    sizes,
+                    &mut known_files,
+                    &mut connection,
+                ) {
                     continue;
                 }
-                let statdata = match fs::metadata(&meta_data.path) {
-                    Ok(ok) => ok,
-                    Err(err) => {
-                        log::warn!("failed to read metadata for entry at {:?}: {}", meta_data.path, err);
-                        continue;
-                    }
-                };
-                items.push(
-                    crate::parsers::item_from_nfo(
-                        nfo_file, 
-                        &mut meta_data, 
-                        &statdata, 
-                        sizes, 
-                        &mut known_files, 
-                        &mut connection
-                    )
-                );
+            }
+
+            for video in videos {
+                if let ControlFlow::Break(_) = crate::parsers::scan_videos(
+                    &mut special_files, 
+                    video,
+                    &mut items, 
+                    sizes, 
+                    &mut known_files,
+                    &mut connection,
+                ) {
+                    continue;
+                }
             }
 
             for dp in dirs.iter() {
-                // test if we have a single movie with NFO in this dir
-                let mut meta_data = crate::sql::VideoMetadata {..Default::default()};
-                let mut alreadyset = false;
-                let mut nfo_file = PathBuf::from("movie.nfo");
-                match fs::read_dir(tab_path) {
-                    Ok(entries) => {
-                        for entry_res in entries {
-                            let entry = match entry_res {
-                                Ok(ok) => ok,
-                                Err(err) => {
-                                    log::warn!("failed to read entry in {:?}: {}", tab_path, err);
-                                    continue;
-                                }
-                            };
-                            let path = entry.path();
-                            let f = path.display().to_string().to_ascii_lowercase();
-                            if f.contains("poster.") {
-                                meta_data.poster = f.clone();
-                                alreadyset = true;
-                            }
-                            else if f.contains(".srt") {
-                                meta_data.subtitles.push(f.clone());
-                            }
-                            else if f.contains(".nfo") {
-                                nfo_file = path.clone();
-                                alreadyset = true;
-                            }
-                            else if f.ends_with(".mkv") 
-                                || f.ends_with(".mp4") 
-                                || f.ends_with(".webm") {
-                                meta_data.path = f.clone();
-                                alreadyset = true;
-                            }
-                        }
-                    },              
-                    Err(err) => {
-                        log::warn!("failed to read directory {:?}: {}", tab_path, err);
-                    }
-                }
-                if meta_data.path.len() == 0 {
+                if let ControlFlow::Break(_) = crate::parsers::scan_single_nfo_dir(
+                    dp,
+                    tab_path,
+                    &mut special_files,
+                    &mut justdirs,
+                    &mut items,
+                    sizes,
+                    &mut known_files,
+                    &mut connection,
+                ) {
                     continue;
                 }
-                let statdata = match fs::metadata(&meta_data.path) {
-                    Ok(ok) => ok,
-                    Err(err) => {
-                        log::warn!("failed to read metadata for entry at {:?}: {}", meta_data.path, err);
-                        continue;
-                    }
-                };
-
-                items.push(
-                    crate::parsers::item_from_nfo(
-                        nfo_file, 
-                        &mut meta_data, 
-                        &statdata, 
-                        sizes, 
-                        &mut known_files, 
-                        &mut connection
-                    )
-                );
             }
 
             for audio in audios {
-                let mut meta_data = crate::sql::AudioMetadata {..Default::default()};
-
-                meta_data.path = audio.display().to_string();
-                if let Some(basename) = audio.file_stem() {
-                    meta_data.name = crate::parsers::osstr_to_string(basename.to_os_string());
-                }
-                if meta_data.path.len() == 0 {
+                if let ControlFlow::Break(_) = crate::parsers::scan_audiotags(
+                    audio,
+                    &mut special_files,
+                    &mut items,
+                    sizes,
+                    &mut known_files,
+                    &mut connection,
+                ) {
                     continue;
                 }
-                let statdata = match fs::metadata(&meta_data.path) {
-                    Ok(ok) => ok,
-                    Err(err) => {
-                        log::warn!("failed to read metadata for entry at {:?}: {}", meta_data.path, err);
-                        continue;
-                    }
-                };
-                special_files.insert(audio.clone());
-                items.push(
-                    crate::parsers::item_from_audiotags(
-                        audio, 
-                        &mut meta_data, 
-                        &statdata, 
-                        sizes, 
-                        &mut known_files, 
-                        &mut connection
-                    )
-                );
+            }
+
+            for path in justdirs {
+                if let ControlFlow::Break(_) =
+                    crate::parsers::scan_directories(&mut special_files, path, &mut items, sizes)
+                {
+                    continue;
+                }
             }
 
             for path in all {
-                if special_files.contains(&path.clone()) {
+                if let ControlFlow::Break(_) =
+                    crate::parsers::scan_files(&mut special_files, path, &mut items, sizes)
+                {
                     continue;
                 }
-                let name =  path.display().to_string();
-
-                let metadata = match fs::metadata(&path) {
-                    Ok(ok) => ok,
-                    Err(err) => {
-                        log::warn!("failed to read metadata for entry at {:?}: {}", path, err);
-                        continue;
-                    }
-                };
-
-                items.push(
-                    crate::parsers::item_from_entry(path, name, metadata, sizes)
-                );
             }
         }
         Err(err) => {
@@ -586,14 +505,12 @@ pub fn scan_search(tab_path: &PathBuf, term: &str, sizes: IconSizes) -> Vec<Item
                     };
 
                     let mut items = items_arc.lock().unwrap();
-                    items.push(
-                        crate::parsers::item_from_entry(
-                            path.to_path_buf(),
-                            file_name.to_string(),
-                            metadata,
-                            IconSizes::default(),
-                        )
-                    );
+                    items.push(crate::parsers::item_from_entry(
+                        path.to_path_buf(),
+                        file_name.to_string(),
+                        metadata,
+                        IconSizes::default(),
+                    ));
                 }
 
                 ignore::WalkState::Continue
@@ -2015,7 +1932,8 @@ impl Tab {
                                             cd = Some(location.clone());
                                         } else {
                                             if let Location::Path(path) = location {
-                                                commands.push(Command::OpenInExternalApp(path.clone()));
+                                                commands
+                                                    .push(Command::OpenInExternalApp(path.clone()));
                                             }
                                         }
                                     } else {

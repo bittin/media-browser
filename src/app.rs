@@ -1590,6 +1590,7 @@ impl App {
                     self.active_view = Mode::Image;
                     self.view();
                 },
+                /*
                 file_format::Kind::Video => {
                     self.video_view
                         .update(crate::video::video_view::Message::Open(filepath.clone()));
@@ -1608,10 +1609,11 @@ impl App {
                     self.active_view = Mode::Audio;
                     self.view();
                 }, 
+                */
                 _ => {
                     if let Some(tab) = self.tab_model.data_mut::<Tab>(self.tab_model_id) {
                         let _ret = tab.update(
-                            tab::Message::Open(Some(path)), self.modifiers);
+                            tab::Message::OpenInExternalApp(Some(path)), self.modifiers);
                         }
                 }
             }
