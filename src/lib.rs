@@ -12,6 +12,7 @@ pub mod app;
 mod audio;
 pub mod clipboard;
 use config::Config;
+pub mod cmd;
 pub mod config;
 pub mod dialog;
 mod image;
@@ -28,6 +29,7 @@ mod spawn_detached;
 pub mod sql;
 pub mod tab;
 use tab::Location;
+mod thumbnails;
 mod video;
 
 pub(crate) fn err_str<T: ToString>(err: T) -> String {

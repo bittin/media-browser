@@ -1612,9 +1612,8 @@ impl App {
                 */
                 _ => {
                     if let Some(tab) = self.tab_model.data_mut::<Tab>(self.tab_model_id) {
-                        let _ret = tab.update(
-                            tab::Message::OpenInExternalApp(Some(path)), self.modifiers);
-                        }
+                        let _ = self.update(Message::TabMessage(Some(self.tab_model_id), tab::Message::OpenInExternalApp(Some(path))));
+                    }
                 }
             }
         }

@@ -459,7 +459,7 @@ fn video_metadata(filepath: &str) -> crate::sql::VideoMetadata {
     }
     meta.name = basename.clone();
     meta.title = basename.clone();
-    let mut cmd_runner = CmdRunner::new(&format!("ffmpeg -i \"{}\"", filepath));
+    let mut cmd_runner = crate::cmd::CmdRunner::new(&format!("ffmpeg -i \"{}\"", filepath));
     if let Ok((stdout, _stderr)) = cmd_runner.run_with_output() {
         // let ffmpeg_output = std::process::Command::new("ffmpeg")
         //    .args(["-i", filepath])
@@ -643,36 +643,22 @@ pub fn item_from_video(
     } else {
         if videometadata.path.len() > 0 {
             let thumbpath = PathBuf::from(&videometadata.poster);
-            let mime = mime_for_path(thumbpath.clone());
-            //TODO: clean this up, implement for trash
-            let icon_name_opt = if mime == "application/x-desktop" {
-                let (desktop_name_opt, icon_name_opt) = crate::tab::parse_desktop_file(&path);
-                if let Some(desktop_name) = desktop_name_opt {
-                    display_name = Item::display_name(&desktop_name);
-                }
-                icon_name_opt
-            } else {
-                None
-            };
-            if let Some(icon_name) = icon_name_opt {
+            let thumbmime = mime_for_path(thumbpath.clone());
+            let filemime = mime_for_path(filepath.clone());
+            if videometadata.poster.len() > 0 {
+                let thumbpath = PathBuf::from(&videometadata.poster);
                 (
-                    mime.clone(),
-                    widget::icon::from_name(&*icon_name)
-                        .size(sizes.grid())
-                        .handle(),
-                    widget::icon::from_name(&*icon_name)
-                        .size(sizes.list())
-                        .handle(),
-                    widget::icon::from_name(&*icon_name)
-                        .size(sizes.list_condensed())
-                        .handle(),
+                    filemime.clone(),
+                    widget::icon::from_path(thumbpath.clone()),
+                    widget::icon::from_path(thumbpath.clone()),
+                    widget::icon::from_path(thumbpath.clone()),
                 )
             } else {
                 (
-                    mime.clone(),
-                    mime_icon(mime.clone(), sizes.grid()),
-                    mime_icon(mime.clone(), sizes.list()),
-                    mime_icon(mime, sizes.list_condensed()),
+                    filemime.clone(),
+                    mime_icon(filemime.clone(), sizes.grid()),
+                    mime_icon(filemime.clone(), sizes.list()),
+                    mime_icon(filemime.clone(), sizes.list_condensed()),
                 )
             }
         } else {
@@ -811,35 +797,23 @@ pub fn item_from_nfo(
 
     let hidden = name.starts_with(".") || hidden_attribute(&statdata);
 
-    let (mime, icon_handle_grid, icon_handle_list, icon_handle_list_condensed) = {
+     let (mime, icon_handle_grid, icon_handle_list, icon_handle_list_condensed) = {
         let thumbpath = PathBuf::from(&metadata.poster);
-        let mime = mime_for_path(thumbpath.clone());
-        //TODO: clean this up, implement for trash
-        let icon_name_opt = if mime == "application/x-desktop" {
-            let (desktop_name_opt, icon_name_opt) = crate::tab::parse_desktop_file(&thumbpath);
-            icon_name_opt
-        } else {
-            None
-        };
-        if let Some(icon_name) = icon_name_opt {
+        let thumbmime = mime_for_path(thumbpath.clone());
+        let filemime = mime_for_path(filepath.clone());
+        if metadata.poster.len() > 0 {
             (
-                mime.clone(),
-                widget::icon::from_name(&*icon_name)
-                    .size(sizes.grid())
-                    .handle(),
-                widget::icon::from_name(&*icon_name)
-                    .size(sizes.list())
-                    .handle(),
-                widget::icon::from_name(&*icon_name)
-                    .size(sizes.list_condensed())
-                    .handle(),
+                filemime.clone(),
+                widget::icon::from_path(thumbpath.clone()),
+                widget::icon::from_path(thumbpath.clone()),
+                widget::icon::from_path(thumbpath.clone()),
             )
         } else {
             (
-                mime.clone(),
-                mime_icon(mime.clone(), sizes.grid()),
-                mime_icon(mime.clone(), sizes.list()),
-                mime_icon(mime, sizes.list_condensed()),
+                filemime.clone(),
+                mime_icon(thumbmime.clone(), sizes.grid()),
+                mime_icon(thumbmime.clone(), sizes.list()),
+                mime_icon(thumbmime.clone(), sizes.list_condensed()),
             )
         }
     };
@@ -947,18 +921,21 @@ pub fn item_from_audiotags(
 
     let hidden = name.starts_with(".") || hidden_attribute(&statdata);
 
+    let thumbpath;
+    if metadata.poster.len() == 0 {
+        // generate thumbnail
+        thumbpath = PathBuf::from(&metadata.path);
+    } else {
+        thumbpath = PathBuf::from(&metadata.poster);
+    }
+
+    let thumbmime = mime_for_path(thumbpath.clone());
+    let audiomime = mime_for_path(filepath.clone());
+
     let (mime, icon_handle_grid, icon_handle_list, icon_handle_list_condensed) = {
-        let thumbpath;
-        if metadata.poster.len() == 0 {
-            // generate thumbnail
-            thumbpath = PathBuf::from(&metadata.path);
-        } else {
-            thumbpath = PathBuf::from(&metadata.poster);
-        }
-        let mime = mime_for_path(thumbpath.clone());
         //TODO: clean this up, implement for trash
-        let icon_name_opt = if mime == "application/x-desktop" {
-            let (desktop_name_opt, icon_name_opt) = crate::tab::parse_desktop_file(&thumbpath);
+        let icon_name_opt = if audiomime == "application/x-desktop" {
+            let (desktop_name_opt, icon_name_opt) = crate::tab::parse_desktop_file(&filepath);
             if let Some(desktop_name) = desktop_name_opt {
                 display_name = Item::display_name(&desktop_name);
             }
@@ -966,33 +943,29 @@ pub fn item_from_audiotags(
         } else {
             None
         };
-        if let Some(icon_name) = icon_name_opt {
+
+        if metadata.poster.len() > 0 {
+            let thumbpath = PathBuf::from(&metadata.poster);
             (
-                mime.clone(),
-                widget::icon::from_name(&*icon_name)
-                    .size(sizes.grid())
-                    .handle(),
-                widget::icon::from_name(&*icon_name)
-                    .size(sizes.list())
-                    .handle(),
-                widget::icon::from_name(&*icon_name)
-                    .size(sizes.list_condensed())
-                    .handle(),
+                audiomime.clone(),
+                widget::icon::from_path(thumbpath.clone()),
+                widget::icon::from_path(thumbpath.clone()),
+                widget::icon::from_path(thumbpath.clone()),
             )
         } else {
             (
-                mime.clone(),
-                mime_icon(mime.clone(), sizes.grid()),
-                mime_icon(mime.clone(), sizes.list()),
-                mime_icon(mime, sizes.list_condensed()),
+                audiomime.clone(),
+                mime_icon(thumbmime.clone(), sizes.grid()),
+                mime_icon(thumbmime.clone(), sizes.list()),
+                mime_icon(thumbmime.clone(), sizes.list_condensed()),
             )
         }
     };
 
-    let open_with = mime_apps(&mime);
+    let open_with = mime_apps(&audiomime);
 
-    let thumbnail_opt = if mime.type_() == mime::IMAGE {
-        if mime.subtype() == mime::SVG {
+    let thumbnail_opt = if thumbmime.type_() == mime::IMAGE {
+        if thumbmime.subtype() == mime::SVG {
             Some(ItemThumbnail::Svg)
         } else {
             None
@@ -1163,9 +1136,17 @@ pub fn scan_audiotags(
         }
     };
     special_files.insert(audio.clone());
-    let mut thumb = osstr_to_string(audio.clone().into_os_string());
-    thumb.push_str(".png");
-    special_files.insert(PathBuf::from(&thumb));
+    let mut thumbstr = osstr_to_string(audio.clone().into_os_string());
+    thumbstr.push_str(".png");
+    let thumb = PathBuf::from(&thumbstr);
+    if thumb.exists() {
+        special_files.insert(thumb.clone());
+        let poster = crate::thumbnails::create_thumbnail(&thumb, 256);
+        if poster.len() > 0 {
+            meta_data.poster = poster.clone();
+        }
+    }
+
     items.push(crate::parsers::item_from_audiotags(
         audio,
         &mut meta_data,
@@ -1198,9 +1179,9 @@ pub fn scan_single_nfo_dir(
     let mut poster = 0;
     let mut nfo = 0;
     let mut nfo_file = dp.clone().join("movie.nfo");
+    let mut contents = Vec::new();
     match std::fs::read_dir(dp) {
         Ok(entries) => {
-            let mut contents = Vec::new();
             for entry_res in entries {
                 let entry = match entry_res {
                     Ok(ok) => ok,
@@ -1217,8 +1198,8 @@ pub fn scan_single_nfo_dir(
                 return ControlFlow::Break(())
             }
 
-            for path in contents {
-                let f = path.display().to_string().to_ascii_lowercase();
+            for path in contents.iter() {
+                let f = osstr_to_string(path.clone().into_os_string()).to_ascii_lowercase();
                 if f.contains("poster.") {
                     if poster > 0 {
                         justdirs.push(dp.clone());
@@ -1245,7 +1226,7 @@ pub fn scan_single_nfo_dir(
                         if let Some(file) = path.clone().file_stem() {
                             meta_data.name = osstr_to_string(file.to_os_string());
                         } else {
-                            meta_data.name = osstr_to_string(path.into_os_string());
+                            meta_data.name = osstr_to_string(path.clone().into_os_string());
                         }
                     }
                     movie += 1;
@@ -1273,6 +1254,17 @@ pub fn scan_single_nfo_dir(
         }
     }
     special_files.insert(dp.clone());
+    for path in contents.iter() {
+        special_files.insert(path.clone());
+    }
+    let thumb = PathBuf::from(&meta_data.poster);
+    if thumb.exists() {
+        let poster = crate::thumbnails::create_thumbnail(&thumb, 256);
+        if poster.len() > 0 {
+            meta_data.poster = poster.clone();
+        }
+    }
+
     let statdata = match std::fs::metadata(&meta_data.path) {
         Ok(ok) => ok,
         Err(err) => {
@@ -1311,7 +1303,7 @@ pub fn scan_nfos_in_dir(
     };
     let mut nfo_file = PathBuf::from(&format!("{}.nfo", video));
     for fp in all.iter() {
-        let f = crate::parsers::osstr_to_string(fp.clone().into_os_string());
+        let f = osstr_to_string(fp.clone().into_os_string());
         //if re.is_match(&f) {
         if f.contains(&video) {
             // part of a local video or metadata
@@ -1333,7 +1325,16 @@ pub fn scan_nfos_in_dir(
     if !nfo_file.exists() {
         return ControlFlow::Break(());
     }
- 
+    
+    if meta_data.poster.len() > 0 {
+        let thumb = PathBuf::from(&meta_data.poster);
+        if thumb.exists() {
+            let poster = crate::thumbnails::create_thumbnail(&thumb, 256);
+            if poster.len() > 0 {
+                meta_data.poster = poster.clone();
+            }
+        }
+    }
     let statdata = match std::fs::metadata(&meta_data.path) {
         Ok(ok) => ok,
         Err(err) => {
@@ -1354,63 +1355,5 @@ pub fn scan_nfos_in_dir(
         connection,
     ));
     ControlFlow::Continue(())
-}
-
-
-use std::{
-    io::{self, BufRead, BufReader, Write},
-    process::{Command, Stdio},
-    thread::JoinHandle,
-};
-
-pub struct CmdRunner {
-    pub cmd: Command,
-}
-
-fn tee<R, W>(reader: R, mut writer: W) -> JoinHandle<io::Result<Vec<String>>>
-where
-    R: BufRead + Send + 'static,
-    W: Write + Send + 'static,
-{
-    std::thread::spawn(move || {
-        let mut capture = Vec::new();
-
-        for line in reader.lines() {
-            let line = line?;
-
-            capture.push(line.clone());
-            writer.write_all(line.as_bytes())?;
-        }
-
-        Ok(capture)
-    })
-}
-
-impl CmdRunner {
-    pub fn new(cmd_str: &str) -> CmdRunner {
-        let mut cmd = Command::new("script");
-
-        cmd.arg("-qec").arg(cmd_str).arg("/dev/null");
-        CmdRunner { cmd }
-    }
-
-    pub fn run_with_output(&mut self) -> io::Result<(Vec<String>, Vec<String>)> {
-        self.cmd.stdin(Stdio::null());
-        self.cmd.stdout(Stdio::piped());
-        self.cmd.stderr(Stdio::piped());
-
-        let mut child = self.cmd.spawn().expect("failed to spawn command");
-        let stdout_pipe = child.stdout.take().unwrap();
-        let stdout_thread = tee(BufReader::new(stdout_pipe), io::stdout());
-        let stderr_pipe = child.stderr.take().unwrap();
-        let stderr_thread = tee(BufReader::new(stderr_pipe), io::stderr());
-        let stdout_output = stdout_thread.join().expect("failed to join stdout thread");
-        let stderr_output = stderr_thread.join().expect("failed to join stderr thread");
-
-        Ok((
-            stdout_output?,
-            stderr_output?,
-        ))
-    }
 }
 
