@@ -8,7 +8,6 @@ use std::{marker::PhantomData, sync::atomic::Ordering};
 use std::{sync::Arc, time::Instant};
 
 pub use gstreamer as gst;
-pub use gstreamer_app as gst_app;
 pub use gstreamer_pbutils as gst_pbutils;
 use gstreamer::prelude::*;
 

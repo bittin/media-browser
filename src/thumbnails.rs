@@ -9,7 +9,7 @@ fn calculate_hash<T: Hash>(t: &T) -> u64 {
 
 pub fn create_thumbnail(path: &std::path::PathBuf, max_size: u32) -> String {
     let mut thumbstring = String::new();
-    let mut thumbpath; 
+    let thumbpath; 
     let hashvalue: u64 = calculate_hash(path);
     let mut basename = String::from("thumbnail");
     if let Some(base) = path.file_stem() {

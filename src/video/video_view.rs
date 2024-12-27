@@ -1,50 +1,27 @@
 
 use cosmic::{
-    app::{message, Command, Core, Settings},
-    cosmic_config::{self, CosmicConfigEntry},
-    cosmic_theme, executor, font,
-    iced::{
-        event::{self, Event},
-        keyboard::{Event as KeyEvent, Key, Modifiers},
-        mouse::Event as MouseEvent,
-        subscription::Subscription,
-        window, Alignment, Background, Border, Color, Length, Limits,
-    },
-    theme,
-    widget::{self, menu::action::MenuAction, Slider},
-    Application, ApplicationExt, Element,
+    cosmic_config::{self},
+    cosmic_theme,
+    iced::keyboard::{Key, Modifiers},
+    widget::{menu::action::MenuAction},
 };
 pub use gstreamer as gst;
 pub use gstreamer_app as gst_app;
-pub use gstreamer_pbutils as gst_pbutils;
 use gstreamer::prelude::*;
-use thiserror::Error;
 //use iced_video_player::{
 //    gst::{self, prelude::*},
 //    gst_app, gst_pbutils, Video, VideoPlayer,
 //};
 use std::{
-    any::TypeId,
-    collections::HashMap,
     ffi::{CStr, CString},
-    fs, process,
     time::{Duration, Instant},
 };
 
-use crate::{
-    config::{Config, CONFIG_VERSION},
-    key_bind::key_binds,
-};
+use crate::config::Config;
 
 
-use crate::config;
-use crate::key_bind;
-use crate::localize;
-use crate::menu;
 
-pub use super::video::Position;
 pub use super::video::Video;
-pub use super::video_player::VideoPlayer;
 
 static CONTROLS_TIMEOUT: Duration = Duration::new(2, 0);
 
@@ -162,7 +139,7 @@ impl VideoView {
 
     /// Creates the application, and optionally emits command on initialize.
     pub fn new() -> Self {
-        let mut video_view = VideoView {
+        let video_view = VideoView {
             videopath_opt: None,
             controls: true,
             controls_time: Instant::now(),

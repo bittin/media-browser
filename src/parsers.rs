@@ -9,7 +9,7 @@ use mime_guess::mime;
 use std::cell::Cell;
 use std::ops::ControlFlow;
 use std::path::PathBuf;
-use std::time::{Duration, UNIX_EPOCH};
+use std::time::UNIX_EPOCH;
 
 fn parse_nfo(nfo_file: &PathBuf, metadata: &mut crate::sql::VideoMetadata) {
     use std::fs::File;
@@ -35,7 +35,7 @@ fn parse_nfo(nfo_file: &PathBuf, metadata: &mut crate::sql::VideoMetadata) {
         match reader.next() {
             Ok(e) => match e {
                 XmlEvent::StartDocument {
-                    version, encoding, ..
+                      ..
                 } => {
                     //println!("StartDocument({version}, {encoding})");
                 }
@@ -45,7 +45,7 @@ fn parse_nfo(nfo_file: &PathBuf, metadata: &mut crate::sql::VideoMetadata) {
                 }
                 XmlEvent::ProcessingInstruction { name, data } => {}
                 XmlEvent::StartElement {
-                    name, attributes, ..
+                    name,  ..
                 } => {
                     tag = name.to_string().to_ascii_lowercase();
                     match &tag as &str {
