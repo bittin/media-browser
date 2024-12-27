@@ -268,3 +268,7 @@ description-zoom-plus = Zoom in
 description-zoom-minus = Zoom out
 description-zoom-fit = Fit View of image to the window size
 description-seek = Pick from neighbor images
+
+# Player
+audio = Audio stream
+subtitles = Subtitle stream

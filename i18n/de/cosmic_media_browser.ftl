@@ -197,3 +197,7 @@ description-zoom-plus = Bild vergrößern
 description-zoom-minus = Bild verkleinern
 description-zoom-fit = Bild an Fenstergröße anpassen
 description-seek = Wähle aus Dateien in der Liste
+
+# Player
+audio = Tonspur
+subtitles = Untertitel
