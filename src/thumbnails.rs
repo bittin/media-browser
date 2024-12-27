@@ -1,5 +1,4 @@
 
-use base64;
 use std::hash::{DefaultHasher, Hash, Hasher};
 
 fn calculate_hash<T: Hash>(t: &T) -> u64 {
@@ -12,7 +11,11 @@ pub fn create_thumbnail(path: &std::path::PathBuf, max_size: u32) -> String {
     let mut thumbstring = String::new();
     let mut thumbpath; 
     let hashvalue: u64 = calculate_hash(path);
-    let filename = format!("{}.png", hashvalue);
+    let mut basename = String::from("thumbnail");
+    if let Some(base) = path.file_stem() {
+        basename = crate::parsers::osstr_to_string(base.to_os_string());
+    }
+    let filename = format!("{:#x}_{}.png", hashvalue, basename);
     match dirs::data_local_dir() {
         Some(pb) => {
             let mut dir = pb.join("cosmic-media-browser").join("thumbs");

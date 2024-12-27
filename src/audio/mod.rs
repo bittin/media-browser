@@ -1,6 +1,7 @@
 pub mod audio_player;
 pub mod audio_view;
 pub mod audio;
+pub mod pipeline;
 
 use gstreamer as gst;
 use thiserror::Error;

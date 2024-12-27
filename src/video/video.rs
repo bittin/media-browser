@@ -221,9 +221,7 @@ impl Video {
         //let pad = text_sink.pads().get(0).cloned().unwrap();
         let text_sink = text_sink.downcast::<gst_app::AppSink>().unwrap();
         
-        let audio_sink: gst::Element = pipeline.property("audio-sink");
-        let audio_sink = audio_sink.downcast::<gst_app::AppSink>().unwrap();
-        return Self::from_gst_pipeline(pipeline, video_sink, audio_sink, None)
+        return Self::from_gst_pipeline(pipeline, video_sink, None)
     }
 
     /// Creates a new video based on an existing GStreamer pipeline and appsink.
@@ -237,7 +235,6 @@ impl Video {
     pub fn from_gst_pipeline(
         pipeline: gst::Pipeline,
         video_sink: gst_app::AppSink,
-        audio_sink: gst_app::AppSink,
         text_sink: Option<gst_app::AppSink>,
     ) -> Result<Self, Error> {
         gst::init()?;

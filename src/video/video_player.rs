@@ -7,6 +7,11 @@ use cosmic::iced_wgpu::primitive::pipeline::Renderer as PrimitiveRenderer;
 use std::{marker::PhantomData, sync::atomic::Ordering};
 use std::{sync::Arc, time::Instant};
 
+pub use gstreamer as gst;
+pub use gstreamer_app as gst_app;
+pub use gstreamer_pbutils as gst_pbutils;
+use gstreamer::prelude::*;
+
 /// Video player widget which displays the current frame of a [`Video`](crate::Video).
 pub struct VideoPlayer<'a, Message, Theme = cosmic::iced::Theme, Renderer = cosmic::iced::Renderer>
 where
@@ -16,10 +21,13 @@ where
     content_fit: cosmic::iced::ContentFit,
     width: cosmic::iced::Length,
     height: cosmic::iced::Length,
+    mouse_hidden: bool,
     on_end_of_stream: Option<Message>,
     on_new_frame: Option<Message>,
     on_subtitle_text: Option<Box<dyn Fn(Option<String>) -> Message + 'a>>,
-    on_error: Option<Box<dyn Fn(&glib::Error) -> Message + 'a>>,
+    on_error: Option<Box<dyn Fn(glib::Error) -> Message + 'a>>,
+    on_missing_plugin: Option<Box<dyn Fn(gst::Message) -> Message + 'a>>,
+    on_warning: Option<Box<dyn Fn(glib::Error) -> Message + 'a>>,
     _phantom: PhantomData<(Theme, Renderer)>,
 }
 
@@ -34,10 +42,13 @@ where
             content_fit: cosmic::iced::ContentFit::Contain,
             width: cosmic::iced::Length::Shrink,
             height: cosmic::iced::Length::Shrink,
+            mouse_hidden: false,
             on_end_of_stream: None,
             on_new_frame: None,
             on_subtitle_text: None,
             on_error: None,
+            on_missing_plugin: None,
+            on_warning: None,
             _phantom: Default::default(),
         }
     }
@@ -62,6 +73,13 @@ where
     pub fn content_fit(self, content_fit: cosmic::iced::ContentFit) -> Self {
         VideoPlayer {
             content_fit,
+            ..self
+        }
+    }
+
+    pub fn mouse_hidden(self, mouse_hidden: bool) -> Self {
+        VideoPlayer {
+            mouse_hidden,
             ..self
         }
     }
@@ -96,7 +114,7 @@ where
     /// Message to send when the video playback encounters an error.
     pub fn on_error<F>(self, on_error: F) -> Self
     where
-        F: 'a + Fn(&glib::Error) -> Message,
+        F: 'a + Fn(glib::Error) -> Message,
     {
         VideoPlayer {
             on_error: Some(Box::new(on_error)),
@@ -104,6 +122,26 @@ where
         }
     }
 
+
+    pub fn on_missing_plugin<F>(self, on_missing_plugin: F) -> Self
+    where
+        F: 'a + Fn(gst::Message) -> Message,
+    {
+        VideoPlayer {
+            on_missing_plugin: Some(Box::new(on_missing_plugin)),
+            ..self
+        }
+    }
+
+    pub fn on_warning<F>(self, on_warning: F) -> Self
+    where
+        F: 'a + Fn(glib::Error) -> Message,
+    {
+        VideoPlayer {
+            on_warning: Some(Box::new(on_warning)),
+            ..self
+        }
+    }
 }
 
 impl<'a, Message, Theme, Renderer> Widget<Message, Theme, Renderer>
@@ -165,9 +203,7 @@ where
             adjusted_fit.width / image_size.width,
             adjusted_fit.height / image_size.height,
         );
-        let final_size = cosmic::iced::Size::new(
-            image_size.width as f32 * scale.x, 
-            image_size.height as f32 * scale.y);
+        let final_size = cosmic::iced::Size::new(image_size.width * scale.x, image_size.height * scale.y);
 
         let position = match self.content_fit {
             cosmic::iced::ContentFit::None => cosmic::iced::Point::new(
@@ -205,10 +241,9 @@ where
         );
     }
 
-                /*
     fn on_event(
         &mut self,
-        _state: &mut widget::Tree,
+        _state: &mut cosmic::iced_core::widget::Tree,
         event: cosmic::iced::Event,
         _layout: advanced::Layout<'_>,
         _cursor: advanced::mouse::Cursor,
@@ -216,82 +251,107 @@ where
         _clipboard: &mut dyn advanced::Clipboard,
         shell: &mut advanced::Shell<'_, Message>,
         _viewport: &cosmic::iced::Rectangle,
-    ) -> Status {
-        //let mut inner = self.video.write();
-        event::listen_with(|event, status| match event {
-            Event::Window(_id, cosmic::iced::window::Event::RedrawRequested(_)) => {
-                self.redraw(shell);
-                if inner.restart_stream || (!inner.is_eos && !inner.paused()) {
-                    let mut restart_stream = false;
-                    if inner.restart_stream {
-                        restart_stream = true;
-                        // Set flag to false to avoid potentially multiple seeks
-                        inner.restart_stream = false;
-                    }
-                    let mut eos_pause = false;
+    ) -> cosmic::iced::event::Status {
+        let mut inner = self.video.write();
 
-                    while let Some(msg) = inner
-                        .bus
-                        .pop_filtered(&[gst::MessageType::Error, gst::MessageType::Eos])
-                    {
-                        match msg.view() {
-                            gst::MessageView::Error(err) => {
-                                error!("bus returned an error: {err}");
-                                if let Some(ref on_error) = self.on_error {
-                                    shell.publish(on_error(&err.error()))
-                                };
-                            }
-                            gst::MessageView::Eos(_eos) => {
-                                if let Some(on_end_of_stream) = self.on_end_of_stream.clone() {
-                                    shell.publish(on_end_of_stream);
-                                }
-                                if inner.looping {
-                                    restart_stream = true;
-                                } else {
-                                    eos_pause = true;
-                                }
-                            }
-                            _ => {}
-                        }
-                    }
-
-                    // Don't run eos_pause if restart_stream is true; fixes "pausing" after restarting a stream
-                    if restart_stream {
-                        if let Err(err) = inner.restart_stream() {
-                            error!("cannot restart stream (can't seek): {err:#?}");
-                        }
-                    } else if eos_pause {
-                        inner.is_eos = true;
-                        inner.set_paused(true);
-                    }
-
-                    if inner.upload_frame.load(Ordering::SeqCst) {
-                        if let Some(on_new_frame) = self.on_new_frame.clone() {
-                            shell.publish(on_new_frame);
-                        }
-                    }
-
-                    if let Some(on_subtitle_text) = &self.on_subtitle_text {
-                        if inner.upload_text.swap(false, Ordering::SeqCst) {
-                            if let Ok(text) = inner.subtitle_text.try_lock() {
-                                shell.publish(on_subtitle_text(text.clone()));
-                            }
-                        }
-                    }
-
-                    shell.request_redraw(cosmic::iced::window::RedrawRequest::NextFrame);
-                } else {
-                    shell.request_redraw(cosmic::iced::window::RedrawRequest::At(
-                        Instant::now() + Duration::from_millis(32),
-                    ));
+        if let cosmic::iced::Event::Window(_, cosmic::iced::window::Event::RedrawRequested(_)) = event {
+            if inner.restart_stream || (!inner.is_eos && !inner.paused()) {
+                let mut restart_stream = false;
+                if inner.restart_stream {
+                    restart_stream = true;
+                    // Set flag to false to avoid potentially multiple seeks
+                    inner.restart_stream = false;
                 }
-                Some(Status::Captured)
-            },
-        _ => Some(Status::Ignored),
-        });
-        Status::Ignored
+                let mut eos_pause = false;
+
+                while let Some(msg) = inner
+                    .bus
+                    .pop_filtered(&[gst::MessageType::Error, gst::MessageType::Eos])
+                {
+                    match msg.view() {
+                        gst::MessageView::Error(err) => {
+                            log::error!("bus returned an error: {err}");
+                            if let Some(ref on_error) = self.on_error {
+                                shell.publish(on_error(err.error()))
+                            };
+                        }
+                        gst::MessageView::Element(element) => {
+                            if gst_pbutils::MissingPluginMessage::is(&element) {
+                                if let Some(ref on_missing_plugin) = self.on_missing_plugin {
+                                    shell.publish(on_missing_plugin(element.copy()));
+                                }
+                            }
+                        }
+                        gst::MessageView::Eos(_eos) => {
+                            if let Some(on_end_of_stream) = self.on_end_of_stream.clone() {
+                                shell.publish(on_end_of_stream);
+                            }
+                            if inner.looping {
+                                restart_stream = true;
+                            } else {
+                                eos_pause = true;
+                            }
+                        }
+                        gst::MessageView::Warning(warn) => {
+                            log::warn!("bus returned a warning: {warn}");
+                            if let Some(ref on_warning) = self.on_warning {
+                                shell.publish(on_warning(warn.error()));
+                            }
+                        }
+                        _ => {}
+                    }
+                }
+
+                // Don't run eos_pause if restart_stream is true; fixes "pausing" after restarting a stream
+                if restart_stream {
+                    if let Err(err) = inner.restart_stream() {
+                        log::error!("cannot restart stream (can't seek): {err:#?}");
+                    }
+                } else if eos_pause {
+                    inner.is_eos = true;
+                    inner.set_paused(true);
+                }
+
+                if inner.upload_frame.load(Ordering::SeqCst) {
+                    if let Some(on_new_frame) = self.on_new_frame.clone() {
+                        shell.publish(on_new_frame);
+                    }
+                }
+
+                if let Some(on_subtitle_text) = &self.on_subtitle_text {
+                    if inner.upload_text.swap(false, Ordering::SeqCst) {
+                        if let Ok(text) = inner.subtitle_text.try_lock() {
+                            shell.publish(on_subtitle_text(text.clone()));
+                        }
+                    }
+                }
+
+                shell.request_redraw(cosmic::iced::window::RedrawRequest::NextFrame);
+            } else {
+                shell.request_redraw(cosmic::iced::window::RedrawRequest::At(
+                    Instant::now() + core::time::Duration::from_millis(32),
+                ));
+            }
+            cosmic::iced::event::Status::Captured
+        } else {
+            cosmic::iced::event::Status::Ignored
+        }
     }
-                */
+
+    fn mouse_interaction(
+        &self,
+        _tree: &cosmic::iced_core::widget::Tree,
+        _layout: advanced::Layout<'_>,
+        _cursor_position: cosmic::iced::mouse::Cursor,
+        _viewport: &cosmic::iced::Rectangle,
+        _renderer: &Renderer,
+    ) -> cosmic::iced::mouse::Interaction {
+        if self.mouse_hidden {
+            cosmic::iced::mouse::Interaction::Idle
+        } else {
+            cosmic::iced::mouse::Interaction::default()
+        }
+    }
 }
 
 impl<'a, Message, Theme, Renderer> From<VideoPlayer<'a, Message, Theme, Renderer>>
