@@ -15,7 +15,7 @@ pub fn create_thumbnail(path: &std::path::PathBuf, max_size: u32) -> String {
     if let Some(base) = path.file_stem() {
         basename = crate::parsers::osstr_to_string(base.to_os_string());
     }
-    let filename = format!("{:#x}_{}.png", hashvalue, basename);
+    let filename = format!("{:016x}_{}.png", hashvalue, basename);
     match dirs::data_local_dir() {
         Some(pb) => {
             let mut dir = pb.join("cosmic-media-browser").join("thumbs");
