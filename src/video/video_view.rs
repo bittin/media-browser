@@ -3,25 +3,25 @@ use cosmic::{
     cosmic_config::{self},
     cosmic_theme,
     iced::keyboard::{Key, Modifiers},
-    widget::{menu::action::MenuAction},
+    widget::menu::action::MenuAction,
 };
 pub use gstreamer as gst;
 pub use gstreamer_app as gst_app;
 use gstreamer::prelude::*;
-//use iced_video_player::{
-//    gst::{self, prelude::*},
-//    gst_app, gst_pbutils, Video, VideoPlayer,
-//};
+use crate::video::video::Video;
+use crate::video::video_player::VideoPlayer;
+/*
+use iced_video_player::{
+    gst::{self, prelude::*},
+    gst_app, gst_pbutils, Video, VideoPlayer,
+};
+*/
 use std::{
     ffi::{CStr, CString},
     time::{Duration, Instant},
 };
 
 use crate::config::Config;
-
-
-
-pub use super::video::Video;
 
 static CONTROLS_TIMEOUT: Duration = Duration::new(2, 0);
 
@@ -192,27 +192,13 @@ impl VideoView {
 
             let pipeline = format!(
                 "playbin uri=\"{}\" video-sink=\"videoscale ! videoconvert ! appsink name=iced_video drop=true caps=video/x-raw,format=NV12,pixel-aspect-ratio=1/1\"",
-                videopath
+                videopath.as_str()
             );
-
             let pipeline = gst::parse::launch(pipeline.as_ref())
-            .unwrap()
-            .downcast::<gst::Pipeline>()
-            .map_err(|_| iced_video_player::Error::Cast)
-            .unwrap();
-
-            /*let pipeline;
-            if let Ok(pipeline_launch) = gst::parse::launch(pipeline.as_ref()) {
-                if let Ok(pipeline_downcast) = pipeline.downcast::<gst::Pipeline>().map_err(|_| iced_video_player::Error::Cast) {
-                    pipeline = pipeline_downcast;
-                } else {
-                    log::error!("Failed to open media file as a pipeline!");
-                    return;
-                }
-            } else {
-                log::error!("Failed to open media file as a pipeline!");
-                return;
-            }*/
+                .unwrap()
+                .downcast::<gst::Pipeline>()
+                .map_err(|_| super::Error::Cast)
+                .unwrap();
 
             let video_sink: gst::Element = pipeline.property("video-sink");
             let pad = video_sink.pads().first().cloned().unwrap();
@@ -315,8 +301,10 @@ impl VideoView {
             Message::ToImage => {}
             Message::ToAudio => {}
             Message::ToVideo => {}
-            Message::NextFile => {}
-            Message::PreviousFile => {}
+            Message::Open(path) => {
+                self.videopath_opt = Some(path.clone());
+                self.load();
+            },
             Message::PlayPause => {
                 //TODO: cleanest way to close dropdowns
                 self.dropdown_opt = None;

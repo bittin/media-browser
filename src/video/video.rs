@@ -243,11 +243,32 @@ impl Video {
 
         let pad = video_sink.pads().first().cloned().unwrap();
 
-        pipeline.set_state(gst::State::Playing)?;
+        let (status, _state1, _state2) = pipeline.state(gst::ClockTime::from_seconds(5));
+        match status {
+            Ok(_state) => {},
+            Err(error) => {
+                log::error!("Failed to read video state to after five seconds: {}", error);
+                return Err(Error::StateChange(error));
+            }
+        }
+
+        match pipeline.set_state(gst::State::Playing) {
+            Ok(success) => {},
+            Err(error) => {
+                log::error!("Failed to change video state to Playing: {}", error);
+                return Err(Error::StateChange(error));
+            }
+        }
 
         // wait for up to 5 seconds until the decoder gets the source capabilities
-        pipeline.state(gst::ClockTime::from_seconds(5)).0?;
-
+        let (status, _state1, _state2) = pipeline.state(gst::ClockTime::from_seconds(5));
+        match status {
+            Ok(_state) => {},
+            Err(error) => {
+                log::error!("Failed to read video state to after five seconds: {}", error);
+                return Err(Error::StateChange(error));
+            }
+        }
         // extract resolution and framerate
         // TODO(jazzfool): maybe we want to extract some other information too?
         let caps = pad.current_caps().ok_or(Error::Caps)?;

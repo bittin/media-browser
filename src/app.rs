@@ -53,18 +53,21 @@ use std::{
     sync::{Arc, Mutex},
     time::{self, Instant},
 };
+/*
+use iced_video_player::{
+    gst::{self, prelude::*},
+    gst_app, gst_pbutils, Video, VideoPlayer,
+};
+*/
 pub use gstreamer as gst;
 pub use gstreamer_app as gst_app;
 pub use gstreamer_pbutils as gst_pbutils;
 use gstreamer::prelude::*;
-//use iced_video_player::{
-//    gst::{self, prelude::*},
-//    gst_app, gst_pbutils, Video, VideoPlayer,
-//};
-pub use crate::audio::audio::Audio;
-pub use crate::audio::audio_player::AudioPlayer;
 pub use crate::video::video::Video;
 pub use crate::video::video_player::VideoPlayer;
+pub use crate::audio::audio::Audio;
+pub use crate::audio::audio_player::AudioPlayer;
+use gstreamer::glib;
 
 use tokio::sync::mpsc;
 use trash::TrashItem;
@@ -245,7 +248,7 @@ pub enum Message {
     AudioCode(usize),
     AudioVolume(f64),
     TextCode(usize),
-    MissingPlugin(iced_video_player::gst::Message),
+    MissingPlugin(crate::video::gst::Message),
     Fullscreen,
     Seek(f64),
     SeekRelative(f64),
@@ -1194,12 +1197,12 @@ impl App {
         let volume = video.volume();
 
         let video_player = VideoPlayer::new(video)
-            //.mouse_hidden(!self.video_view.controls)
+            .mouse_hidden(!self.video_view.controls)
             .on_end_of_stream(Message::VideoMessage(crate::video::video_view::Message::EndOfStream))
-            //.on_missing_plugin(Message::MissingPlugin)
+            .on_missing_plugin(Message::MissingPlugin)
             .on_new_frame(Message::VideoMessage(crate::video::video_view::Message::NewFrame))
-            .width(cosmic::iced::Length::Fill)
-            .height(cosmic::iced::Length::Fill);
+            .width(cosmic::iced_core::Length::Fill)
+            .height(cosmic::iced_core::Length::Fill);
 
         let mouse_area = widget::mouse_area(video_player)
             .on_press(Message::VideoMessage(crate::video::video_view::Message::PlayPause)) 
@@ -1408,9 +1411,9 @@ impl App {
         let volume = audio.volume();
 
         let audio_player = AudioPlayer::new(audio)
-            //.mouse_hidden(!self.audio_view.controls)
+            .mouse_hidden(!self.audio_view.controls)
             .on_end_of_stream(Message::AudioMessage(crate::audio::audio_view::Message::EndOfStream))
-            //.on_missing_plugin(Message::MissingPlugin)
+            .on_missing_plugin(Message::MissingPlugin)
             .on_new_frame(Message::AudioMessage(crate::audio::audio_view::Message::NewFrame))
             .width(cosmic::iced::Length::Fill)
             .height(cosmic::iced::Length::Fill);
@@ -1681,7 +1684,6 @@ impl App {
                     self.active_view = Mode::Image;
                     self.view();
                 },
-                /*
                 file_format::Kind::Video => {
                     self.video_view
                         .update(crate::video::video_view::Message::Open(filepath.clone()));
@@ -1700,7 +1702,6 @@ impl App {
                     self.active_view = Mode::Audio;
                     self.view();
                 }, 
-                */
                 _ => {
                     if let Some(tab) = self.tab_model.data_mut::<Tab>(self.tab_model_id) {
                         let _ = self.update(Message::TabMessage(Some(self.tab_model_id), tab::Message::OpenInExternalApp(Some(path))));
@@ -2109,27 +2110,27 @@ impl Application for App {
             }
             Message::AudioCode(val) => {
                 if self.active_view == Mode::Video {
-                    self.update(Message::VideoMessage(crate::video::video_view::Message::AudioCode(val)));
+                    let _ = self.update(Message::VideoMessage(crate::video::video_view::Message::AudioCode(val)));
                 } else if self.active_view == Mode::Audio {
-                    self.update(Message::AudioMessage(crate::audio::audio_view::Message::AudioCode(val)));
+                    let _ = self.update(Message::AudioMessage(crate::audio::audio_view::Message::AudioCode(val)));
                 } else {
                     // no audio active
                 }
             }
             Message::AudioVolume(val) => {
                 if self.active_view == Mode::Video {
-                    self.update(Message::VideoMessage(crate::video::video_view::Message::AudioVolume(val)));
+                    let _ = self.update(Message::VideoMessage(crate::video::video_view::Message::AudioVolume(val)));
                 } else if self.active_view == Mode::Audio {
-                    self.update(Message::AudioMessage(crate::audio::audio_view::Message::AudioVolume(val)));
+                    let _ = self.update(Message::AudioMessage(crate::audio::audio_view::Message::AudioVolume(val)));
                 } else {
                     // no audio active
                 }
             }
             Message::TextCode(val) => {
                 if self.active_view == Mode::Video {
-                    self.update(Message::VideoMessage(crate::video::video_view::Message::TextCode(val)));
+                    let _ = self.update(Message::VideoMessage(crate::video::video_view::Message::TextCode(val)));
                 } else if self.active_view == Mode::Audio {
-                    self.update(Message::AudioMessage(crate::audio::audio_view::Message::TextCode(val)));
+                    let _ = self.update(Message::AudioMessage(crate::audio::audio_view::Message::TextCode(val)));
                 } else {
                     // no audio active
                 }
@@ -2168,18 +2169,18 @@ impl Application for App {
             }
             Message::Seek(val) => {
                 if self.active_view == Mode::Video {
-                    self.update(Message::VideoMessage(crate::video::video_view::Message::Seek(val)));
+                    let _ = self.update(Message::VideoMessage(crate::video::video_view::Message::Seek(val)));
                 } else if self.active_view == Mode::Audio {
-                    self.update(Message::AudioMessage(crate::audio::audio_view::Message::Seek(val)));
+                    let _ = self.update(Message::AudioMessage(crate::audio::audio_view::Message::Seek(val)));
                 } else {
                     // no audio active
                 }
             }
             Message::SeekRelative(val) => {
                 if self.active_view == Mode::Video {
-                    self.update(Message::VideoMessage(crate::video::video_view::Message::SeekRelative(val)));
+                    let _ = self.update(Message::VideoMessage(crate::video::video_view::Message::SeekRelative(val)));
                 } else if self.active_view == Mode::Audio {
-                    self.update(Message::AudioMessage(crate::audio::audio_view::Message::SeekRelative(val)));
+                    let _ = self.update(Message::AudioMessage(crate::audio::audio_view::Message::SeekRelative(val)));
                 } else {
                     // no audio active
                 }

@@ -24,9 +24,9 @@ where
     on_end_of_stream: Option<Message>,
     on_new_frame: Option<Message>,
     on_subtitle_text: Option<Box<dyn Fn(Option<String>) -> Message + 'a>>,
-    on_error: Option<Box<dyn Fn(glib::Error) -> Message + 'a>>,
+    on_error: Option<Box<dyn Fn(gst::glib::Error) -> Message + 'a>>,
     on_missing_plugin: Option<Box<dyn Fn(gst::Message) -> Message + 'a>>,
-    on_warning: Option<Box<dyn Fn(glib::Error) -> Message + 'a>>,
+    on_warning: Option<Box<dyn Fn(gst::glib::Error) -> Message + 'a>>,
     _phantom: PhantomData<(Theme, Renderer)>,
 }
 
@@ -113,7 +113,7 @@ where
     /// Message to send when the video playback encounters an error.
     pub fn on_error<F>(self, on_error: F) -> Self
     where
-        F: 'a + Fn(glib::Error) -> Message,
+        F: 'a + Fn(gst::glib::Error) -> Message,
     {
         VideoPlayer {
             on_error: Some(Box::new(on_error)),
@@ -134,7 +134,7 @@ where
 
     pub fn on_warning<F>(self, on_warning: F) -> Self
     where
-        F: 'a + Fn(glib::Error) -> Message,
+        F: 'a + Fn(gst::glib::Error) -> Message,
     {
         VideoPlayer {
             on_warning: Some(Box::new(on_warning)),
