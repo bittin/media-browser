@@ -24,9 +24,9 @@ where
     on_end_of_stream: Option<Message>,
     on_new_frame: Option<Message>,
     on_subtitle_text: Option<Box<dyn Fn(Option<String>) -> Message + 'a>>,
-    on_error: Option<Box<dyn Fn(glib::Error) -> Message + 'a>>,
+    on_error: Option<Box<dyn Fn(gst::glib::Error) -> Message + 'a>>,
     on_missing_plugin: Option<Box<dyn Fn(gst::Message) -> Message + 'a>>,
-    on_warning: Option<Box<dyn Fn(glib::Error) -> Message + 'a>>,
+    on_warning: Option<Box<dyn Fn(gst::glib::Error) -> Message + 'a>>,
     _phantom: PhantomData<(Theme, Renderer)>,
 }
 
@@ -113,7 +113,7 @@ where
     /// Message to send when the video playback encounters an error.
     pub fn on_error<F>(self, on_error: F) -> Self
     where
-        F: 'a + Fn(glib::Error) -> Message,
+        F: 'a + Fn(gst::glib::Error) -> Message,
     {
         AudioPlayer {
             on_error: Some(Box::new(on_error)),
@@ -134,7 +134,7 @@ where
 
     pub fn on_warning<F>(self, on_warning: F) -> Self
     where
-        F: 'a + Fn(glib::Error) -> Message,
+        F: 'a + Fn(gst::glib::Error) -> Message,
     {
         AudioPlayer {
             on_warning: Some(Box::new(on_warning)),
@@ -162,10 +162,10 @@ where
         _renderer: &Renderer,
         limits: &layout::Limits,
     ) -> layout::Node {
-        let (video_width, video_height) = self.audio.size();
 
         // based on `Image::layout`
-        let image_size = cosmic::iced::Size::new(video_width as f32, video_height as f32);
+        let (width, height) = self.audio.size();
+        let image_size = cosmic::iced::Size::new(width as f32, height as f32);
         let raw_size = limits.resolve(self.width, self.height, image_size);
         let full_size = self.content_fit.fit(image_size, raw_size);
         let final_size = cosmic::iced::Size {
@@ -192,7 +192,7 @@ where
         _cursor: advanced::mouse::Cursor,
         _viewport: &cosmic::iced::Rectangle,
     ) {
-        let mut inner = self.audio.write();
+        let inner = self.audio.read();
 
         // bounds based on `Image::draw`
         let image_size = cosmic::iced::Size::new(inner.width as f32, inner.height as f32);
@@ -217,17 +217,6 @@ where
 
         let drawing_bounds = cosmic::iced::Rectangle::new(position, final_size);
 
-        let upload_frame = inner.upload_frame.swap(false, Ordering::SeqCst);
-
-        if upload_frame {
-            let last_frame_time = inner
-                .last_frame_time
-                .lock()
-                .map(|time| *time)
-                .unwrap_or_else(|_| Instant::now());
-            inner.set_av_offset(Instant::now() - last_frame_time);
-        }
-
         renderer.draw_pipeline_primitive(
             drawing_bounds,
             VideoPrimitive::new(
@@ -235,7 +224,7 @@ where
                 Arc::clone(&inner.alive),
                 Arc::clone(&inner.frame),
                 (inner.width as _, inner.height as _),
-                upload_frame,
+                true,
             ),
         );
     }
@@ -310,21 +299,6 @@ where
                     inner.is_eos = true;
                     inner.set_paused(true);
                 }
-
-                if inner.upload_frame.load(Ordering::SeqCst) {
-                    if let Some(on_new_frame) = self.on_new_frame.clone() {
-                        shell.publish(on_new_frame);
-                    }
-                }
-
-                if let Some(on_subtitle_text) = &self.on_subtitle_text {
-                    if inner.upload_text.swap(false, Ordering::SeqCst) {
-                        if let Ok(text) = inner.subtitle_text.try_lock() {
-                            shell.publish(on_subtitle_text(text.clone()));
-                        }
-                    }
-                }
-
                 shell.request_redraw(cosmic::iced::window::RedrawRequest::NextFrame);
             } else {
                 shell.request_redraw(cosmic::iced::window::RedrawRequest::At(

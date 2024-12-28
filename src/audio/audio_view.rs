@@ -121,6 +121,7 @@ pub enum Message {
 /// The [`App`] stores application-specific state.
 pub struct AudioView {
     pub audiopath_opt: Option<String>,
+    pub posterpath_opt: Option<String>,
     pub controls: bool,
     pub controls_time: Instant,
     pub dropdown_opt: Option<DropdownKind>,
@@ -141,6 +142,7 @@ impl AudioView {
     pub fn new() -> Self {
         let audio_view = AudioView {
             audiopath_opt: None,
+            posterpath_opt: None,
             controls: true,
             controls_time: Instant::now(),
             dropdown_opt: None,
@@ -184,9 +186,16 @@ impl AudioView {
         }
         self.close();
         log::info!("Loading {}", audiopath);
-
         //TODO: this code came from iced_video_player::audio::new and has been modified to stop the pipeline on error
         //TODO: remove unwraps and enable playback of files with only audio.
+        let audio = match crate::audio::audio::Audio::new(&audiopath, self.posterpath_opt.clone()) {
+            Ok(ok) => ok,
+            Err(error) => {
+                log::error!("Failed to open audio file {}: {}", audiopath, error);
+                return;
+            }
+        };
+        /*
         let audio = {
             gst::init().unwrap();
 
@@ -198,10 +207,10 @@ impl AudioView {
             let pipeline = gst::parse::launch(pipeline.as_ref())
             .unwrap()
             .downcast::<gst::Pipeline>()
-            .map_err(|_| iced_video_player::Error::Cast)
+            .map_err(|_| super::Error::Cast)
             .unwrap();
 
-            /*let pipeline;
+            let pipeline;
             if let Ok(pipeline_launch) = gst::parse::launch(pipeline.as_ref()) {
                 if let Ok(pipeline_downcast) = pipeline.downcast::<gst::Pipeline>().map_err(|_| iced_video_player::Error::Cast) {
                     pipeline = pipeline_downcast;
@@ -212,7 +221,7 @@ impl AudioView {
             } else {
                 log::error!("Failed to open media file as a pipeline!");
                 return;
-            }*/
+            }
 
             let audio_sink: gst::Element = pipeline.property("audio-sink");
             let pad = audio_sink.pads().first().cloned().unwrap();
@@ -224,8 +233,9 @@ impl AudioView {
                 .unwrap();
             let audio_sink = bin.by_name("iced_audio").unwrap();
             let audio_sink = audio_sink.downcast::<gst_app::AppSink>().unwrap();
-
-            match super::audio::Audio::from_gst_pipeline(pipeline.clone(), audio_sink, None) {
+            let audio_sink: gst::Element = pipeline.property("audio-sink");
+            let audio_sink = audio_sink.downcast::<gst_app::AppSink>().unwrap();
+            match super::audio::Audio::from_gst_pipeline(pipeline.clone(), audio_sink) {
                 Ok(ok) => ok,
                 Err(err) => {
                     log::warn!("failed to open {}: {err}", audiopath);
@@ -234,6 +244,7 @@ impl AudioView {
                 }
             }
         };
+*/
 
         self.duration = audio.duration().as_secs_f64();
         let pipeline = audio.pipeline();
@@ -314,8 +325,18 @@ impl AudioView {
             Message::ToImage => {}
             Message::ToAudio => {}
             Message::Toaudio => {}
-            Message::NextFile => {}
-            Message::PreviousFile => {}
+            Message::Open(path) => {
+                self.audiopath_opt = Some(path.clone());
+                let mut p = path.clone();
+                p.push_str(".png");
+                let poster = std::path::PathBuf::from(&p);
+                if poster.is_file() {
+                    self.posterpath_opt = Some(p);
+                } else {
+                    self.posterpath_opt = None;
+                }
+                self.load();
+            },
             Message::PlayPause => {
                 //TODO: cleanest way to close dropdowns
                 self.dropdown_opt = None;

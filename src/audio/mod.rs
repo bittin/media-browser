@@ -1,6 +1,7 @@
 pub mod audio_player;
 pub mod audio_view;
 pub mod audio;
+pub mod coverart;
 pub mod pipeline;
 
 use gstreamer as gst;
@@ -9,9 +10,9 @@ use thiserror::Error;
 #[derive(Debug, Error)]
 pub enum Error {
     #[error("{0}")]
-    Glib(#[from] glib::Error),
+    Glib(#[from] gst::glib::Error),
     #[error("{0}")]
-    Bool(#[from] glib::BoolError),
+    Bool(#[from] gst::glib::BoolError),
     #[error("failed to get the gstreamer bus")]
     Bus,
     #[error("failed to get AppSink element with name='{0}' from gstreamer pipeline")]

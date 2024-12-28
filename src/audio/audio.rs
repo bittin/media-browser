@@ -1,12 +1,10 @@
 use super::Error;
 use gstreamer as gst;
-use gstreamer_app as gst_app;
 use gstreamer_app::prelude::*;
-use std::num::NonZeroU8;
 use std::ops::{Deref, DerefMut};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, RwLock};
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 /// Position in the media.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -48,25 +46,17 @@ pub(crate) struct Internal {
     pub(crate) source: gst::Pipeline,
     pub(crate) alive: Arc<AtomicBool>,
     pub(crate) worker: Option<std::thread::JoinHandle<()>>,
+    pub(crate) width: u32,
+    pub(crate) height: u32,
 
-    pub(crate) width: i32,
-    pub(crate) height: i32,
-    pub(crate) framerate: f64,
     pub(crate) duration: Duration,
     pub(crate) speed: f64,
-    pub(crate) sync_av: bool,
 
     pub(crate) frame: Arc<Mutex<Vec<u8>>>,
-    pub(crate) upload_frame: Arc<AtomicBool>,
-    pub(crate) last_frame_time: Arc<Mutex<std::time::Instant>>,
+
     pub(crate) looping: bool,
     pub(crate) is_eos: bool,
     pub(crate) restart_stream: bool,
-    pub(crate) sync_av_avg: u64,
-    pub(crate) sync_av_counter: u64,
-
-    pub(crate) subtitle_text: Arc<Mutex<Option<String>>>,
-    pub(crate) upload_text: Arc<AtomicBool>,
 }
 
 impl Internal {
@@ -159,18 +149,6 @@ impl Internal {
         self.source.state(gst::ClockTime::ZERO).1 == gst::State::Paused
     }
 
-    /// Syncs audio with video when there is (inevitably) latency presenting the frame.
-    pub(crate) fn set_av_offset(&mut self, offset: Duration) {
-        if self.sync_av {
-            self.sync_av_counter += 1;
-            self.sync_av_avg = self.sync_av_avg * (self.sync_av_counter - 1) / self.sync_av_counter
-                + offset.as_nanos() as u64 / self.sync_av_counter;
-            if self.sync_av_counter % 128 == 0 {
-                self.source
-                    .set_property("av-offset", -(self.sync_av_avg as i64));
-            }
-        }
-    }
 }
 
 /// A multimedia Audio loaded from a URI (e.g., a local file path or HTTP stream).
@@ -196,50 +174,34 @@ impl Drop for Audio {
 impl Audio {
     /// Create a new video player from a given Audio which loads from `uri`.
     /// Note that live sources will report the duration to be zero.
-    pub fn new(uri: &str) -> Result<Self, Error> {
+    pub fn new(uri: &str, posterpath: Option<String>) -> Result<Self, Error> {
         gst::init()?;
 
-        let pipeline = format!("playbin uri=\"{}\" text-sink=\"appsink name=iced_text sync=true caps=text/x-raw\" video-sink=\"videoscale ! videoconvert ! appsink name=iced_video drop=true caps=video/x-raw,format=NV12,pixel-aspect-ratio=1/1\"", uri);
-        let pipeline = gst::parse::launch(pipeline.as_ref())?
-            .downcast::<gst::Pipeline>()
-            .map_err(|_| Error::Cast)?;
+        let pipeline = format!(
+            "playbin uri=\"{}\" ",
+            uri
+        );
 
-        let video_sink: gst::Element = pipeline.property("video-sink");
-        let pad = video_sink.pads().first().cloned().unwrap();
-        let pad = pad.dynamic_cast::<gst::GhostPad>().unwrap();
-        let bin = pad
-            .parent_element()
-            .unwrap()
-            .downcast::<gst::Bin>()
-            .unwrap();
-        let video_sink = bin.by_name("iced_video").unwrap();
-        let video_sink = video_sink.downcast::<gst_app::AppSink>().unwrap();
+        let pipeline = gst::parse::launch(pipeline.as_ref())
+        .unwrap()
+        .downcast::<gst::Pipeline>()
+        .map_err(|_| super::Error::Cast)
+        .unwrap();
 
-        let text_sink: gst::Element = pipeline.property("text-sink");
-        //let pad = text_sink.pads().get(0).cloned().unwrap();
-        let text_sink = text_sink.downcast::<gst_app::AppSink>().unwrap();
-
-        Self::from_gst_pipeline(pipeline, video_sink, Some(text_sink))
+        Self::from_gst_pipeline(pipeline, posterpath)
     }
 
     /// Creates a new video based on an existing GStreamer pipeline and appsink.
-    /// Expects an `appsink` plugin with `caps=video/x-raw,format=NV12`.
-    ///
-    /// An optional `text_sink` can be provided, which enables subtitle messages
-    /// to be emitted.
     ///
     /// **Note:** Many functions of [`Audio`] assume a `playbin` pipeline.
     /// Non-`playbin` pipelines given here may not have full functionality.
     pub fn from_gst_pipeline(
         pipeline: gst::Pipeline,
-        video_sink: gst_app::AppSink,
-        text_sink: Option<gst_app::AppSink>,
+        posterpath: Option<String>
     ) -> Result<Self, Error> {
         gst::init()?;
         static NEXT_ID: AtomicU64 = AtomicU64::new(0);
         let id = NEXT_ID.fetch_add(1, Ordering::SeqCst);
-
-        let pad = video_sink.pads().first().cloned().unwrap();
 
         pipeline.set_state(gst::State::Playing)?;
 
@@ -248,24 +210,6 @@ impl Audio {
 
         // extract resolution and framerate
         // TODO(jazzfool): maybe we want to extract some other information too?
-        let caps = pad.current_caps().ok_or(Error::Caps)?;
-        let s = caps.structure(0).ok_or(Error::Caps)?;
-        let width = s.get::<i32>("width").map_err(|_| Error::Caps)?;
-        let height = s.get::<i32>("height").map_err(|_| Error::Caps)?;
-        // resolution should be mod4
-        let width = ((width + 4 - 1) / 4) * 4;
-        let framerate = s
-            .get::<gst::Fraction>("framerate")
-            .map_err(|_| Error::Caps)?;
-        let framerate = framerate.numer() as f64 / framerate.denom() as f64;
-
-        if framerate.is_nan()
-            || framerate.is_infinite()
-            || framerate < 0.0
-            || framerate.abs() < f64::EPSILON
-        {
-            return Err(Error::Framerate(framerate));
-        }
 
         let duration = Duration::from_nanos(
             pipeline
@@ -273,99 +217,9 @@ impl Audio {
                 .map(|duration| duration.nseconds())
                 .unwrap_or(0),
         );
-
-        let sync_av = pipeline.has_property("av-offset", None);
-
-        // NV12 = 12bpp
-        let frame = Arc::new(Mutex::new(vec![
-            0u8;
-            (width as usize * height as usize * 3)
-                .div_ceil(2)
-        ]));
-        let upload_frame = Arc::new(AtomicBool::new(false));
+        let (v, width, height) = crate::audio::coverart::frame_from_image(posterpath.clone());
+        let frame = Arc::new(Mutex::new(v));
         let alive = Arc::new(AtomicBool::new(true));
-        let last_frame_time = Arc::new(Mutex::new(Instant::now()));
-
-        let frame_ref = Arc::clone(&frame);
-        let upload_frame_ref = Arc::clone(&upload_frame);
-        let alive_ref = Arc::clone(&alive);
-        let last_frame_time_ref = Arc::clone(&last_frame_time);
-
-        let subtitle_text = Arc::new(Mutex::new(None));
-        let upload_text = Arc::new(AtomicBool::new(false));
-        let subtitle_text_ref = Arc::clone(&subtitle_text);
-        let upload_text_ref = Arc::clone(&upload_text);
-
-        let pipeline_ref = pipeline.clone();
-
-        let worker = std::thread::spawn(move || {
-            let mut clear_subtitles_at = None;
-
-            while alive_ref.load(Ordering::Acquire) {
-                if let Err(gst::FlowError::Error) = (|| -> Result<(), gst::FlowError> {
-                    let sample =
-                        if pipeline_ref.state(gst::ClockTime::ZERO).1 != gst::State::Playing {
-                            video_sink
-                                .try_pull_preroll(gst::ClockTime::from_mseconds(16))
-                                .ok_or(gst::FlowError::Eos)?
-                        } else {
-                            video_sink
-                                .try_pull_sample(gst::ClockTime::from_mseconds(16))
-                                .ok_or(gst::FlowError::Eos)?
-                        };
-
-                    *last_frame_time_ref
-                        .lock()
-                        .map_err(|_| gst::FlowError::Error)? = Instant::now();
-
-                    let buffer = sample.buffer().ok_or(gst::FlowError::Error)?;
-                    let pts = buffer.pts().unwrap_or_default();
-                    let map = buffer.map_readable().map_err(|_| gst::FlowError::Error)?;
-
-                    let mut frame = frame_ref.lock().map_err(|_| gst::FlowError::Error)?;
-                    let frame_len = frame.len();
-                    frame.copy_from_slice(&map.as_slice()[..frame_len]);
-
-                    upload_frame_ref.swap(true, Ordering::SeqCst);
-
-                    if let Some(at) = clear_subtitles_at {
-                        if pts >= at {
-                            *subtitle_text_ref
-                                .lock()
-                                .map_err(|_| gst::FlowError::Error)? = None;
-                            upload_text_ref.store(true, Ordering::SeqCst);
-                            clear_subtitles_at = None;
-                        }
-                    }
-
-                    let text = text_sink
-                        .as_ref()
-                        .and_then(|sink| sink.try_pull_sample(gst::ClockTime::from_seconds(0)));
-                    if let Some(text) = text {
-                        let text = text.buffer().ok_or(gst::FlowError::Error)?;
-                        let pts = text.pts().unwrap_or_default();
-                        let duration = text.duration().unwrap_or(gst::ClockTime::ZERO);
-                        let map = text.map_readable().map_err(|_| gst::FlowError::Error)?;
-
-                        let text = html_escape::decode_html_entities(
-                            std::str::from_utf8(map.as_slice())
-                                .map_err(|_| gst::FlowError::Error)?,
-                        )
-                        .to_string();
-                        *subtitle_text_ref
-                            .lock()
-                            .map_err(|_| gst::FlowError::Error)? = Some(text);
-                        upload_text_ref.store(true, Ordering::SeqCst);
-
-                        clear_subtitles_at = Some(pts + duration);
-                    }
-
-                    Ok(())
-                })() {
-                    log::error!("error pulling frame");
-                }
-            }
-        });
 
         Ok(Audio(RwLock::new(Internal {
             id,
@@ -373,26 +227,18 @@ impl Audio {
             bus: pipeline.bus().unwrap(),
             source: pipeline,
             alive,
-            worker: Some(worker),
-
+            worker: None,
             width,
             height,
-            framerate,
+
             duration,
             speed: 1.0,
-            sync_av,
 
             frame,
-            upload_frame,
-            last_frame_time,
+
             looping: false,
             is_eos: false,
             restart_stream: false,
-            sync_av_avg: 0,
-            sync_av_counter: 0,
-
-            subtitle_text,
-            upload_text,
         })))
     }
 
@@ -406,16 +252,6 @@ impl Audio {
 
     pub(crate) fn get_mut(&mut self) -> impl DerefMut<Target = Internal> + '_ {
         self.0.get_mut().expect("lock")
-    }
-
-    /// Get the size/resolution of the video as `(width, height)`.
-    pub fn size(&self) -> (i32, i32) {
-        (self.read().width, self.read().height)
-    }
-
-    /// Get the framerate of the video as frames per second.
-    pub fn framerate(&self) -> f64 {
-        self.read().framerate
     }
 
     /// Set the volume multiplier of the audio.
@@ -437,6 +273,11 @@ impl Audio {
         self.get_mut().source.set_property("mute", muted);
     }
 
+    /// Get the size/resolution of the video as `(width, height)`.
+    pub fn size(&self) -> (u32, u32) {
+        (self.read().width, self.read().height)
+    }
+    
     /// Get if the audio is muted or not.
     pub fn muted(&self) -> bool {
         self.read().source.property("mute")
@@ -505,114 +346,8 @@ impl Audio {
         self.get_mut().restart_stream()
     }
 
-    /// Set the subtitle URL to display.
-    pub fn set_subtitle_url(&mut self, url: &url::Url) -> Result<(), Error> {
-        let paused = self.paused();
-        let mut inner = self.get_mut();
-        inner.source.set_state(gst::State::Ready)?;
-        inner.source.set_property("suburi", url.as_str());
-        inner.set_paused(paused);
-        Ok(())
-    }
-
-    /// Get the current subtitle URL.
-    pub fn subtitle_url(&self) -> Option<url::Url> {
-        url::Url::parse(&self.read().source.property::<String>("suburi")).ok()
-    }
-
     /// Get the underlying GStreamer pipeline.
     pub fn pipeline(&self) -> gst::Pipeline {
         self.read().source.clone()
     }
-
-    /// Generates a list of thumbnails based on a set of positions in the media, downscaled by a given factor.
-    ///
-    /// Slow; only needs to be called once for each instance.
-    /// It's best to call this at the very start of playback, otherwise the position may shift.
-    pub fn thumbnails<I>(
-        &mut self,
-        positions: I,
-        downscale: NonZeroU8,
-    ) -> Result<Vec<image::RgbaImage>, Error>
-    where
-        I: IntoIterator<Item = Position>,
-    {
-        let downscale = u8::from(downscale) as u32;
-
-        let paused = self.paused();
-        let muted = self.muted();
-        let pos = self.position();
-
-        self.set_paused(false);
-        self.set_muted(true);
-
-        let mut v = Vec::new();
-        {
-            let inner = self.write();
-            let width = inner.width;
-            let height = inner.height;
-            for pos in positions {
-                match inner.seek(pos, true) {
-                    Ok(()) => {},
-                    Err(_error) => {},
-                };
-                inner.upload_frame.store(false, Ordering::SeqCst);
-                while !inner.upload_frame.load(Ordering::SeqCst) {
-                    std::hint::spin_loop();
-                }
-                match inner.frame.lock() {
-                    Ok(frame_ref) => {
-                        match image::RgbaImage::from_vec(
-                            inner.width as u32 / downscale,
-                            inner.height as u32 / downscale,
-                            yuv_to_rgba(&*frame_ref, width as _, height as _, downscale),
-                        ) {
-                            Some(imagebuf) => v.push(imagebuf),
-                            _ => continue,
-                        }
-                    },
-                    Err(_error) => continue,
-                };
-            }
-        }
-        
-        self.set_paused(paused);
-        self.set_muted(muted);
-        match self.seek(pos, true) {
-            Ok(()) => {},
-            Err(_error) => {},
-        };
-
-        //out
-        Ok(v)
-    }
-}
-
-fn yuv_to_rgba(yuv: &[u8], width: u32, height: u32, downscale: u32) -> Vec<u8> {
-    
-    let uv_start = width * height;
-    let mut rgba = vec![];
-
-    for y in 0..height / downscale {
-        for x in 0..width / downscale {
-            let x_src = x * downscale;
-            let y_src = y * downscale;
-
-            let uv_i = uv_start + width * (y_src / 2) + x_src / 2 * 2;
-
-            let y = yuv[(y_src * width + x_src) as usize] as f32;
-            let u = yuv[uv_i as usize] as f32;
-            let v = yuv[(uv_i + 1) as usize] as f32;
-
-            let r = 1.164 * (y - 16.0) + 1.596 * (v - 128.0);
-            let g = 1.164 * (y - 16.0) - 0.813 * (v - 128.0) - 0.391 * (u - 128.0);
-            let b = 1.164 * (y - 16.0) + 2.018 * (u - 128.0);
-            rgba.push(r as u8);
-            rgba.push(g as u8);
-            rgba.push(b as u8);
-            rgba.push(0xFF as u8);
-        }
-    }
-
-    rgba
 }
