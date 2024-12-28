@@ -935,14 +935,6 @@ pub fn delete_audio(
     }    
     // clear the entry in the candidates list without deleting it
     let ret = connection.execute(
-        "DELETE FROM album_artists WHERE audio_id = ?1",
-        params![&audio_id],
-    );
-    if ret.is_err() {
-        log::error!("Failed to delete album_artists {}!", audio_id);
-        return;
-    }    
-    let ret = connection.execute(
         "DELETE FROM albumartist_audio_map WHERE audio_id = ?1",
         params![&audio_id],
     );
@@ -1135,7 +1127,7 @@ pub fn audio(
             log::error!("could not prepare SQL statement: {}", err);
         }
     }
-    let query = "SELECT albumartist_name FROM album_artists 
+    let query = "SELECT artist_name FROM artists 
                         INNER JOIN albumartist_audio_map 
                         ON albumartist_audio_map.albumartist_id = artists.artist_id 
                         WHERE albumartist_audio_map.audio_id = ?1";
@@ -1149,7 +1141,7 @@ pub fn audio(
                                 match row.get::<usize, String>(0) {
                                     Ok(val) => v.albumartist.push(val.clone()),
                                     Err(error) => {
-                                        log::error!("Failed to read album_artists for video: {}", error);
+                                        log::error!("Failed to read album_artists for audio: {}", error);
                                         continue;
                                     }
                                 }
