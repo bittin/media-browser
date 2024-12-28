@@ -1,9 +1,0 @@
-[package]
-name = "cosmic-media-browser-applet"
-version = "0.1.0"
-edition = "2021"
-
-[dependencies.cosmic-media-browser]
-path = ".."
-default-features = false
-features = ["desktop", "gvfs", "wayland", "wgpu"]
