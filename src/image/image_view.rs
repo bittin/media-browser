@@ -17,22 +17,24 @@ pub enum Message {
 
 //single static page, is not supposed to do anything other than display a button that lets you move to the next page
 pub struct ImageView {
-    //pub image_model: segmented_button::Model<segmented_button::SingleSelect>,
-    image_viewer: cosmic::iced::widget::image::Viewer<cosmic::widget::image::Handle>,
+    pub controls: bool,
+    pub controls_time: std::time::Instant,
+    pub fullscreen: bool,
     pub image_path: String,
     pub image_path_loaded: String,
-    width: Length,
-    height: Length, 
-    min_scale: f32,
-    max_scale: f32,
-    scale_step: f32,
+    pub width: Length,
+    pub height: Length, 
+    pub min_scale: f32,
+    pub max_scale: f32,
+    pub scale_step: f32,
 }
 
 impl ImageView {
     pub fn new() -> Self {
         ImageView {
-            //image_model: segmented_button::ModelBuilder::default().build(),
-            image_viewer: cosmic::iced::widget::image::Viewer::new(cosmic::widget::image::Handle::from_path("./examples/logo.png")),
+            controls: true,
+            controls_time: std::time::Instant::now(),
+            fullscreen: false,
             image_path: "./examples/logo.png".to_string(),
             image_path_loaded: String::new(),
             width: Length::Fixed(4096.0),
@@ -51,14 +53,6 @@ impl ImageView {
             Message::ToAudio => {},
             Message::Open(imagepath) => {
                 self.image_path = imagepath.clone();
-                self.image_viewer =  cosmic::iced::widget::image::Viewer::new(
-                    cosmic::widget::image::Handle::from_path(self.image_path.clone()))
-                    .width(self.width)
-                    .height(self.height)
-                    .min_scale(self.min_scale)
-                    .max_scale(self.max_scale)
-                    .scale_step(self.scale_step)
-                    .padding(5.0);
                 self.image_path_loaded = self.image_path.clone();
             }
             Message::NextFile => {},

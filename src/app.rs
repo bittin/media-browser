@@ -1071,7 +1071,7 @@ impl App {
         .into()
     }
 
-    fn view_image_view(&self) -> Element<<App as cosmic::Application>::Message> {
+    fn _view_image_view_old(&self) -> Element<<App as cosmic::Application>::Message> {
         let cosmic_theme::Spacing {
              space_s, ..
         } = theme::active().cosmic().spacing;
@@ -1172,8 +1172,110 @@ impl App {
         content
     }
 
+    fn view_image_view(&self) -> Element<<App as cosmic::Application>::Message> {
+        let cosmic_theme::Spacing {
+            space_xxs,
+            space_xs,
+            space_s,
+            ..
+        } = theme::active().cosmic().spacing;
+        
+        if self.image_view.image_path_loaded != self.image_view.image_path
+        {
+            // construct the video player first
+            return self.view_browser_view();
+        }
+        let image_viewer = Container::new(
+            cosmic::iced::widget::image::Viewer::new(
+                cosmic::widget::image::Handle::from_path(self.image_view.image_path.clone()),
+                )
+                    .width(self.image_view.width)
+                    .height(self.image_view.height)
+                    .min_scale(self.image_view.min_scale)
+                    .max_scale(self.image_view.max_scale)
+                    .scale_step(self.image_view.scale_step)
+                    .padding(5.0),
+            )
+            .style(style::Container::Background)
+            .width(Length::Fill)
+            .padding([0, space_s]);
+        // draw Image GUI
+        let mouse_area = widget::mouse_area(image_viewer)
+            .on_press(Message::PlayPause) 
+            .on_double_press(Message::Fullscreen);
+
+        let mut popover = widget::popover(mouse_area).position(widget::popover::Position::Bottom);
+
+        let mut popup_items = Vec::<Element<_>>::with_capacity(2);
+
+        if self.image_view.controls {
+            popup_items.push(
+                widget::container(
+                    widget::row::with_capacity(7)
+                        .align_items(Alignment::Center)
+                        .spacing(space_xxs)
+                        .push(
+                            widget::button::icon(
+                                    widget::icon::from_name("go-up-symbolic")
+                                        .size(16)
+                            ).on_press(Message::ImageMessage(
+                                        crate::image::image_view::Message::ToBrowser)),
+                        )
+                        .push(
+                                    widget::button::icon(
+                                            widget::icon::from_name("go-previous-symbolic")
+                                                .size(16)
+                            ).on_press(Message::ImageMessage(
+                                                crate::image::image_view::Message::PreviousFile)),
+                        )
+                        .push(
+                            widget::button::icon(
+                                    widget::icon::from_name("zoom-in-symbolic")
+                                        .size(16)
+                            ).on_press(Message::ImageMessage(
+                                        crate::image::image_view::Message::ZoomPlus))
+                        )
+                        .push(
+                            widget::button::icon(
+                                    widget::icon::from_name("zoom-out-symbolic")
+                                        .size(16)
+                            ).on_press(Message::ImageMessage(
+                                        crate::image::image_view::Message::ZoomMinus))
+                        )
+                        .push(
+                            widget::button::icon(
+                                    widget::icon::from_name("zoom-fit-best-symbolic")
+                                        .size(16)
+                            ).on_press(Message::ImageMessage(
+                                        crate::image::image_view::Message::ZoomFit))
+                        )
+                        .push(
+                            widget::button::icon(
+                                    widget::icon::from_name("go-next-symbolic")
+                                        .size(16)
+                            ).on_press(Message::ImageMessage(
+                                        crate::image::image_view::Message::NextFile))
+                        )
+                )
+                .padding([space_xxs, space_xs])
+                .style(theme::Container::WindowBackground)
+                .into(),
+            );
+        }
+        if !popup_items.is_empty() {
+            popover = popover.popup(widget::column::with_children(popup_items));
+        }
+
+        widget::container(popover)
+            .width(Length::Fill)
+            .height(Length::Fill)
+            .style(theme::Container::Custom(Box::new(|_theme| {
+                widget::container::Appearance::default().with_background(cosmic::iced::Color::BLACK)
+            })))
+            .into()
+    }
+
     fn view_video_view(&self) -> Element<<App as cosmic::Application>::Message> {
-        use gstreamer::prelude::*;
         let cosmic_theme::Spacing {
             space_xxs,
             space_xs,
@@ -1314,6 +1416,27 @@ impl App {
                     widget::row::with_capacity(7)
                         .align_items(Alignment::Center)
                         .spacing(space_xxs)
+                        .push(
+                            widget::button::icon(
+                                    widget::icon::from_name("go-up-symbolic")
+                                        .size(16)
+                            ).on_press(Message::VideoMessage(
+                                        crate::video::video_view::Message::ToBrowser)),
+                        )
+                        .push(
+                                    widget::button::icon(
+                                            widget::icon::from_name("go-previous-symbolic")
+                                                .size(16)
+                            ).on_press(Message::VideoMessage(
+                                        crate::video::video_view::Message::PreviousFile)),
+                        )
+                        .push(
+                            widget::button::icon(
+                                    widget::icon::from_name("go-next-symbolic")
+                                        .size(16)
+                            ).on_press(Message::VideoMessage(
+                                        crate::video::video_view::Message::NextFile))
+                        )
                         .push(
                             widget::button::icon(
                                 if self.video_view.video_opt.as_ref().map_or(true, |video| video.paused()) {
@@ -1527,6 +1650,27 @@ impl App {
                     widget::row::with_capacity(7)
                         .align_items(Alignment::Center)
                         .spacing(space_xxs)
+                        .push(
+                            widget::button::icon(
+                                    widget::icon::from_name("go-up-symbolic")
+                                        .size(16)
+                            ).on_press(Message::AudioMessage(
+                                        crate::audio::audio_view::Message::ToBrowser)),
+                        )
+                        .push(
+                            widget::button::icon(
+                                            widget::icon::from_name("go-previous-symbolic")
+                                                .size(16)
+                            ).on_press(Message::AudioMessage(
+                                        crate::audio::audio_view::Message::PreviousFile)),
+                        )
+                        .push(
+                            widget::button::icon(
+                                    widget::icon::from_name("go-next-symbolic")
+                                        .size(16)
+                            ).on_press(Message::AudioMessage(
+                                        crate::audio::audio_view::Message::NextFile))
+                        )
                         .push(
                             widget::button::icon(
                                 if self.audio_view.audio_opt.as_ref().map_or(true, |video| video.paused()) {
