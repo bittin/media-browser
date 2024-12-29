@@ -1,9 +1,13 @@
+pub mod video_view;
+/*
 pub mod pipeline;
 pub mod video_player;
-pub mod video_view;
 pub mod video;
 
+
 pub use gstreamer as gst;
+pub use gstreamer_app as gst_app;
+pub use gstreamer_pbutils as gst_pbutils;
 use thiserror::Error;
 
 //pub use video_view::VideoView::Position;
@@ -39,3 +43,4 @@ pub enum Error {
     #[error("invalid framerate: {0}")]
     Framerate(f64),
 }
+*/

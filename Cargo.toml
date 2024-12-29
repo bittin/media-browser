@@ -21,9 +21,9 @@ gio = { version = "0.20.6", optional = true }
 glib = { version = "0.20.6", optional = true }
 glob = "0.3"
 gstreamer = "0.23"
-gstreamer-app = "0.23" # appsink
-gstreamer-base = "0.23" # basesrc
-gstreamer-pbutils = "0.23"
+#gstreamer-app = "0.23" # appsink
+#gstreamer-base = "0.23" # basesrc
+#gstreamer-pbutils = "0.23"
 gstreamer-tag = "0.23"
 gst-plugin-matroska = "0.0.0"
 html-escape = "0.2.13"
@@ -31,6 +31,7 @@ icu_collator = "1.5"
 icu_provider = { version = "1.5", features = ["sync"] }
 ignore = "0.4"
 image = "0.25.5"
+lazy_static = "1"
 libc = "0.2"
 log = "0.4"
 mime_guess = "2"
@@ -47,13 +48,13 @@ shlex = { version = "1.3" }
 thiserror = "2.0.3"
 tokio = { version = "1", features = ["sync"] }
 trash = { git = "https://github.com/jackpot51/trash-rs.git", branch = "cosmic" }
-url = "2.5.4"
+url = "2"
 walkdir = "2.5.0"
 wayland-client = { version = "0.31.7", optional = true }
 xdg = { version = "2.5.2", optional = true }
 xdg-mime = "0.3"
 xml = "0.8.16"
-yuvutils-rs = "0.5.13"
+zbus = { version = "= 4.4.0", default-features = false, features = ["tokio"] }
 
 # Compression
 bzip2 = { version = "0.4", optional = true } #TODO: replace with pure Rust crate
@@ -61,12 +62,9 @@ flate2 = "1.0"
 liblzma = { version = "0.3", optional = true } #TODO: replace with pure Rust crate
 tar = "0.4.43"
 # Internationalization
-i18n-embed = { version = "0.14", features = [
-    "fluent-system",
-    "desktop-requester",
-] }
-i18n-embed-fl = "0.7"
-rust-embed = "8"
+i18n-embed = { version = "0.13", features = ["fluent-system", "desktop-requester"] }
+i18n-embed-fl = "0.6"
+rust-embed = "6"
 slotmap = "1.0.7"
 recently-used-xbel = "1.1.0"
 zip = "2.1.6"
@@ -75,13 +73,19 @@ uzers = "0.12.0"
 
 [dependencies.libcosmic]
 git = "https://github.com/pop-os/libcosmic.git"
+branch = "prev-master"
 default-features = false
-features = ["a11y", "clipboard", "multi-window", "tokio"]
+features = ["a11y", "clipboard", "multi-window", "tokio", "winit", "wgpu"]
 
 [dependencies.iced_video_player]
 git = "https://github.com/jackpot51/iced_video_player.git"
 branch = "prev-cosmic"
 default-features = false
+
+[dependencies.accesskit_unix]
+version = "= 0.13.1"
+default-features = false
+features = ["tokio"]
 
 [dependencies.smol_str]
 version = "0.2.1"

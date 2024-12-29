@@ -1,25 +1,25 @@
-use super::{pipeline::VideoPrimitive, video::Video};
+use crate::video::{gst, gst_pbutils, video::Video};
 use cosmic::iced::{
-    advanced::{self, layout, widget, Widget},
-    Element
+    self,
+    advanced::{self, graphics::core::event::Status, layout, widget, Widget},
+    mouse, Element,
 };
-use cosmic::iced_wgpu::primitive::pipeline::Renderer as PrimitiveRenderer;
-use std::{marker::PhantomData, sync::atomic::Ordering};
+use log::error;
+use std::{marker::PhantomData, sync::atomic::Ordering, time::Duration};
 use std::{sync::Arc, time::Instant};
 
-pub use gstreamer as gst;
-pub use gstreamer_pbutils as gst_pbutils;
-use gstreamer::prelude::*;
+use crate::video::pipeline::VideoPrimitive;
+use cosmic::iced_wgpu::primitive::pipeline::Renderer as PrimitiveRenderer;
 
 /// Video player widget which displays the current frame of a [`Video`](crate::Video).
-pub struct VideoPlayer<'a, Message, Theme = cosmic::iced::Theme, Renderer = cosmic::iced::Renderer>
+pub struct VideoPlayer<'a, Message, Theme = iced::Theme, Renderer = iced::Renderer>
 where
     Renderer: PrimitiveRenderer,
 {
     video: &'a Video,
-    content_fit: cosmic::iced::ContentFit,
-    width: cosmic::iced::Length,
-    height: cosmic::iced::Length,
+    content_fit: iced::ContentFit,
+    width: iced::Length,
+    height: iced::Length,
     mouse_hidden: bool,
     on_end_of_stream: Option<Message>,
     on_new_frame: Option<Message>,
@@ -38,9 +38,9 @@ where
     pub fn new(video: &'a Video) -> Self {
         VideoPlayer {
             video,
-            content_fit: cosmic::iced::ContentFit::Contain,
-            width: cosmic::iced::Length::Shrink,
-            height: cosmic::iced::Length::Shrink,
+            content_fit: iced::ContentFit::Contain,
+            width: iced::Length::Shrink,
+            height: iced::Length::Shrink,
             mouse_hidden: false,
             on_end_of_stream: None,
             on_new_frame: None,
@@ -53,7 +53,7 @@ where
     }
 
     /// Sets the width of the `VideoPlayer` boundaries.
-    pub fn width(self, width: impl Into<cosmic::iced::Length>) -> Self {
+    pub fn width(self, width: impl Into<iced::Length>) -> Self {
         VideoPlayer {
             width: width.into(),
             ..self
@@ -61,7 +61,7 @@ where
     }
 
     /// Sets the height of the `VideoPlayer` boundaries.
-    pub fn height(self, height: impl Into<cosmic::iced::Length>) -> Self {
+    pub fn height(self, height: impl Into<iced::Length>) -> Self {
         VideoPlayer {
             height: height.into(),
             ..self
@@ -69,7 +69,7 @@ where
     }
 
     /// Sets the `ContentFit` of the `VideoPlayer`.
-    pub fn content_fit(self, content_fit: cosmic::iced::ContentFit) -> Self {
+    pub fn content_fit(self, content_fit: iced::ContentFit) -> Self {
         VideoPlayer {
             content_fit,
             ..self
@@ -99,7 +99,7 @@ where
         }
     }
 
-    /// Message to send when the subtitle receives a new frame.
+    /// Message to send when the video receives a new frame.
     pub fn on_subtitle_text<F>(self, on_subtitle_text: F) -> Self
     where
         F: 'a + Fn(Option<String>) -> Message,
@@ -120,7 +120,6 @@ where
             ..self
         }
     }
-
 
     pub fn on_missing_plugin<F>(self, on_missing_plugin: F) -> Self
     where
@@ -149,10 +148,10 @@ where
     Message: Clone,
     Renderer: PrimitiveRenderer,
 {
-    fn size(&self) -> cosmic::iced::Size<cosmic::iced::Length> {
-        cosmic::iced::Size {
-            width: cosmic::iced::Length::Shrink,
-            height: cosmic::iced::Length::Shrink,
+    fn size(&self) -> iced::Size<iced::Length> {
+        iced::Size {
+            width: iced::Length::Shrink,
+            height: iced::Length::Shrink,
         }
     }
 
@@ -165,16 +164,16 @@ where
         let (video_width, video_height) = self.video.size();
 
         // based on `Image::layout`
-        let image_size = cosmic::iced::Size::new(video_width as f32, video_height as f32);
+        let image_size = iced::Size::new(video_width as f32, video_height as f32);
         let raw_size = limits.resolve(self.width, self.height, image_size);
         let full_size = self.content_fit.fit(image_size, raw_size);
-        let final_size = cosmic::iced::Size {
+        let final_size = iced::Size {
             width: match self.width {
-                cosmic::iced::Length::Shrink => f32::min(raw_size.width, full_size.width),
+                iced::Length::Shrink => f32::min(raw_size.width, full_size.width),
                 _ => raw_size.width,
             },
             height: match self.height {
-                cosmic::iced::Length::Shrink => f32::min(raw_size.height, full_size.height),
+                iced::Length::Shrink => f32::min(raw_size.height, full_size.height),
                 _ => raw_size.height,
             },
         };
@@ -190,32 +189,32 @@ where
         _style: &advanced::renderer::Style,
         layout: advanced::Layout<'_>,
         _cursor: advanced::mouse::Cursor,
-        _viewport: &cosmic::iced::Rectangle,
+        _viewport: &iced::Rectangle,
     ) {
         let mut inner = self.video.write();
 
         // bounds based on `Image::draw`
-        let image_size = cosmic::iced::Size::new(inner.width as f32, inner.height as f32);
+        let image_size = iced::Size::new(inner.width as f32, inner.height as f32);
         let bounds = layout.bounds();
         let adjusted_fit = self.content_fit.fit(image_size, bounds.size());
-        let scale = cosmic::iced::Vector::new(
+        let scale = iced::Vector::new(
             adjusted_fit.width / image_size.width,
             adjusted_fit.height / image_size.height,
         );
-        let final_size = cosmic::iced::Size::new(image_size.width * scale.x, image_size.height * scale.y);
+        let final_size = iced::Size::new(image_size.width * scale.x, image_size.height * scale.y);
 
         let position = match self.content_fit {
-            cosmic::iced::ContentFit::None => cosmic::iced::Point::new(
+            iced::ContentFit::None => iced::Point::new(
                 bounds.x + (image_size.width - adjusted_fit.width) / 2.0,
                 bounds.y + (image_size.height - adjusted_fit.height) / 2.0,
             ),
-            _ => cosmic::iced::Point::new(
+            _ => iced::Point::new(
                 bounds.center_x() - final_size.width / 2.0,
                 bounds.center_y() - final_size.height / 2.0,
             ),
         };
 
-        let drawing_bounds = cosmic::iced::Rectangle::new(position, final_size);
+        let drawing_bounds = iced::Rectangle::new(position, final_size);
 
         let upload_frame = inner.upload_frame.swap(false, Ordering::SeqCst);
 
@@ -228,6 +227,7 @@ where
             inner.set_av_offset(Instant::now() - last_frame_time);
         }
 
+        #[cfg(feature = "wgpu")]
         renderer.draw_pipeline_primitive(
             drawing_bounds,
             VideoPrimitive::new(
@@ -238,22 +238,51 @@ where
                 upload_frame,
             ),
         );
+
+        #[cfg(not(feature = "wgpu"))]
+        {
+            if upload_frame {
+                let yuv_data_opt = match inner.frame.lock() {
+                    Ok(frame) => Some(frame.clone()),
+                    Err(_err) => None,
+                };
+                inner.handle_opt = if let Some(yuv_data) = yuv_data_opt {
+                    //TODO: convert on worker thread?
+                    let rgba_data = yuv_to_rgba(&yuv_data, inner.width as _, inner.height as _, 1);
+                    Some(advanced::image::Handle::from_pixels(
+                        inner.width as _,
+                        inner.height as _,
+                        rgba_data,
+                    ))
+                } else {
+                    None
+                };
+            }
+            if let Some(handle) = &inner.handle_opt {
+                renderer.draw(
+                    handle.clone(),
+                    advanced::image::FilterMethod::Nearest,
+                    drawing_bounds,
+                    [0.0; 4],
+                );
+            }
+        }
     }
 
     fn on_event(
         &mut self,
-        _state: &mut cosmic::iced_core::widget::Tree,
-        event: cosmic::iced::Event,
+        _state: &mut widget::Tree,
+        event: iced::Event,
         _layout: advanced::Layout<'_>,
         _cursor: advanced::mouse::Cursor,
         _renderer: &Renderer,
         _clipboard: &mut dyn advanced::Clipboard,
         shell: &mut advanced::Shell<'_, Message>,
-        _viewport: &cosmic::iced::Rectangle,
-    ) -> cosmic::iced::event::Status {
+        _viewport: &iced::Rectangle,
+    ) -> Status {
         let mut inner = self.video.write();
 
-        if let cosmic::iced::Event::Window(_, cosmic::iced::window::Event::RedrawRequested(_)) = event {
+        if let iced::Event::Window(_, iced::window::Event::RedrawRequested(_)) = event {
             if inner.restart_stream || (!inner.is_eos && !inner.paused()) {
                 let mut restart_stream = false;
                 if inner.restart_stream {
@@ -269,7 +298,7 @@ where
                 {
                     match msg.view() {
                         gst::MessageView::Error(err) => {
-                            log::error!("bus returned an error: {err}");
+                            error!("bus returned an error: {err}");
                             if let Some(ref on_error) = self.on_error {
                                 shell.publish(on_error(err.error()))
                             };
@@ -304,7 +333,7 @@ where
                 // Don't run eos_pause if restart_stream is true; fixes "pausing" after restarting a stream
                 if restart_stream {
                     if let Err(err) = inner.restart_stream() {
-                        log::error!("cannot restart stream (can't seek): {err:#?}");
+                        error!("cannot restart stream (can't seek): {err:#?}");
                     }
                 } else if eos_pause {
                     inner.is_eos = true;
@@ -325,30 +354,30 @@ where
                     }
                 }
 
-                shell.request_redraw(cosmic::iced::window::RedrawRequest::NextFrame);
+                shell.request_redraw(iced::window::RedrawRequest::NextFrame);
             } else {
-                shell.request_redraw(cosmic::iced::window::RedrawRequest::At(
-                    Instant::now() + core::time::Duration::from_millis(32),
+                shell.request_redraw(iced::window::RedrawRequest::At(
+                    Instant::now() + Duration::from_millis(32),
                 ));
             }
-            cosmic::iced::event::Status::Captured
+            Status::Captured
         } else {
-            cosmic::iced::event::Status::Ignored
+            Status::Ignored
         }
     }
 
     fn mouse_interaction(
         &self,
-        _tree: &cosmic::iced_core::widget::Tree,
+        _tree: &widget::Tree,
         _layout: advanced::Layout<'_>,
-        _cursor_position: cosmic::iced::mouse::Cursor,
-        _viewport: &cosmic::iced::Rectangle,
+        _cursor_position: mouse::Cursor,
+        _viewport: &iced::Rectangle,
         _renderer: &Renderer,
-    ) -> cosmic::iced::mouse::Interaction {
+    ) -> mouse::Interaction {
         if self.mouse_hidden {
-            cosmic::iced::mouse::Interaction::Idle
+            mouse::Interaction::Idle
         } else {
-            cosmic::iced::mouse::Interaction::default()
+            mouse::Interaction::default()
         }
     }
 }

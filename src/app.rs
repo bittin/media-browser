@@ -13,6 +13,8 @@ use cosmic::{
     app::{self, message, Command, Core},
     cosmic_config, cosmic_theme, executor, font,
     iced::{
+        self,
+        advanced,
         clipboard::dnd::DndAction,
         event,
         futures::{self, SinkExt},
@@ -53,21 +55,21 @@ use std::{
     sync::{Arc, Mutex},
     time::{self, Instant},
 };
-/*
 use iced_video_player::{
     gst::{self, prelude::*},
     gst_app, gst_pbutils, Video, VideoPlayer,
 };
-*/
+/*
 pub use gstreamer as gst;
 pub use gstreamer_app as gst_app;
 pub use gstreamer_pbutils as gst_pbutils;
 use gstreamer::prelude::*;
 pub use crate::video::video::Video;
 pub use crate::video::video_player::VideoPlayer;
+use gstreamer::glib;
 pub use crate::audio::audio::Audio;
 pub use crate::audio::audio_player::AudioPlayer;
-use gstreamer::glib;
+*/
 
 use tokio::sync::mpsc;
 use trash::TrashItem;
@@ -248,10 +250,13 @@ pub enum Message {
     AudioCode(usize),
     AudioVolume(f64),
     TextCode(usize),
-    MissingPlugin(crate::video::gst::Message),
+    MissingPlugin(gstreamer::Message),
     Fullscreen,
     Seek(f64),
     SeekRelative(f64),
+    EndOfStream,
+    NewFrame,
+    PlayPause,
     CloseToast(widget::ToastId),
     Config(Config),
     Copy(Option<Entity>),
@@ -1195,20 +1200,21 @@ impl App {
 
         let muted = video.muted();
         let volume = video.volume();
-
+        
         let video_player = VideoPlayer::new(video)
             .mouse_hidden(!self.video_view.controls)
-            .on_end_of_stream(Message::VideoMessage(crate::video::video_view::Message::EndOfStream))
+            .on_end_of_stream(Message::EndOfStream)
             .on_missing_plugin(Message::MissingPlugin)
-            .on_new_frame(Message::VideoMessage(crate::video::video_view::Message::NewFrame))
-            .width(cosmic::iced_core::Length::Fill)
-            .height(cosmic::iced_core::Length::Fill);
+            .on_new_frame(Message::NewFrame)
+            .width(1920.0)
+            .height(1080.0);
 
         let mouse_area = widget::mouse_area(video_player)
-            .on_press(Message::VideoMessage(crate::video::video_view::Message::PlayPause)) 
+            .on_press(Message::PlayPause) 
             .on_double_press(Message::Fullscreen);
 
         let mut popover = widget::popover(mouse_area).position(widget::popover::Position::Bottom);
+
         let mut popup_items = Vec::<Element<_>>::with_capacity(2);
         if let Some(dropdown) = self.video_view.dropdown_opt {
             let mut items = Vec::<Element<_>>::new();
@@ -1320,7 +1326,7 @@ impl App {
                             )
                             .on_press(Message::VideoMessage(crate::video::video_view::Message::PlayPause)),
                         )
-                        .push(widget::text(format_time(self.video_view.position)).font(font::FONT_MONO_REGULAR))
+                        .push(widget::text(format_time(self.video_view.position)).font(font::mono()))
                         .push(
                             Slider::new(0.0..=self.video_view.duration, self.video_view.position, Message::Seek)
                                 .step(0.1)
@@ -1328,7 +1334,7 @@ impl App {
                         )
                         .push(
                             widget::text(format_time(self.video_view.duration - self.video_view.position))
-                                .font(font::FONT_MONO_REGULAR),
+                                .font(font::mono()),
                         )
                         .push(
                             widget::button::icon(
@@ -1382,7 +1388,6 @@ impl App {
     }
 
     fn view_audio_view(&self) -> Element<<App as cosmic::Application>::Message> {
-        use gstreamer::prelude::*;
         let cosmic_theme::Spacing {
             space_xxs,
             space_xs,
@@ -1410,13 +1415,13 @@ impl App {
         let muted = audio.muted();
         let volume = audio.volume();
 
-        let audio_player = AudioPlayer::new(audio)
+        let audio_player = VideoPlayer::new(audio)
             .mouse_hidden(!self.audio_view.controls)
-            .on_end_of_stream(Message::AudioMessage(crate::audio::audio_view::Message::EndOfStream))
+            .on_end_of_stream(Message::EndOfStream)
             .on_missing_plugin(Message::MissingPlugin)
-            .on_new_frame(Message::AudioMessage(crate::audio::audio_view::Message::NewFrame))
-            .width(cosmic::iced::Length::Fill)
-            .height(cosmic::iced::Length::Fill);
+            .on_new_frame(Message::NewFrame)
+            .width(1920.0)
+            .height(1080.0);
 
         let mouse_area = widget::mouse_area(audio_player)
             .on_press(Message::AudioMessage(crate::audio::audio_view::Message::PlayPause)) 
@@ -1534,7 +1539,7 @@ impl App {
                             )
                             .on_press(Message::AudioMessage(crate::audio::audio_view::Message::PlayPause)),
                         )
-                        .push(widget::text(format_time(self.audio_view.position)).font(font::FONT_MONO_REGULAR))
+                        .push(widget::text(format_time(self.audio_view.position)).font(font::mono()))
                         .push(
                             Slider::new(0.0..=self.audio_view.duration, self.audio_view.position, Message::Seek)
                                 .step(0.1)
@@ -1542,7 +1547,7 @@ impl App {
                         )
                         .push(
                             widget::text(format_time(self.audio_view.duration - self.audio_view.position))
-                                .font(font::FONT_MONO_REGULAR),
+                                .font(font::mono()),
                         )
                         .push(
                             widget::button::icon(
@@ -1703,7 +1708,7 @@ impl App {
                     self.view();
                 }, 
                 _ => {
-                    if let Some(tab) = self.tab_model.data_mut::<Tab>(self.tab_model_id) {
+                    if let Some(_tab) = self.tab_model.data_mut::<Tab>(self.tab_model_id) {
                         let _ = self.update(Message::TabMessage(Some(self.tab_model_id), tab::Message::OpenInExternalApp(Some(path))));
                     }
                 }
@@ -2026,7 +2031,7 @@ impl Application for App {
         }
 
         match message {
-            Message::Open(entity_opt, filepath) => {
+            Message::Open(entity_opt, _filepath) => {
                 for path in self.selected_paths(entity_opt).into_iter() {
                     return match self.open_path(path) {
                         Some(command) => command,
@@ -2185,6 +2190,33 @@ impl Application for App {
                     // no audio active
                 }
             }
+            Message::EndOfStream => {
+                if self.active_view == Mode::Video {
+                    let _ = self.update(Message::VideoMessage(crate::video::video_view::Message::EndOfStream));
+                } else if self.active_view == Mode::Audio {
+                    let _ = self.update(Message::AudioMessage(crate::audio::audio_view::Message::EndOfStream));
+                } else {
+                    // no audio active
+                }
+            }
+            Message::NewFrame => {
+                if self.active_view == Mode::Video {
+                    let _ = self.update(Message::VideoMessage(crate::video::video_view::Message::NewFrame));
+                } else if self.active_view == Mode::Audio {
+                    let _ = self.update(Message::AudioMessage(crate::audio::audio_view::Message::NewFrame));
+                } else {
+                    // no audio active
+                }
+            }
+            Message::PlayPause => {
+                if self.active_view == Mode::Video {
+                    let _ = self.update(Message::VideoMessage(crate::video::video_view::Message::PlayPause));
+                } else if self.active_view == Mode::Audio {
+                    let _ = self.update(Message::AudioMessage(crate::audio::audio_view::Message::PlayPause));
+                } else {
+                    // no audio active
+                }
+            }
             Message::MissingPlugin(element) => {
                 if self.active_view == Mode::Video {
                     if let Some(video) = &mut self.video_view.video_opt {
@@ -2264,9 +2296,15 @@ impl Application for App {
                     self.view();
                 },
                 crate::audio::audio_view::Message::Open(audiopath) => {
-                    self.audio_view.audiopath_opt = Some(audiopath);
-                    self.active_view = Mode::Audio;
-                    self.view();
+                    match url::Url::from_file_path(std::path::PathBuf::from(&audiopath)) {
+                        Ok(url) => {
+                            self.audio_view.audiopath_opt = Some(url);
+                            self.audio_view.load();
+                            self.active_view = Mode::Audio;
+                            self.view();
+                        },
+                        _ => {},
+                    }    
                 },
                 crate::audio::audio_view::Message::NextFile => {
                     // open next file in the sorted list if possible
@@ -2297,7 +2335,7 @@ impl Application for App {
                 crate::audio::audio_view::Message::FileClose => {
                     self.audio_view.close();
                 }
-                crate::audio::audio_view::Message::FileLoad(url) => {
+                crate::audio::audio_view::Message::FileLoad(_url) => {
                     self.audio_view.load();
                 }
                 crate::audio::audio_view::Message::FileOpen => {
@@ -3229,9 +3267,15 @@ impl Application for App {
                     self.view();
                 },
                 crate::video::video_view::Message::Open(videopath) => {
-                    self.video_view.videopath_opt = Some(videopath);
-                    self.active_view = Mode::Video;
-                    self.view();
+                    match url::Url::from_file_path(std::path::PathBuf::from(&videopath)) {
+                        Ok(url) => {
+                            self.video_view.videopath_opt = Some(url);
+                            self.video_view.load();
+                            self.active_view = Mode::Video;
+                            self.view();
+                        },
+                        _ => {},
+                    }    
                 },
                 crate::video::video_view::Message::NextFile => {
                     // open next file in the sorted list if possible
@@ -3263,6 +3307,7 @@ impl Application for App {
                     self.video_view.close();
                 }
                 crate::video::video_view::Message::FileLoad(url) => {
+                    self.video_view.videopath_opt = Some(url);
                     self.video_view.load();
                 }
                 crate::video::video_view::Message::FileOpen => {

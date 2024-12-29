@@ -2,6 +2,7 @@ use super::Error;
 use gstreamer as gst;
 use gstreamer_app as gst_app;
 use gstreamer_app::prelude::*;
+use cosmic::iced::widget::image as img;
 use std::num::NonZeroU8;
 use std::ops::{Deref, DerefMut};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
@@ -67,6 +68,9 @@ pub(crate) struct Internal {
 
     pub(crate) subtitle_text: Arc<Mutex<Option<String>>>,
     pub(crate) upload_text: Arc<AtomicBool>,
+
+    #[cfg(not(feature = "wgpu"))]
+    pub(crate) handle_opt: Option<img::Handle>,
 }
 
 impl Internal {
@@ -196,16 +200,14 @@ impl Drop for Video {
 impl Video {
     /// Create a new video player from a given video which loads from `uri`.
     /// Note that live sources will report the duration to be zero.
-    pub fn new(uri: &str) -> Result<Self, Error> {
+    pub fn new(uri: &url::Url) -> Result<Self, Error> {
         gst::init()?;
 
-        let pipeline = format!(concat!("playbin uri=\"{}\" ",
-            "audio-sink=\"appsink name=iced_audio sync=true ",
-            //"text-sink=\"appsink name=iced_text sync=true caps=text/x-raw\" ",
-            "video-sink=\"videoscale ! videoconvert ! appsink name=iced_video ",
-            "drop=true caps=video/x-raw,format=NV12,pixel-aspect-ratio=1/1\""), uri);
-        let pipeline_element = gst::parse::launch(pipeline.as_ref()).unwrap();
-        let pipeline = pipeline_element.downcast::<gst::Pipeline>().unwrap();
+        let pipeline = format!("playbin uri=\"{}\" text-sink=\"appsink name=iced_text sync=true caps=text/x-raw\" video-sink=\"videoscale ! videoconvert ! appsink name=iced_video drop=true caps=video/x-raw,format=NV12,pixel-aspect-ratio=1/1\"", uri.as_str());
+        let pipeline = gst::parse::launch(pipeline.as_ref())?
+            .downcast::<gst::Pipeline>()
+            .map_err(|_| Error::Cast)?;
+
         let video_sink: gst::Element = pipeline.property("video-sink");
         let pad = video_sink.pads().first().cloned().unwrap();
         let pad = pad.dynamic_cast::<gst::GhostPad>().unwrap();
@@ -220,8 +222,8 @@ impl Video {
         let text_sink: gst::Element = pipeline.property("text-sink");
         //let pad = text_sink.pads().get(0).cloned().unwrap();
         let text_sink = text_sink.downcast::<gst_app::AppSink>().unwrap();
-        
-        return Self::from_gst_pipeline(pipeline, video_sink, None)
+
+        Self::from_gst_pipeline(pipeline, video_sink, Some(text_sink))
     }
 
     /// Creates a new video based on an existing GStreamer pipeline and appsink.
@@ -243,32 +245,11 @@ impl Video {
 
         let pad = video_sink.pads().first().cloned().unwrap();
 
-        let (status, _state1, _state2) = pipeline.state(gst::ClockTime::from_seconds(5));
-        match status {
-            Ok(_state) => {},
-            Err(error) => {
-                log::error!("Failed to read video state to after five seconds: {}", error);
-                return Err(Error::StateChange(error));
-            }
-        }
-
-        match pipeline.set_state(gst::State::Playing) {
-            Ok(success) => {},
-            Err(error) => {
-                log::error!("Failed to change video state to Playing: {}", error);
-                return Err(Error::StateChange(error));
-            }
-        }
+        pipeline.set_state(gst::State::Playing)?;
 
         // wait for up to 5 seconds until the decoder gets the source capabilities
-        let (status, _state1, _state2) = pipeline.state(gst::ClockTime::from_seconds(5));
-        match status {
-            Ok(_state) => {},
-            Err(error) => {
-                log::error!("Failed to read video state to after five seconds: {}", error);
-                return Err(Error::StateChange(error));
-            }
-        }
+        pipeline.state(gst::ClockTime::from_seconds(5)).0?;
+
         // extract resolution and framerate
         // TODO(jazzfool): maybe we want to extract some other information too?
         let caps = pad.current_caps().ok_or(Error::Caps)?;
@@ -416,6 +397,9 @@ impl Video {
 
             subtitle_text,
             upload_text,
+
+            #[cfg(not(feature = "wgpu"))]
+            handle_opt: None,
         })))
     }
 
@@ -556,7 +540,7 @@ impl Video {
         &mut self,
         positions: I,
         downscale: NonZeroU8,
-    ) -> Result<Vec<image::RgbaImage>, Error>
+    ) -> Result<Vec<img::Handle>, Error>
     where
         I: IntoIterator<Item = Position>,
     {
@@ -569,49 +553,41 @@ impl Video {
         self.set_paused(false);
         self.set_muted(true);
 
-        let mut v = Vec::new();
-        {
-            let inner = self.write();
+        let out = {
+            let inner = self.read();
             let width = inner.width;
             let height = inner.height;
-            for pos in positions {
-                match inner.seek(pos, true) {
-                    Ok(()) => {},
-                    Err(_error) => {},
-                };
-                inner.upload_frame.store(false, Ordering::SeqCst);
-                while !inner.upload_frame.load(Ordering::SeqCst) {
-                    std::hint::spin_loop();
-                }
-                match inner.frame.lock() {
-                    Ok(frame_ref) => {
-                        match image::RgbaImage::from_vec(
-                            inner.width as u32 / downscale,
-                            inner.height as u32 / downscale,
-                            yuv_to_rgba(&*frame_ref, width as _, height as _, downscale),
-                        ) {
-                            Some(imagebuf) => v.push(imagebuf),
-                            _ => continue,
-                        }
-                    },
-                    Err(_error) => continue,
-                };
-            }
-        }
-        
+            positions
+                .into_iter()
+                .map(|pos| {
+                    inner.seek(pos, true)?;
+                    inner.upload_frame.store(false, Ordering::SeqCst);
+                    while !inner.upload_frame.load(Ordering::SeqCst) {
+                        std::hint::spin_loop();
+                    }
+                    Ok(img::Handle::from_pixels(
+                        inner.width as u32 / downscale,
+                        inner.height as u32 / downscale,
+                        yuv_to_rgba(
+                            &inner.frame.lock().map_err(|_| Error::Lock)?,
+                            width as _,
+                            height as _,
+                            downscale,
+                        ),
+                    ))
+                })
+                .collect()
+        };
+
         self.set_paused(paused);
         self.set_muted(muted);
-        match self.seek(pos, true) {
-            Ok(()) => {},
-            Err(_error) => {},
-        };
-        //out
-        Ok(v)
+        self.seek(pos, true)?;
+
+        out
     }
 }
 
-fn yuv_to_rgba(yuv: &[u8], width: u32, height: u32, downscale: u32) -> Vec<u8> {
-    
+pub(crate) fn yuv_to_rgba(yuv: &[u8], width: u32, height: u32, downscale: u32) -> Vec<u8> {
     let uv_start = width * height;
     let mut rgba = vec![];
 
@@ -629,6 +605,7 @@ fn yuv_to_rgba(yuv: &[u8], width: u32, height: u32, downscale: u32) -> Vec<u8> {
             let r = 1.164 * (y - 16.0) + 1.596 * (v - 128.0);
             let g = 1.164 * (y - 16.0) - 0.813 * (v - 128.0) - 0.391 * (u - 128.0);
             let b = 1.164 * (y - 16.0) + 2.018 * (u - 128.0);
+
             rgba.push(r as u8);
             rgba.push(g as u8);
             rgba.push(b as u8);

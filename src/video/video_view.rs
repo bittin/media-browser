@@ -5,17 +5,17 @@ use cosmic::{
     iced::keyboard::{Key, Modifiers},
     widget::menu::action::MenuAction,
 };
+/*
 pub use gstreamer as gst;
 pub use gstreamer_app as gst_app;
 use gstreamer::prelude::*;
 use crate::video::video::Video;
 use crate::video::video_player::VideoPlayer;
-/*
+*/
 use iced_video_player::{
     gst::{self, prelude::*},
     gst_app, gst_pbutils, Video, VideoPlayer,
 };
-*/
 use std::{
     ffi::{CStr, CString},
     time::{Duration, Instant},
@@ -120,7 +120,7 @@ pub enum Message {
 
 /// The [`App`] stores application-specific state.
 pub struct VideoView {
-    pub videopath_opt: Option<String>,
+    pub videopath_opt: Option<url::Url>,
     pub controls: bool,
     pub controls_time: Instant,
     pub dropdown_opt: Option<DropdownKind>,
@@ -197,7 +197,7 @@ impl VideoView {
             let pipeline = gst::parse::launch(pipeline.as_ref())
                 .unwrap()
                 .downcast::<gst::Pipeline>()
-                .map_err(|_| super::Error::Cast)
+                .map_err(|_| iced_video_player::Error::Cast)
                 .unwrap();
 
             let video_sink: gst::Element = pipeline.property("video-sink");
@@ -302,8 +302,13 @@ impl VideoView {
             Message::ToAudio => {}
             Message::ToVideo => {}
             Message::Open(path) => {
-                self.videopath_opt = Some(path.clone());
-                self.load();
+                match url::Url::from_file_path(std::path::PathBuf::from(&path)) {
+                    Ok(url) => {
+                        self.videopath_opt = Some(url);
+                        self.load();
+                    },
+                    _ => {},
+                }
             },
             Message::PlayPause => {
                 //TODO: cleanest way to close dropdowns

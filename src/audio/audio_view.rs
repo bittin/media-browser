@@ -3,25 +3,25 @@ use cosmic::{
     cosmic_config::{self},
     cosmic_theme,
     iced::keyboard::{Key, Modifiers},
-    widget::{menu::action::MenuAction},
+    widget::menu::action::MenuAction,
 };
+/*
 pub use gstreamer as gst;
 pub use gstreamer_app as gst_app;
 use gstreamer::prelude::*;
-
-//use iced_video_player::{
-//    gst::{self, prelude::*},
-//    gst_app, gst_pbutils, Video, VideoPlayer,
-//};
+use crate::video::video::Video;
+use crate::video::video_player::VideoPlayer;
+*/
+use iced_video_player::{
+    gst::{self, prelude::*},
+    gst_app, gst_pbutils, Video, VideoPlayer,
+};
 use std::{
     ffi::{CStr, CString},
     time::{Duration, Instant},
 };
 
 use crate::config::Config;
-
-
-
 
 static CONTROLS_TIMEOUT: Duration = Duration::new(2, 0);
 
@@ -89,7 +89,7 @@ pub enum Message {
     None,
     ToBrowser,
     ToImage,
-    Toaudio,
+    ToVideo,
     ToAudio,
     NextFile,
     PreviousFile,
@@ -120,13 +120,12 @@ pub enum Message {
 
 /// The [`App`] stores application-specific state.
 pub struct AudioView {
-    pub audiopath_opt: Option<String>,
-    pub posterpath_opt: Option<String>,
+    pub audiopath_opt: Option<url::Url>,
     pub controls: bool,
     pub controls_time: Instant,
     pub dropdown_opt: Option<DropdownKind>,
     pub fullscreen: bool,
-    pub audio_opt: Option<super::audio::Audio>,
+    pub audio_opt: Option<Video>,
     pub position: f64,
     pub duration: f64,
     pub dragging: bool,
@@ -140,9 +139,8 @@ impl AudioView {
 
     /// Creates the application, and optionally emits command on initialize.
     pub fn new() -> Self {
-        let audio_view = AudioView {
+        let video_view = AudioView {
             audiopath_opt: None,
-            posterpath_opt: None,
             controls: true,
             controls_time: Instant::now(),
             dropdown_opt: None,
@@ -156,17 +154,17 @@ impl AudioView {
             text_codes: Vec::new(),
             current_text: -1,
         };
-        audio_view
+        video_view
     }
 
     pub fn close(&mut self) {
         //TODO: drop does not work well
-        if let Some(mut audio) = self.audio_opt.take() {
-            log::info!("pausing audio");
-            audio.set_paused(true);
-            log::info!("dropping audio");
-            drop(audio);
-            log::info!("dropped audio");
+        if let Some(mut video) = self.audio_opt.take() {
+            log::info!("pausing video");
+            video.set_paused(true);
+            log::info!("dropping video");
+            drop(video);
+            log::info!("dropped video");
         }
         self.position = 0.0;
         self.duration = 0.0;
@@ -178,77 +176,54 @@ impl AudioView {
     }
     
     pub fn load(&mut self) {
-        let audiopath;
-        if let Some(audiopathstr) = &self.audiopath_opt {
-            audiopath = audiopathstr.to_string();
+        let videopath;
+        if let Some(videopathstr) = &self.audiopath_opt {
+            videopath = videopathstr.to_string();
         } else {
             return;
         }
         self.close();
-        log::info!("Loading {}", audiopath);
-        //TODO: this code came from iced_video_player::audio::new and has been modified to stop the pipeline on error
+        log::info!("Loading {}", videopath);
+
+        //TODO: this code came from iced_video_player::Video::new and has been modified to stop the pipeline on error
         //TODO: remove unwraps and enable playback of files with only audio.
-        let audio = match crate::audio::audio::Audio::new(&audiopath, self.posterpath_opt.clone()) {
-            Ok(ok) => ok,
-            Err(error) => {
-                log::error!("Failed to open audio file {}: {}", audiopath, error);
-                return;
-            }
-        };
-        /*
-        let audio = {
+        let video = {
             gst::init().unwrap();
 
             let pipeline = format!(
-                "playbin uri=\"{}\" ",
-                audiopath
+                "playbin uri=\"{}\" video-sink=\"videoscale ! videoconvert ! appsink name=iced_video drop=true caps=video/x-raw,format=NV12,pixel-aspect-ratio=1/1\"",
+                videopath.as_str()
             );
-
             let pipeline = gst::parse::launch(pipeline.as_ref())
-            .unwrap()
-            .downcast::<gst::Pipeline>()
-            .map_err(|_| super::Error::Cast)
-            .unwrap();
+                .unwrap()
+                .downcast::<gst::Pipeline>()
+                .map_err(|_| iced_video_player::Error::Cast)
+                .unwrap();
 
-            let pipeline;
-            if let Ok(pipeline_launch) = gst::parse::launch(pipeline.as_ref()) {
-                if let Ok(pipeline_downcast) = pipeline.downcast::<gst::Pipeline>().map_err(|_| iced_video_player::Error::Cast) {
-                    pipeline = pipeline_downcast;
-                } else {
-                    log::error!("Failed to open media file as a pipeline!");
-                    return;
-                }
-            } else {
-                log::error!("Failed to open media file as a pipeline!");
-                return;
-            }
-
-            let audio_sink: gst::Element = pipeline.property("audio-sink");
-            let pad = audio_sink.pads().first().cloned().unwrap();
+            let video_sink: gst::Element = pipeline.property("video-sink");
+            let pad = video_sink.pads().first().cloned().unwrap();
             let pad = pad.dynamic_cast::<gst::GhostPad>().unwrap();
             let bin = pad
                 .parent_element()
                 .unwrap()
                 .downcast::<gst::Bin>()
                 .unwrap();
-            let audio_sink = bin.by_name("iced_audio").unwrap();
-            let audio_sink = audio_sink.downcast::<gst_app::AppSink>().unwrap();
-            let audio_sink: gst::Element = pipeline.property("audio-sink");
-            let audio_sink = audio_sink.downcast::<gst_app::AppSink>().unwrap();
-            match super::audio::Audio::from_gst_pipeline(pipeline.clone(), audio_sink) {
+            let video_sink = bin.by_name("iced_video").unwrap();
+            let video_sink = video_sink.downcast::<gst_app::AppSink>().unwrap();
+
+            match Video::from_gst_pipeline(pipeline.clone(), video_sink, None) {
                 Ok(ok) => ok,
                 Err(err) => {
-                    log::warn!("failed to open {}: {err}", audiopath);
+                    log::warn!("failed to open {}: {err}", videopath);
                     pipeline.set_state(gst::State::Null).unwrap();
                     return;
                 }
             }
         };
-*/
 
-        self.duration = audio.duration().as_secs_f64();
-        let pipeline = audio.pipeline();
-        self.audio_opt = Some(audio);
+        self.duration = video.duration().as_secs_f64();
+        let pipeline = video.pipeline();
+        self.audio_opt = Some(video);
 
         let n_audio = pipeline.property::<i32>("n-audio");
         self.audio_codes = Vec::with_capacity(n_audio as usize);
@@ -307,6 +282,7 @@ impl AudioView {
             }
         }
         println!("updated flags {:?}", pipeline.property_value("flags"));
+ 
     }
 
     pub fn update_controls(&mut self, in_use: bool) {
@@ -324,25 +300,22 @@ impl AudioView {
             Message::ToBrowser => {}
             Message::ToImage => {}
             Message::ToAudio => {}
-            Message::Toaudio => {}
+            Message::ToVideo => {}
             Message::Open(path) => {
-                self.audiopath_opt = Some(path.clone());
-                let mut p = path.clone();
-                p.push_str(".png");
-                let poster = std::path::PathBuf::from(&p);
-                if poster.is_file() {
-                    self.posterpath_opt = Some(p);
-                } else {
-                    self.posterpath_opt = None;
+                match url::Url::from_file_path(std::path::PathBuf::from(&path)) {
+                    Ok(url) => {
+                        self.audiopath_opt = Some(url);
+                        self.load();
+                    },
+                    _ => {},
                 }
-                self.load();
             },
             Message::PlayPause => {
                 //TODO: cleanest way to close dropdowns
                 self.dropdown_opt = None;
 
-                if let Some(audio) = &mut self.audio_opt {
-                    audio.set_paused(!audio.paused());
+                if let Some(video) = &mut self.audio_opt {
+                    video.set_paused(!video.paused());
                     self.update_controls(true);
                 }
             }
@@ -350,32 +323,32 @@ impl AudioView {
                 //TODO: cleanest way to close dropdowns
                 self.dropdown_opt = None;
 
-                if let Some(audio) = &mut self.audio_opt {
+                if let Some(video) = &mut self.audio_opt {
                     self.dragging = true;
                     self.position = secs;
-                    audio.set_paused(true);
+                    video.set_paused(true);
                     let duration = Duration::try_from_secs_f64(self.position).unwrap_or_default();
-                    audio.seek(duration, true).expect("seek");
+                    video.seek(duration, true).expect("seek");
                     self.update_controls(true);
                 }
             }
             Message::SeekRelative(secs) => {
-                if let Some(audio) = &mut self.audio_opt {
-                    self.position = audio.position().as_secs_f64();
+                if let Some(video) = &mut self.audio_opt {
+                    self.position = video.position().as_secs_f64();
                     let duration =
                         Duration::try_from_secs_f64(self.position + secs).unwrap_or_default();
-                    audio.seek(duration, true).expect("seek");
+                    video.seek(duration, true).expect("seek");
                 }
             }
             Message::SeekRelease => {
                 //TODO: cleanest way to close dropdowns
                 self.dropdown_opt = None;
 
-                if let Some(audio) = &mut self.audio_opt {
+                if let Some(video) = &mut self.audio_opt {
                     self.dragging = false;
                     let duration = Duration::try_from_secs_f64(self.position).unwrap_or_default();
-                    audio.seek(duration, true).expect("seek");
-                    audio.set_paused(false);
+                    video.seek(duration, true).expect("seek");
+                    video.set_paused(false);
                     self.update_controls(true);
                 }
             }
@@ -384,9 +357,9 @@ impl AudioView {
             }
             Message::MissingPlugin => {}
             Message::NewFrame => {
-                if let Some(audio) = &self.audio_opt {
+                if let Some(video) = &self.audio_opt {
                     if !self.dragging {
-                        self.position = audio.position().as_secs_f64();
+                        self.position = video.position().as_secs_f64();
                         self.update_controls(self.dropdown_opt.is_some());
                     }
                 }
