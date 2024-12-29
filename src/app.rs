@@ -67,9 +67,9 @@ use gstreamer::prelude::*;
 pub use crate::video::video::Video;
 pub use crate::video::video_player::VideoPlayer;
 use gstreamer::glib;
+*/
 pub use crate::audio::audio::Audio;
 pub use crate::audio::audio_player::AudioPlayer;
-*/
 
 use tokio::sync::mpsc;
 use trash::TrashItem;
@@ -121,6 +121,7 @@ pub enum Action {
     Cut,
     EditHistory,
     EditLocation,
+    Fullscreen,
     HistoryNext,
     HistoryPrevious,
     ItemDown,
@@ -166,6 +167,7 @@ impl Action {
             Action::Cut => Message::Cut(entity_opt),
             Action::EditHistory => Message::ToggleContextPage(ContextPage::EditHistory),
             Action::EditLocation => Message::EditLocation(entity_opt),
+            Action::Fullscreen => Message::Fullscreen,
             Action::HistoryNext => Message::TabMessage(entity_opt, tab::Message::GoNext),
             Action::HistoryPrevious => Message::TabMessage(entity_opt, tab::Message::GoPrevious),
             Action::ItemDown => Message::TabMessage(entity_opt, tab::Message::ItemDown),
@@ -1538,7 +1540,7 @@ impl App {
         let muted = audio.muted();
         let volume = audio.volume();
 
-        let audio_player = VideoPlayer::new(audio)
+        let audio_player = AudioPlayer::new(audio)
             .mouse_hidden(!self.audio_view.controls)
             .on_end_of_stream(Message::EndOfStream)
             .on_missing_plugin(Message::MissingPlugin)

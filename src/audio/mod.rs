@@ -1,5 +1,4 @@
 pub mod audio_view;
-/*
 pub mod audio_player;
 pub mod audio;
 pub mod coverart;
@@ -39,5 +38,3 @@ pub enum Error {
     #[error("invalid framerate: {0}")]
     Framerate(f64),
 }
-
-*/

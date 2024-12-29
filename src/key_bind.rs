@@ -27,6 +27,9 @@ pub fn key_binds() -> HashMap<KeyBind, Action> {
     bind!([Ctrl], Key::Character("c".into()), Copy);
     bind!([Ctrl], Key::Character("x".into()), Cut);
     bind!([Ctrl], Key::Character("l".into()), EditLocation);
+    bind!([], Key::Character("f".into()), Fullscreen);
+    bind!([Shift], Key::Character("f".into()), Fullscreen);
+    bind!([Alt], Key::Character("f".into()), Fullscreen);
     bind!([Alt], Key::Named(Named::ArrowRight), HistoryNext);
     bind!([Alt], Key::Named(Named::ArrowLeft), HistoryPrevious);
     // Catch arrow keys
@@ -39,6 +42,8 @@ pub fn key_binds() -> HashMap<KeyBind, Action> {
     bind!([Shift], Key::Named(Named::ArrowLeft), ItemLeft);
     bind!([Shift], Key::Named(Named::ArrowRight), ItemRight);
     bind!([Shift], Key::Named(Named::ArrowUp), ItemUp);
+    bind!([], Key::Named(Named::PageUp), HistoryPrevious);
+    bind!([], Key::Named(Named::PageDown), HistoryNext);
     bind!([Alt], Key::Named(Named::ArrowUp), LocationUp);
     bind!([], Key::Named(Named::Delete), MoveToTrash);
     bind!([Ctrl, Shift], Key::Character("n".into()), NewFolder);
