@@ -168,8 +168,8 @@ impl Action {
             Action::EditHistory => Message::ToggleContextPage(ContextPage::EditHistory),
             Action::EditLocation => Message::EditLocation(entity_opt),
             Action::Fullscreen => Message::Fullscreen,
-            Action::HistoryNext => Message::TabMessage(entity_opt, tab::Message::GoNext),
-            Action::HistoryPrevious => Message::TabMessage(entity_opt, tab::Message::GoPrevious),
+            Action::HistoryNext => Message::Next(entity_opt),
+            Action::HistoryPrevious => Message::Previous(entity_opt),
             Action::ItemDown => Message::TabMessage(entity_opt, tab::Message::ItemDown),
             Action::ItemLeft => Message::TabMessage(entity_opt, tab::Message::ItemLeft),
             Action::ItemRight => Message::TabMessage(entity_opt, tab::Message::ItemRight),
@@ -284,6 +284,8 @@ pub enum Message {
     NetworkDriveSubmit,
     NetworkResult(MounterKey, String, Result<bool, String>),
     NewItem(Option<Entity>, bool),
+    Next(Option<Entity>),
+    Previous(Option<Entity>),
     #[cfg(feature = "notify")]
     Notification(Arc<Mutex<notify_rust::NotificationHandle>>),
     NotifyEvents(Vec<DebouncedEvent>),
@@ -1188,8 +1190,8 @@ impl App {
             return self.view_browser_view();
         }
         let image_viewer = Container::new(
-            cosmic::iced::widget::image::Viewer::new(
-                cosmic::widget::image::Handle::from_path(self.image_view.image_path.clone()),
+            crate::image::image_player::Viewer::new(
+                crate::image::image::create_handle(self.image_view.image_path.clone()),
                 )
                     .width(self.image_view.width)
                     .height(self.image_view.height)
@@ -1200,6 +1202,8 @@ impl App {
             )
             .style(style::Container::Background)
             .width(Length::Fill)
+            .center_x()
+            .center_y()
             .padding([0, space_s]);
         // draw Image GUI
         let mouse_area = widget::mouse_area(image_viewer)
@@ -1510,6 +1514,10 @@ impl App {
                 widget::container::Appearance::default().with_background(cosmic::iced::Color::BLACK)
             })))
             .into()
+    }
+
+    fn audio_subscription(&self) -> Subscription<Message> {
+        cosmic::iced::time::every(cosmic::iced::time::Duration::from_millis(1000)).map(|_time| -> Message {return Message::NewFrame;})
     }
 
     fn view_audio_view(&self) -> Element<<App as cosmic::Application>::Message> {
@@ -1847,6 +1855,8 @@ impl App {
                 file_format::Kind::Audio => {
                     self.audio_view
                         .update(crate::audio::audio_view::Message::Open(filepath.clone()));
+                    let sub = self.audio_subscription();
+                    self.audio_view.gui_refresh_opt = Some(sub);
                     self.core.window.content_container = true;
                     self.core.window.show_window_menu = true;
                     self.core.window.show_headerbar = true;
@@ -2361,6 +2371,28 @@ impl Application for App {
                     let _ = self.update(Message::AudioMessage(crate::audio::audio_view::Message::PlayPause));
                 } else {
                     // no audio active
+                }
+            }
+            Message::Previous(entity_opt) => {
+                if self.active_view == Mode::Video {
+                    let _ = self.update(Message::VideoMessage(crate::video::video_view::Message::PreviousFile));
+                } else if self.active_view == Mode::Audio {
+                    let _ = self.update(Message::AudioMessage(crate::audio::audio_view::Message::PreviousFile));
+                } else if self.active_view == Mode::Browser {
+                    let _ = self.update(Message::TabMessage(entity_opt, crate::tab::Message::GoPrevious));
+                } else {
+                    let _ = self.update(Message::ImageMessage(crate::image::image_view::Message::PreviousFile));
+                }
+            }
+            Message::Next(entity_opt) => {
+                if self.active_view == Mode::Video {
+                    let _ = self.update(Message::VideoMessage(crate::video::video_view::Message::NextFile));
+                } else if self.active_view == Mode::Audio {
+                    let _ = self.update(Message::AudioMessage(crate::audio::audio_view::Message::NextFile));
+                } else if self.active_view == Mode::Browser {
+                    let _ = self.update(Message::TabMessage(entity_opt, crate::tab::Message::GoPrevious));
+                } else {
+                    let _ = self.update(Message::ImageMessage(crate::image::image_view::Message::NextFile));
                 }
             }
             Message::MissingPlugin(element) => {
