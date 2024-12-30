@@ -3651,21 +3651,24 @@ impl Tab {
                                 let thumbnail = match image::ImageReader::open(&path)
                                     .and_then(|img| img.with_guessed_format())
                                 {
-                                    Ok(reader) => match reader.decode() {
-                                        Ok(image) => {
-                                            //TODO: configurable thumbnail size?
-                                            let thumbnail_size =
-                                                (ICON_SIZE_GRID * ICON_SCALE_MAX) as u32;
-                                            let thumbnail =
-                                                image.thumbnail(thumbnail_size, thumbnail_size);
-                                            ItemThumbnail::Rgba(
-                                                thumbnail.to_rgba8(),
-                                                (image.width(), image.height()),
-                                            )
-                                        }
-                                        Err(err) => {
-                                            log::warn!("failed to decode {:?}: {}", path, err);
-                                            ItemThumbnail::NotImage
+                                    Ok(mut reader) => {
+                                        reader.limits(image::Limits::no_limits());
+                                        match reader.decode() {
+                                            Ok(image) => {
+                                                //TODO: configurable thumbnail size?
+                                                let thumbnail_size =
+                                                    (ICON_SIZE_GRID * ICON_SCALE_MAX) as u32;
+                                                let thumbnail =
+                                                    image.thumbnail(thumbnail_size, thumbnail_size);
+                                                ItemThumbnail::Rgba(
+                                                    thumbnail.to_rgba8(),
+                                                    (image.width(), image.height()),
+                                                )
+                                            }
+                                            Err(err) => {
+                                                log::warn!("failed to decode {:?}: {}", path, err);
+                                                ItemThumbnail::NotImage
+                                            }
                                         }
                                     },
                                     Err(err) => {
