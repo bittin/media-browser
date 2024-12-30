@@ -7,8 +7,7 @@ fn calculate_hash<T: Hash>(t: &T) -> u64 {
     s.finish()
 }
 
-pub fn create_thumbnail(path: &std::path::PathBuf, max_size: u32) -> String {
-    let mut thumbstring = String::new();
+pub fn thumbnail_path(path: &std::path::PathBuf) -> std::path::PathBuf {
     let thumbpath; 
     let hashvalue: u64 = calculate_hash(path);
     let mut basename = String::from("thumbnail");
@@ -33,6 +32,12 @@ pub fn create_thumbnail(path: &std::path::PathBuf, max_size: u32) -> String {
             thumbpath = dir.join(filename);
         },
     }
+    thumbpath
+}
+
+pub fn create_thumbnail(path: &std::path::PathBuf, max_size: u32) -> String {
+    let mut thumbstring = String::new();
+    let thumbpath = thumbnail_path(path);
     match image::ImageReader::open(path) {
         Ok(img) => {
             match img.decode() {

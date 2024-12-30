@@ -1,3 +1,37 @@
+pub fn frame_from_image(posterpath: Option<String>) -> (Vec<u8>, u32, u32) {
+    let mut v = Vec::new();
+    let mut width= 0;
+    let mut height= 0;
+    if let Some(poster) = posterpath {
+        if let Ok(image) = image::ImageReader::open(
+            std::path::PathBuf::from(poster.clone())) {
+            if let Ok(img) = image.decode() {
+                width = img.width();
+                height = img.height();
+                let bytes = img.as_bytes();
+                v = convert_rgb_to_yuv420sp_nv12(bytes, width, height, 3);
+            }
+        }
+    }
+    if v.len() == 0 {
+        v = vec![
+            0u8;
+            (640 as usize * 480 as usize * 3)
+                .div_ceil(2)
+        ];
+        width = 640;
+        height = 480;
+    }
+
+    (v, width, height)
+}
+
+/// Below this line is code from 
+/// https://github.com/marcellBan/rgb2yuv420-rs
+/// 
+/// It is MIT licensed
+
+
 /// Converts an RGB image to YUV420sp NV12 (semi-planar/2 planes)
 ///
 /// # Arguments
@@ -64,30 +98,3 @@ fn clamp(val: i32) -> u8 {
     }
 }
 
-pub fn frame_from_image(posterpath: Option<String>) -> (Vec<u8>, u32, u32) {
-    let mut v = Vec::new();
-    let mut width= 0;
-    let mut height= 0;
-    if let Some(poster) = posterpath {
-        if let Ok(image) = image::ImageReader::open(
-            std::path::PathBuf::from(poster.clone())) {
-            if let Ok(img) = image.decode() {
-                width = img.width();
-                height = img.height();
-                let bytes = img.as_bytes();
-                v = convert_rgb_to_yuv420sp_nv12(bytes, width, height, 3);
-            }
-        }
-    }
-    if v.len() == 0 {
-        v = vec![
-            0u8;
-            (640 as usize * 480 as usize * 3)
-                .div_ceil(2)
-        ];
-        width = 640;
-        height = 480;
-    }
-
-    (v, width, height)
-}
