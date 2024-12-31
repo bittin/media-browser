@@ -80,10 +80,10 @@ branch = "prev-master"
 default-features = false
 features = ["a11y", "clipboard", "multi-window", "tokio", "winit", "wgpu"]
 
-[dependencies.iced_video_player]
-git = "https://github.com/jackpot51/iced_video_player.git"
-branch = "prev-cosmic"
-default-features = false
+#[dependencies.iced_video_player]
+#git = "https://github.com/jackpot51/iced_video_player.git"
+#branch = "prev-cosmic"
+#default-features = false
 
 [dependencies.accesskit_unix]
 version = "= 0.13.1"

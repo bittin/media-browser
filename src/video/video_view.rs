@@ -5,17 +5,17 @@ use cosmic::{
     iced::keyboard::{Key, Modifiers},
     widget::menu::action::MenuAction,
 };
-/*
 pub use gstreamer as gst;
 pub use gstreamer_app as gst_app;
 use gstreamer::prelude::*;
 use crate::video::video::Video;
 use crate::video::video_player::VideoPlayer;
-*/
+/*
 use iced_video_player::{
     gst::{self, prelude::*},
     gst_app, gst_pbutils, Video, VideoPlayer,
 };
+*/
 use std::{
     ffi::{CStr, CString},
     time::{Duration, Instant},
@@ -197,7 +197,7 @@ impl VideoView {
             let pipeline = gst::parse::launch(pipeline.as_ref())
                 .unwrap()
                 .downcast::<gst::Pipeline>()
-                .map_err(|_| iced_video_player::Error::Cast)
+                .map_err(|_| super::Error::Cast)
                 .unwrap();
 
             let video_sink: gst::Element = pipeline.property("video-sink");

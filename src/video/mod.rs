@@ -1,5 +1,4 @@
 pub mod video_view;
-/*
 pub mod pipeline;
 pub mod video_player;
 pub mod video;
@@ -43,4 +42,3 @@ pub enum Error {
     #[error("invalid framerate: {0}")]
     Framerate(f64),
 }
-*/

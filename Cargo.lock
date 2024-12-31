@@ -1458,7 +1458,6 @@ dependencies = [
  "html-escape",
  "i18n-embed",
  "i18n-embed-fl",
- "iced_video_player",
  "icu_collator",
  "icu_provider",
  "ignore",
@@ -3415,23 +3414,6 @@ dependencies = [
  "softbuffer",
  "tiny-skia",
  "xxhash-rust",
-]
-
-[[package]]
-name = "iced_video_player"
-version = "0.6.0"
-source = "git+https://github.com/jackpot51/iced_video_player.git?branch=prev-cosmic#c6adbcd70c518ad6ae418f4e6f42ce68df586001"
-dependencies = [
- "glib",
- "gstreamer",
- "gstreamer-app",
- "gstreamer-base",
- "gstreamer-pbutils",
- "html-escape",
- "libcosmic",
- "log",
- "thiserror 1.0.64",
- "url",
 ]
 
 [[package]]

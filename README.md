@@ -1,6 +1,6 @@
 # cosmic-media-browser
 
-File manager for the COSMIC desktop environment
+File browser for the COSMIC desktop environment
 
 > [!NOTE]
 > This project is still a work in progress
