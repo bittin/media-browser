@@ -3,7 +3,8 @@ use cosmic::{
     cosmic_config::{self},
     cosmic_theme,
     iced::keyboard::{Key, Modifiers},
-    widget::{menu::action::MenuAction},
+    iced::Subscription,
+    widget::menu::action::MenuAction,
 };
 pub use gstreamer as gst;
 pub use gstreamer_app as gst_app;
@@ -134,6 +135,7 @@ pub struct AudioView {
     pub current_audio: i32,
     pub text_codes: Vec<String>,
     pub current_text: i32,
+    pub gui_refresh_opt: Option<Subscription<crate::app::Message>>,
 }
 
 impl AudioView {
@@ -155,6 +157,7 @@ impl AudioView {
             current_audio: -1,
             text_codes: Vec::new(),
             current_text: -1,
+            gui_refresh_opt: None,
         };
         audio_view
     }
@@ -195,56 +198,6 @@ impl AudioView {
                 return;
             }
         };
-        /*
-        let audio = {
-            gst::init().unwrap();
-
-            let pipeline = format!(
-                "playbin uri=\"{}\" ",
-                audiopath
-            );
-
-            let pipeline = gst::parse::launch(pipeline.as_ref())
-            .unwrap()
-            .downcast::<gst::Pipeline>()
-            .map_err(|_| super::Error::Cast)
-            .unwrap();
-
-            let pipeline;
-            if let Ok(pipeline_launch) = gst::parse::launch(pipeline.as_ref()) {
-                if let Ok(pipeline_downcast) = pipeline.downcast::<gst::Pipeline>().map_err(|_| iced_video_player::Error::Cast) {
-                    pipeline = pipeline_downcast;
-                } else {
-                    log::error!("Failed to open media file as a pipeline!");
-                    return;
-                }
-            } else {
-                log::error!("Failed to open media file as a pipeline!");
-                return;
-            }
-
-            let audio_sink: gst::Element = pipeline.property("audio-sink");
-            let pad = audio_sink.pads().first().cloned().unwrap();
-            let pad = pad.dynamic_cast::<gst::GhostPad>().unwrap();
-            let bin = pad
-                .parent_element()
-                .unwrap()
-                .downcast::<gst::Bin>()
-                .unwrap();
-            let audio_sink = bin.by_name("iced_audio").unwrap();
-            let audio_sink = audio_sink.downcast::<gst_app::AppSink>().unwrap();
-            let audio_sink: gst::Element = pipeline.property("audio-sink");
-            let audio_sink = audio_sink.downcast::<gst_app::AppSink>().unwrap();
-            match super::audio::Audio::from_gst_pipeline(pipeline.clone(), audio_sink) {
-                Ok(ok) => ok,
-                Err(err) => {
-                    log::warn!("failed to open {}: {err}", audiopath);
-                    pipeline.set_state(gst::State::Null).unwrap();
-                    return;
-                }
-            }
-        };
-*/
 
         self.duration = audio.duration().as_secs_f64();
         let pipeline = audio.pipeline();
