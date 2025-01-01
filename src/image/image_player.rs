@@ -9,12 +9,14 @@ use cosmic::iced_core::{
     Clipboard, Element, Layout, Length, Pixels, Point, Rectangle, Shell, Size,
     Vector, Widget,
 };
+use cosmic::iced;
 
 use std::hash::Hash;
 
 /// A frame that displays an image with the ability to zoom in/out and pan.
 #[allow(missing_debug_implementations)]
 pub struct Viewer<Handle> {
+    content_fit: iced::ContentFit,
     padding: f32,
     width: Length,
     height: Length,
@@ -29,6 +31,7 @@ impl<Handle> Viewer<Handle> {
     /// Creates a new [`Viewer`] with the given [`State`].
     pub fn new(handle: Handle) -> Self {
         Viewer {
+            content_fit: iced::ContentFit::Contain,
             handle,
             padding: 0.0,
             width: Length::Shrink,
@@ -111,15 +114,18 @@ where
         renderer: &Renderer,
         limits: &layout::Limits,
     ) -> layout::Node {
-        let Size { width, height } = renderer.dimensions(&self.handle);
-
-        let mut size = limits.resolve(
+        let image_size = renderer.dimensions(&self.handle);
+        let image_size_f32 = Size::new(image_size.width as f32, image_size.height as f32);
+        let raw_size = limits.resolve(
             self.width,
             self.height,
-            Size::new(width as f32, height as f32),
+            image_size_f32,
         );
+        let mut size= raw_size.clone();
 
-        let expansion_size = if height > width {
+        let full_size = self.content_fit.fit(image_size_f32, raw_size);
+
+        let expansion_size = if image_size.height > image_size.width {
             self.width
         } else {
             self.height
@@ -129,12 +135,12 @@ where
         // If they are Fill|Portion let them expand within their alotted space.
         match expansion_size {
             Length::Shrink | Length::Fixed(_) => {
-                let aspect_ratio = width as f32 / height as f32;
-                let viewport_aspect_ratio = size.width / size.height;
+                let aspect_ratio = image_size_f32.width / image_size_f32.height;
+                let viewport_aspect_ratio = raw_size.width / raw_size.height;
                 if viewport_aspect_ratio > aspect_ratio {
-                    size.width = width as f32 * size.height / height as f32;
+                    size.width = image_size_f32.width * full_size.height / image_size_f32.height;
                 } else {
-                    size.height = height as f32 * size.width / width as f32;
+                    size.height = image_size_f32.height * full_size.width / image_size_f32.width;
                 }
             }
             Length::Fill | Length::FillPortion(_) => {}

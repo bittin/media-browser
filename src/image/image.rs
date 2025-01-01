@@ -27,44 +27,12 @@ pub fn viewer<Handle>(handle: Handle) -> Viewer<Handle> {
 }
 
 pub fn create_handle(pathstring: String) -> Handle {
-    let path = std::path::PathBuf::from(&pathstring);
+    let mut path = std::path::PathBuf::from(&pathstring);
     match imagesize::size(path.clone()) {
         Ok(dim) => {
             if dim.width > 2000 || dim.height > 2000 {
                 // downsize image to be able to display
-                if let Ok(image) = image::ImageReader::open(
-                    std::path::PathBuf::from(path.clone())) {
-                    if let Ok(img) = image.decode() {
-                        let mut nwidth = 0;
-                        let mut nheight = 0;
-                        if dim.width > dim.height {
-                            nwidth = 2000 as u32;
-                            nheight = nwidth * dim.height as u32 / dim.width as u32;
-                        } else {
-                            nheight = 2000;
-                            nwidth = nheight * dim.width as u32 / dim.height as u32;
-                        }
-                        let newimg = img.resize(nwidth, nheight, image::imageops::FilterType::Lanczos3);
-                        let path = crate::thumbnails::thumbnail_path(&path);
-                        if path.is_file() {
-                            match std::fs::remove_file(path.clone()) {
-                                Ok(()) => {},
-                                Err(error) => log::error!("Failed to delete dummy file: {}", error),
-                            }
-                        }
-                        let file = std::fs::File::create(path.clone()).unwrap();
-                        let mut buff = std::io::BufWriter::new(file);
-                        let encoder = image::codecs::png::PngEncoder::new(&mut buff);
-                        match newimg.write_with_encoder(encoder) {
-                            Ok(()) => {
-                                let hand = Handle::from_path(&path);
-                                return hand;
-                            },
-                            Err(error) => log::error!("Failed to write scaled image to {}: {}", path.display(), error),
-                        }
-                        
-                    }
-                }
+                path = crate::thumbnails::downscale_image(&path, 2000, dim.width, dim.height);
             }
         }
         Err(why) => println!("Error getting size: {:?}", why)
