@@ -322,7 +322,11 @@ pub fn parse_desktop_file(path: &Path) -> (Option<String>, Option<String>) {
     )
 }
 
-pub fn scan_path(tab_path: &PathBuf, sizes: IconSizes) -> Vec<Item> {
+pub fn scan_path_recursive(tab_path: PathBuf) {
+    let _ = scan_path(&tab_path, IconSizes::default(), true);
+}
+
+pub fn scan_path(tab_path: &PathBuf, sizes: IconSizes, recursive: bool) -> Vec<Item> {
     let mut items = Vec::new();
     let mut connection;
     match crate::sql::connect() {
@@ -333,13 +337,16 @@ pub fn scan_path(tab_path: &PathBuf, sizes: IconSizes) -> Vec<Item> {
         }
     }
     let mut known_files = crate::sql::files(&mut connection);
-
+    if recursive {
+        log::warn!("Scanning directory {}", tab_path.display());
+    }
     match fs::read_dir(tab_path) {
         Ok(entries) => {
             let mut all: Vec<PathBuf> = Vec::new();
             let mut nfos = Vec::new();
             let mut audios = Vec::new();
             let mut videos = Vec::new();
+            let mut images = Vec::new();
             let mut dirs = Vec::new();
             let mut justdirs = Vec::new();
             let mut special_files = std::collections::BTreeSet::new();
@@ -370,6 +377,9 @@ pub fn scan_path(tab_path: &PathBuf, sizes: IconSizes) -> Vec<Item> {
                         } else if &extension == "mkv" || &extension == "mp4" || &extension == "webm"
                         {
                             videos.push(path.clone());
+                        } else if &extension == "jpg" || &extension == "jpeg" || &extension == "tif" || &extension == "tiff" || &extension == "gif" || &extension == "webp" || &extension == "png"
+                        {
+                            images.push(path.clone());
                         }
                     }
                 }
@@ -429,12 +439,29 @@ pub fn scan_path(tab_path: &PathBuf, sizes: IconSizes) -> Vec<Item> {
                     continue;
                 }
             }
+            
+            for path in images {
+                if let ControlFlow::Break(_) = crate::parsers::scan_exif(
+                    path,
+                    &mut special_files,
+                    &mut items,
+                    sizes,
+                    &mut known_files,
+                    &mut connection,
+                ) {
+                    continue;
+                }
+            }
 
             for path in justdirs {
-                if let ControlFlow::Break(_) =
-                    crate::parsers::scan_directories(&mut special_files, path, &mut items, sizes)
-                {
-                    continue;
+                if recursive {
+                    scan_path(&path, sizes, recursive);
+                } else {
+                    if let ControlFlow::Break(_) =
+                        crate::parsers::scan_directories(&mut special_files, path, &mut items, sizes)
+                    {
+                        continue;
+                    }
                 }
             }
 
@@ -450,12 +477,16 @@ pub fn scan_path(tab_path: &PathBuf, sizes: IconSizes) -> Vec<Item> {
             log::warn!("failed to read directory {:?}: {}", tab_path, err);
         }
     }
-    items.sort_by(|a, b| match (a.metadata.is_dir(), b.metadata.is_dir()) {
-        (true, false) => Ordering::Less,
-        (false, true) => Ordering::Greater,
-        _ => LANGUAGE_SORTER.compare(&a.display_name, &b.display_name),
-    });
-    items
+    if !recursive {
+        items.sort_by(|a, b| match (a.metadata.is_dir(), b.metadata.is_dir()) {
+            (true, false) => Ordering::Less,
+            (false, true) => Ordering::Greater,
+            _ => LANGUAGE_SORTER.compare(&a.display_name, &b.display_name),
+        });
+        return items;
+    } else {
+        return Vec::new();
+    }
 }
 
 pub fn scan_search(tab_path: &PathBuf, term: &str, sizes: IconSizes) -> Vec<Item> {
@@ -764,7 +795,7 @@ impl Location {
 
     pub fn scan(&self, mounters: Mounters, sizes: IconSizes) -> Vec<Item> {
         match self {
-            Self::Path(path) => scan_path(path, sizes),
+            Self::Path(path) => scan_path(path, sizes, false),
             Self::Search(path, term) => scan_search(path, term, sizes),
             Self::Trash => scan_trash(sizes),
             Self::Recents => scan_recents(sizes),
@@ -3827,7 +3858,7 @@ mod tests {
         let entries = read_dir_sorted(path)?;
 
         debug!("Calling scan_path(\"{}\")", path.display());
-        let actual = scan_path(&path.to_owned(), IconSizes::default());
+        let actual = scan_path(&path.to_owned(), IconSizes::default(), false);
 
         // scan_path shouldn't skip any entries
         assert_eq!(entries.len(), actual.len());
@@ -3851,7 +3882,7 @@ mod tests {
         assert!(!invalid_path.exists());
 
         debug!("Calling scan_path(\"{}\")", invalid_path.display());
-        let actual = scan_path(&invalid_path, IconSizes::default());
+        let actual = scan_path(&invalid_path, IconSizes::default(), false);
 
         assert!(actual.is_empty());
 
@@ -3864,7 +3895,7 @@ mod tests {
         let path = fs.path();
 
         debug!("Calling scan_path(\"{}\")", path.display());
-        let actual = scan_path(&path.to_owned(), IconSizes::default());
+        let actual = scan_path(&path.to_owned(), IconSizes::default(), false);
 
         assert_eq!(0, path.read_dir()?.count());
         assert!(actual.is_empty());

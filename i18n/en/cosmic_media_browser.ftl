@@ -1,4 +1,4 @@
-cosmic-media-browser = COSMIC Files
+cosmic-media-browser = COSMIC Media Browser
 empty-folder = Empty folder
 empty-folder-hidden = Empty folder (has hidden items)
 no-results = No results found
@@ -35,6 +35,7 @@ folder-already-exists = A folder with that name already exists.
 name-hidden = Names starting with "." will be hidden.
 name-invalid = Name cannot be "{$filename}".
 name-no-slashes = Name cannot contain slashes.
+recursive-scan-directories = Scan all subdirectories for media
 
 ## Open/Save Dialog
 cancel = Cancel

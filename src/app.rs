@@ -55,11 +55,12 @@ use std::{
     sync::{Arc, Mutex},
     time::{self, Instant},
 };
+/*
 use iced_video_player::{
     gst::{self, prelude::*},
     gst_app, gst_pbutils, Video, VideoPlayer,
 };
-/*
+*/
 pub use gstreamer as gst;
 pub use gstreamer_app as gst_app;
 pub use gstreamer_pbutils as gst_pbutils;
@@ -67,7 +68,6 @@ use gstreamer::prelude::*;
 pub use crate::video::video::Video;
 pub use crate::video::video_player::VideoPlayer;
 use gstreamer::glib;
-*/
 pub use crate::audio::audio::Audio;
 pub use crate::audio::audio_player::AudioPlayer;
 
@@ -135,6 +135,7 @@ pub enum Action {
     OpenInNewWindow,
     OpenItemLocation,
     Paste,
+    RecursiveScanDirectories,
     Rename,
     RestoreFromTrash,
     SearchActivate,
@@ -183,6 +184,7 @@ impl Action {
             Action::OpenInNewWindow => Message::OpenInNewWindow(entity_opt),
             Action::OpenItemLocation => Message::OpenItemLocation(entity_opt),
             Action::Paste => Message::Paste(entity_opt),
+            Action::RecursiveScanDirectories => Message::RecursiveScanDirectories(entity_opt),
             Action::Rename => Message::Rename(entity_opt),
             Action::RestoreFromTrash => Message::RestoreFromTrash(entity_opt),
             Action::SearchActivate => Message::SearchActivate,
@@ -298,6 +300,7 @@ pub enum Message {
     PendingComplete(u64),
     PendingError(u64, String),
     PendingProgress(u64, f32),
+    RecursiveScanDirectories(Option<Entity>),
     RescanTrash,
     Rename(Option<Entity>),
     ReplaceResult(ReplaceResult),
@@ -1075,122 +1078,22 @@ impl App {
         .into()
     }
 
-    fn _view_image_view_old(&self) -> Element<<App as cosmic::Application>::Message> {
-        let cosmic_theme::Spacing {
-             space_s, ..
-        } = theme::active().cosmic().spacing;
-        if self.image_view.image_path_loaded != self.image_view.image_path
-        {
-            // construct the video player first
-            return self.view_browser_view();
-        }
-        // draw Image GUI
-        let mut tab_column = Column::new()
-            .push(
-                Container::new(cosmic::iced::widget::image::Viewer::new(
-                    cosmic::widget::image::Handle::from_path(self.image_view.image_path.clone()),
-                ))
-                .style(style::Container::Background)
-                .width(Length::Fill)
-                .padding([0, space_s]),
-            )
-            .push(
-                Row::new()
-                    .spacing(5)
-                    //.align_items(cosmic::iced::alignment::Center)
-                    .padding(cosmic::iced::Padding::new(10.0))
-                    .push(
-                        Button::new(Text::new(fl!("button-back")))
-                            .name("button-back")
-                            //.description_widget(Text::new(fl!("description-back")))
-                            .width(80.0)
-                            .on_press(Message::ImageMessage(
-                                crate::image::image_view::Message::ToBrowser,
-                            )),
-                    )
-                    .push(
-                        Button::new(Text::new(fl!("button-previous-file")))
-                            .name("button-previous-file")
-                            //.description_widget(Text::new(fl!("description-previous-element")))
-                            .width(80.0)
-                            .on_press(Message::ImageMessage(
-                                crate::image::image_view::Message::PreviousFile,
-                            )),
-                    )
-                    .push(
-                        Button::new(Text::new(fl!("button-next-file")))
-                            .name("button-next-file")
-                            //.description_widget(Text::new(iced_accessibility::description:: fl!("description-next-element")))
-                            .width(80.0)
-                            .on_press(Message::ImageMessage(
-                                crate::image::image_view::Message::NextFile,
-                            )),
-                    )
-                    .push(
-                        Button::new(Text::new(fl!("button-zoom-plus")))
-                            .name("button-zoom-plus")
-                            //.description_widget(cosmic(fl!("description-zoom-plus")))
-                            .width(80.0)
-                            .on_press(Message::ImageMessage(
-                                crate::image::image_view::Message::ZoomPlus,
-                            )),
-                    )
-                    .push(
-                        Button::new(Text::new(fl!("button-zoom-minus")))
-                            .name("button-zoom-minus")
-                            //.description_widget(Text::new(fl!("description-zoom-minus")))
-                            .width(80.0)
-                            .on_press(Message::ImageMessage(
-                                crate::image::image_view::Message::ZoomMinus,
-                            )),
-                    )
-                    .push(
-                        Button::new(Text::new(fl!("button-zoom-fit")))
-                            .name("button-zoom-fit")
-                            //.description_widget(Text::new(fl!("description-zoom-fit")))
-                            .width(80.0)
-                            .on_press(Message::ImageMessage(
-                                crate::image::image_view::Message::ZoomFit,
-                            )),
-                    )
-                    .push(
-                        Button::new(Text::new(fl!("button-seek")))
-                            .name("button-seek")
-                            //.description_widget(Text::new(fl!("description-seek")))
-                            .width(80.0)
-                            .on_press(Message::ImageMessage(
-                                crate::image::image_view::Message::Seek,
-                            )),
-                    ),
-            );
-        // The toaster is added on top of an empty element to ensure that it does not override context menus
-        tab_column = tab_column.push(widget::toaster(
-            &self.toasts,
-            widget::horizontal_space(Length::Fill),
-        ));
-
-        let content: Element<_> = tab_column.into();
-
-        // Uncomment to debug layout:
-        //content.explain(cosmic::iced::Color::WHITE)
-        content
-    }
-
     fn view_image_view(&self) -> Element<<App as cosmic::Application>::Message> {
         let cosmic_theme::Spacing {
             space_xxs,
             space_xs,
             space_s,
+            space_m,
             ..
         } = theme::active().cosmic().spacing;
-        
+
         if self.image_view.image_path_loaded != self.image_view.image_path
         {
             // construct the video player first
             return self.view_browser_view();
         }
         let image_viewer = Container::new(
-            crate::image::image_player::Viewer::new(
+            cosmic::iced::widget::image::Viewer::new(
                 crate::image::image::create_handle(self.image_view.image_path.clone()),
                 )
                     .width(self.image_view.width)
@@ -1202,6 +1105,7 @@ impl App {
             )
             .style(style::Container::Background)
             .width(Length::Fill)
+            .height(Length::Fill)
             .center_x()
             .center_y()
             .padding([0, space_s]);
@@ -1213,11 +1117,49 @@ impl App {
         let mut popover = widget::popover(mouse_area).position(widget::popover::Position::Bottom);
 
         let mut popup_items = Vec::<Element<_>>::with_capacity(2);
-
         if self.image_view.controls {
+            let mut browser = None;
+            let entity = self.tab_model.active();
+            match self.tab_model.data::<Tab>(entity) {
+                Some(tab) => {
+                    let tab_view = tab
+                        .view(&self.key_binds)
+                        .map(move |message| Message::TabMessage(Some(entity), message));
+                    browser = Some(tab_view);
+                }
+                None => {
+                    //TODO
+                }
+            }    
+            if let Some(view) = browser {
+                popup_items.push(
+                    widget::container(view)
+                    .padding(1)
+                    //TODO: move style to libcosmic
+                    .style(theme::Container::custom(|theme| {
+                            let cosmic = theme.cosmic();
+                            let component = &cosmic.background.component;
+                            widget::container::Appearance {
+                                icon_color: Some(component.on.into()),
+                                text_color: Some(component.on.into()),
+                                background: Some(cosmic::iced::Background::Color(component.base.into())),
+                                border: cosmic::iced::Border {
+                                    radius: 8.0.into(),
+                                    width: 1.0,
+                                    color: component.divider.into(),
+                                },
+                                ..Default::default()
+                            }
+                        }))
+                    .height(Length::Fixed(250.0))
+                    .width(Length::Fill)
+                    .align_x(iced::alignment::Horizontal::Left)
+                    .into(),
+                );
+            }
             popup_items.push(
                 widget::container(
-                    widget::row::with_capacity(7)
+                    widget::row::with_capacity(10)
                         .align_items(Alignment::Center)
                         .spacing(space_xxs)
                         .push(
@@ -1233,6 +1175,13 @@ impl App {
                                                 .size(16)
                             ).on_press(Message::ImageMessage(
                                                 crate::image::image_view::Message::PreviousFile)),
+                        )
+                        .push(
+                            widget::button::icon(
+                                    widget::icon::from_name("go-next-symbolic")
+                                        .size(16)
+                            ).on_press(Message::ImageMessage(
+                                        crate::image::image_view::Message::NextFile))
                         )
                         .push(
                             widget::button::icon(
@@ -1255,19 +1204,32 @@ impl App {
                             ).on_press(Message::ImageMessage(
                                         crate::image::image_view::Message::ZoomFit))
                         )
-                        .push(
-                            widget::button::icon(
-                                    widget::icon::from_name("go-next-symbolic")
-                                        .size(16)
-                            ).on_press(Message::ImageMessage(
-                                        crate::image::image_view::Message::NextFile))
-                        )
                 )
+                //TODO: move style to libcosmic
+                .style(theme::Container::custom(|theme| {
+                        let cosmic = theme.cosmic();
+                        let component = &cosmic.background.component;
+                        widget::container::Appearance {
+                            icon_color: Some(component.on.into()),
+                            text_color: Some(component.on.into()),
+                            background: Some(cosmic::iced::Background::Color(component.base.into())),
+                            border: cosmic::iced::Border {
+                                radius: 8.0.into(),
+                                width: 1.0,
+                                color: component.divider.into(),
+                            },
+                            ..Default::default()
+                        }
+                    }))
                 .padding([space_xxs, space_xs])
-                .style(theme::Container::WindowBackground)
+                .height(Length::Shrink)
+                .width(Length::Fill)
+                .align_x(iced::alignment::Horizontal::Center)
+                .max_height(280)
                 .into(),
             );
         }
+        
         if !popup_items.is_empty() {
             popover = popover.popup(widget::column::with_children(popup_items));
         }
@@ -1419,7 +1381,7 @@ impl App {
         if self.video_view.controls {
             popup_items.push(
                 widget::container(
-                    widget::row::with_capacity(7)
+                    widget::row::with_capacity(10)
                         .align_items(Alignment::Center)
                         .spacing(space_xxs)
                         .push(
@@ -1900,6 +1862,7 @@ impl Application for App {
     /// Creates the application, and optionally emits command on initialize.
     fn init(mut core: Core, flags: Self::Flags) -> (Self, Command<Self::Message>) {
         core.window.context_is_overlay = false;
+        core.nav_bar.active = false;
         match flags.mode {
             Mode::App => {}
             Mode::Desktop => {
@@ -2080,10 +2043,10 @@ impl Application for App {
         match self.mode {
             Mode::App => Some(&self.nav_model),
             Mode::Desktop => None,
-            Mode::Browser => None,
-            Mode::Image => None,
-            Mode::Audio => None,
-            Mode::Video => None,
+            Mode::Browser => Some(&self.nav_model),
+            Mode::Image => Some(&self.nav_model),
+            Mode::Audio => Some(&self.nav_model),
+            Mode::Video => Some(&self.nav_model),
         }
     }
 
@@ -3092,6 +3055,25 @@ impl Application for App {
                     *progress = new_progress;
                 }
                 return self.update_notification();
+            }
+            Message::RecursiveScanDirectories(entity_opt) => {
+                let entity = entity_opt.unwrap_or_else(|| self.tab_model.active());
+                if let Some(tab) = self.tab_model.data_mut::<Tab>(entity) {
+                    if let Location::Path(_parent) = &tab.location {
+                        if let Some(items) = tab.items_opt() {
+                            for item in items.iter() {
+                                if item.selected {
+                                    if let Some(Location::Path(path)) = &item.location_opt {
+                                        let pathbuf = path.to_path_buf();
+                                        let _joinhandle = std::thread::spawn(
+                                            move || crate::tab::scan_path_recursive(pathbuf)
+                                        );
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
             }
             Message::RescanTrash => {
                 // Update trash icon if empty/full

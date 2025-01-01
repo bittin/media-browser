@@ -120,6 +120,8 @@ pub fn context_menu<'a>(
                 if selected == selected_dir {
                     children
                         .push(menu_item(fl!("open-in-new-window"), Action::OpenInNewWindow).into());
+                    children
+                        .push(menu_item(fl!("recursive-scan-directories"), Action::RecursiveScanDirectories).into());
                 }
                 children.push(divider::horizontal::light().into());
                 children.push(menu_item(fl!("rename"), Action::Rename).into());
@@ -337,6 +339,8 @@ pub fn menu_bar<'a>(
                     menu::Item::Button(fl!("open"), Action::Open),
                     menu::Item::Divider,
                     menu::Item::Button(fl!("rename"), Action::Rename),
+                    menu::Item::Divider,
+                    menu::Item::Button(fl!("recursive-scan-directories"), Action::RecursiveScanDirectories),
                     menu::Item::Divider,
                     menu::Item::Button(fl!("add-to-sidebar"), Action::AddToSidebar),
                     menu::Item::Divider,

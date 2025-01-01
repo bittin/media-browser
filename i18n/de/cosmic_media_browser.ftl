@@ -1,4 +1,4 @@
-cosmic-media-browser = COSMIC Dateien
+cosmic-media-browser = COSMIC Medien Manager
 empty-folder = Leerer Ordner
 empty-folder-hidden = Leerer Ordner (hat versteckte Elemente)
 filesystem = Dateisystem
@@ -28,6 +28,7 @@ folder-already-exists = Ein Ordner mit diesem Namen existiert bereits.
 name-hidden = Mit „.“ beginnende Namen werden ausgeblendet.
 name-invalid = Name darf nicht „{$filename}“ sein.
 name-no-slashes = Namen dürfen keine Schrägstriche enthalten.
+recursive-scan-directories = Durchsuche alle Unterverzeichnisse nach Medien.
 
 # Öffnen/Speichern-Dialog
 cancel = Abbrechen
