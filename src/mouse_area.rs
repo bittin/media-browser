@@ -46,6 +46,8 @@ pub struct MouseArea<'a, Message> {
     on_back_release: Option<Box<dyn Fn(Option<Point>) -> Message + 'a>>,
     on_forward_press: Option<Box<dyn Fn(Option<Point>) -> Message + 'a>>,
     on_forward_release: Option<Box<dyn Fn(Option<Point>) -> Message + 'a>>,
+    on_enter: Option<Box<dyn Fn(Option<Point>) -> Message + 'a>>,
+    on_exit: Option<Box<dyn Fn(Option<Point>) -> Message + 'a>>,
     on_scroll: Option<Box<dyn Fn(mouse::ScrollDelta, Modifiers) -> Option<Message> + 'a>>,
     show_drag_rect: bool,
 }
@@ -159,6 +161,20 @@ impl<'a, Message> MouseArea<'a, Message> {
         self
     }
 
+    /// The message to emit on a forward button release.
+    #[must_use]
+    pub fn on_enter(mut self, message: impl Fn(Option<Point>) -> Message + 'a) -> Self {
+        self.on_forward_release = Some(Box::new(message));
+        self
+    }
+
+    /// The message to emit on a forward button release.
+    #[must_use]
+    pub fn on_exit(mut self, message: impl Fn(Option<Point>) -> Message + 'a) -> Self {
+        self.on_forward_release = Some(Box::new(message));
+        self
+    }
+
     /// The message to emit on a scroll.
     #[must_use]
     pub fn on_scroll(
@@ -254,6 +270,8 @@ impl<'a, Message> MouseArea<'a, Message> {
             on_back_release: None,
             on_forward_press: None,
             on_forward_release: None,
+            on_enter: None,
+            on_exit: None,
             on_scroll: None,
             show_drag_rect: false,
         }
@@ -608,6 +626,22 @@ fn update<Message: Clone>(
 
     if let Some(message) = widget.on_forward_release.as_ref() {
         if let Event::Mouse(mouse::Event::ButtonReleased(mouse::Button::Forward)) = event {
+            shell.publish(message(cursor.position_in(layout_bounds)));
+
+            return event::Status::Captured;
+        }
+    }
+
+    if let Some(message) = widget.on_enter.as_ref() {
+        if let Event::Mouse(mouse::Event::CursorEntered) = event {
+            shell.publish(message(cursor.position_in(layout_bounds)));
+
+            return event::Status::Captured;
+        }
+    }
+
+    if let Some(message) = widget.on_exit.as_ref() {
+        if let Event::Mouse(mouse::Event::CursorLeft) = event {
             shell.publish(message(cursor.position_in(layout_bounds)));
 
             return event::Status::Captured;
