@@ -3,7 +3,8 @@ use crate::mime_app::mime_apps;
 use crate::mime_icon::{mime_for_path, mime_icon};
 use crate::tab::{hidden_attribute, Item, ItemMetadata, ItemThumbnail, Location};
 
-use chrono::NaiveDate;
+use chrono::{NaiveDate, DateTime};
+use cosmic::executor;
 use cosmic::widget::{self, Widget};
 use mime_guess::mime;
 use std::cell::Cell;
@@ -295,6 +296,82 @@ fn parse_audiotags(file: &PathBuf, metadata: &mut crate::sql::AudioMetadata) {
         }
         None => {}
     };
+}
+
+fn parse_exif(path: &PathBuf, metadata: &mut crate::sql::ImageMetadata) {
+    use nom_exif::*;
+    let mut parser = MediaParser::new();
+    if let Some(ext) = path.extension() {
+        let extension = osstr_to_string(ext.to_os_string()).to_ascii_lowercase();
+        if &extension == "png" || &extension == "gif" {
+            return;
+        }
+    }
+    let pathstring = osstr_to_string(path.clone().into_os_string());
+    match MediaSource::file_path(&pathstring) {
+        Ok(ms) => {
+            if ms.has_exif() {
+
+                let iterres = parser.parse(ms);
+                if iterres.is_err() {
+                    return;
+                }
+                let iter: ExifIter = iterres.unwrap();
+                if let Ok(optres) = iter.parse_gps_info() {
+                    if let Some(gps_info) = optres {
+                        metadata.gps_string = gps_info.format_iso6709();
+                        metadata.gps_latitude = (gps_info.latitude.0.0 / gps_info.latitude.0.1) as f32;
+                        metadata.gps_latitude = (gps_info.latitude.1.0 / gps_info.latitude.1.1) as f32 / 60.0;
+                        metadata.gps_latitude = (gps_info.latitude.2.0 / gps_info.latitude.2.1) as f32 / 3600.0;
+                        if gps_info.latitude_ref == 'S' {
+                            metadata.gps_latitude *= -1.0;
+                        }
+                        metadata.gps_longitude = (gps_info.longitude.0.0 / gps_info.longitude.0.1) as f32;
+                        metadata.gps_longitude = (gps_info.longitude.1.0 / gps_info.longitude.1.1) as f32 / 60.0;
+                        metadata.gps_longitude = (gps_info.longitude.2.0 / gps_info.longitude.2.1) as f32 / 3600.0;
+                        if gps_info.longitude_ref == 'W' {
+                            metadata.gps_longitude *= -1.0;
+                        }
+                        metadata.gps_altitude = (gps_info.altitude.0 / gps_info.altitude.0) as f32;
+                    }
+                }
+                let exif: Exif = iter.into();
+                if let Some(val) = exif.get(ExifTag::DateTimeOriginal) {
+                    if let Some(s) = val.as_str() {
+                        if let Ok(date) = DateTime::parse_from_rfc3339(s) {
+                            metadata.date = date.date_naive();
+                        }
+                    }
+                }
+                if let Some(val) = exif.get(ExifTag::LensModel) {
+                    if let Some(s) = val.as_str() {
+                        metadata.lense_model = s.to_string();
+                    }
+                }
+                if let Some(val) = exif.get(ExifTag::FocalLength) {
+                    if let Some(s) = val.as_str() {
+                        metadata.focal_length = s.to_string();
+                    }
+                }
+                if let Some(val) = exif.get(ExifTag::ExposureTime) {
+                    if let Some(s) = val.as_str() {
+                        metadata.exposure_time = s.to_string();
+                    }
+                }
+                if let Some(val) = exif.get(ExifTag::FNumber) {
+                    if let Some(s) = val.as_str() {
+                        metadata.fnumber = s.to_string();
+                    }
+                }
+                if let Some(val) = exif.get(ExifTag::GPSInfo) {
+                    if let Some(s) = val.as_str() {
+                        metadata.fnumber = s.to_string();
+                    }
+                }
+            }
+        },
+        Err(error) => log::error!("Failed to open Media Source {}: {}", pathstring, error),
+    }
 }
 
 pub fn item_from_entry(
@@ -1010,6 +1087,150 @@ pub fn item_from_audiotags(
     }
 }
 
+pub fn item_from_exif(
+    image_file: PathBuf,
+    metadata: &mut crate::sql::ImageMetadata,
+    statdata: &std::fs::Metadata,
+    sizes: IconSizes,
+    known_files: &mut std::collections::BTreeMap<PathBuf, crate::sql::FileMetadata>,
+    connection: &mut rusqlite::Connection,
+) -> Item {
+    let filepath = PathBuf::from(&metadata.path);
+    let basename;
+    if let Some(bn) = filepath.file_stem() {
+        basename = osstr_to_string(bn.to_os_string());
+    } else {
+        if let Some(bn) = filepath.file_name() {
+            basename = osstr_to_string(bn.to_os_string());
+        } else {
+            basename = osstr_to_string(filepath.clone().into_os_string());
+        }
+    }
+    if known_files.contains_key(&filepath) {
+        let mut refresh = false;
+        if let Ok(modified) = statdata.modified() {
+            if let Ok(new_date) = modified.duration_since(UNIX_EPOCH) {
+                let filedata = &known_files[&filepath];
+                let new_seconds_since_epoch = new_date.as_secs();
+                if new_seconds_since_epoch > filedata.modification_time {
+                    refresh = true;
+                }
+            }
+            if refresh {
+                // file is newer
+                parse_exif(&image_file, metadata);
+                metadata.name = basename.clone();
+                crate::sql::update_image(connection, metadata, statdata, known_files);
+            } else {
+                *metadata = crate::sql::image(connection, &metadata.path, known_files);
+            }
+        }
+    } else {
+        parse_exif(&image_file, metadata);
+        metadata.name = basename.clone();
+        crate::sql::insert_image(connection, metadata, statdata, known_files);
+    }
+
+    let name;
+    if metadata.title.len() == 0 {
+        name = basename.clone();
+    } else {
+        name = metadata.title.clone();
+    }
+
+    let mut display_name = Item::display_name(&name);
+
+    let hidden = name.starts_with(".") || hidden_attribute(&statdata);
+
+    let thumbpath;
+    if metadata.poster.len() == 0 {
+        // generate thumbnail
+        thumbpath = PathBuf::from(&metadata.path);
+    } else {
+        thumbpath = PathBuf::from(&metadata.poster);
+    }
+
+    let thumbmime = mime_for_path(thumbpath.clone());
+    let imagemime = mime_for_path(filepath.clone());
+
+    let (mime, icon_handle_grid, icon_handle_list, icon_handle_list_condensed) = {
+        //TODO: clean this up, implement for trash
+        let icon_name_opt = if imagemime == "application/x-desktop" {
+            let (desktop_name_opt, icon_name_opt) = crate::tab::parse_desktop_file(&filepath);
+            if let Some(desktop_name) = desktop_name_opt {
+                display_name = Item::display_name(&desktop_name);
+            }
+            icon_name_opt
+        } else {
+            None
+        };
+
+        if metadata.poster.len() > 0 {
+            let thumbpath = PathBuf::from(&metadata.poster);
+            (
+                imagemime.clone(),
+                widget::icon::from_path(thumbpath.clone()),
+                widget::icon::from_path(thumbpath.clone()),
+                widget::icon::from_path(thumbpath.clone()),
+            )
+        } else {
+            (
+                imagemime.clone(),
+                mime_icon(thumbmime.clone(), sizes.grid()),
+                mime_icon(thumbmime.clone(), sizes.list()),
+                mime_icon(thumbmime.clone(), sizes.list_condensed()),
+            )
+        }
+    };
+
+    let open_with = mime_apps(&imagemime);
+
+    let thumbnail_opt = if thumbmime.type_() == mime::IMAGE {
+        if thumbmime.subtype() == mime::SVG {
+            Some(ItemThumbnail::Svg)
+        } else {
+            None
+        }
+    } else {
+        Some(ItemThumbnail::NotImage)
+    };
+
+    let children = if statdata.is_dir() {
+        //TODO: calculate children in the background (and make it cancellable?)
+        match std::fs::read_dir(PathBuf::from(&metadata.path)) {
+            Ok(entries) => entries.count(),
+            Err(err) => {
+                log::warn!("failed to read directory {:?}: {}", metadata.path, err);
+                0
+            }
+        }
+    } else {
+        0
+    };
+
+    Item {
+        name,
+        display_name,
+        metadata: ItemMetadata::Path {
+            metadata: statdata.clone(),
+            children,
+        },
+        hidden,
+        location_opt: Some(Location::Path(PathBuf::from(&metadata.path))),
+        mime,
+        icon_handle_grid,
+        icon_handle_list,
+        icon_handle_list_condensed,
+        open_with,
+        thumbnail_opt,
+        button_id: widget::Id::unique(),
+        pos_opt: Cell::new(None),
+        rect_opt: Cell::new(None),
+        selected: false,
+        overlaps_drag_rect: false,
+    }
+}
+
 pub fn osstr_to_string(osstr: std::ffi::OsString) -> String {
     match osstr.to_str() {
         Some(str) => return str.to_string(),
@@ -1149,6 +1370,52 @@ pub fn scan_audiotags(
 
     items.push(crate::parsers::item_from_audiotags(
         audio,
+        &mut meta_data,
+        &statdata,
+        sizes,
+        known_files,
+        connection,
+    ));
+
+    ControlFlow::Continue(())
+}
+
+pub fn scan_exif(
+    path: PathBuf,
+    special_files: &mut std::collections::BTreeSet<PathBuf>,
+    items: &mut Vec<Item>,
+    sizes: IconSizes,
+    known_files: &mut std::collections::BTreeMap<PathBuf, crate::sql::FileMetadata>,
+    connection: &mut rusqlite::Connection,
+) -> ControlFlow<()> {
+    if special_files.contains(&path.clone()) {
+        return ControlFlow::Break(());
+    }
+    let mut meta_data = crate::sql::ImageMetadata {
+        ..Default::default()
+    };
+    meta_data.path = osstr_to_string(path.clone().into_os_string());
+    if meta_data.path.len() == 0 {
+        return ControlFlow::Break(());
+    }
+    let statdata = match std::fs::metadata(&meta_data.path) {
+        Ok(ok) => ok,
+        Err(err) => {
+            log::warn!(
+                "failed to read metadata for entry at {:?}: {}",
+                meta_data.path,
+                err
+            );
+            return ControlFlow::Break(());
+        }
+    };
+    special_files.insert(path.clone());
+    let (imagestr, thumbstr) = crate::thumbnails::create_thumbnail_downscale_if_necessary(
+            &path, 254, 2000);
+    meta_data.poster = thumbstr.clone();
+    meta_data.path = imagestr.clone();
+    items.push(crate::parsers::item_from_exif(
+        path,
         &mut meta_data,
         &statdata,
         sizes,
