@@ -4,6 +4,861 @@ use std::collections::BTreeMap;
 use chrono::NaiveDate;
 
 #[derive(Clone, Debug, PartialEq, PartialOrd)]
+pub struct SearchData {
+    pub search_string: String,
+    pub from_string: String,
+    pub from_value: f32,
+    pub to_string: String,
+    pub to_value: f32,
+    pub image: bool,
+    pub video: bool,
+    pub audio: bool,
+    pub filepath: bool,
+    pub title: bool,
+    pub description: bool,
+    pub actor: bool,
+    pub director: bool,
+    pub artist: bool,
+    pub album_artist: bool,
+    pub duration: bool,
+    pub creation_date: bool,
+    pub modification_date: bool,
+    pub release_date: bool,
+    pub lense_model: bool,
+    pub focal_length: bool,
+    pub exposure_time: bool,
+    pub fnumber: bool,
+    pub gps_latitude: bool,
+    pub gps_longitude: bool,
+    pub gps_altitude: bool,
+}
+
+impl Default for SearchData {
+    fn default() -> SearchData {
+        SearchData {
+            search_string: String::new(),
+            from_string: String::new(),
+            from_value: 0.0,
+            to_string: String::new(),
+            to_value: 0.0,
+            image: false,
+            video: false,
+            audio: false,
+            filepath: false,
+            title: true,
+            description: false,
+            actor: false,
+            director: false,
+            artist: false,
+            album_artist: false,
+            duration: false,
+            creation_date: false,
+            modification_date: false,
+            release_date: false,
+            lense_model: false,
+            focal_length: false,
+            exposure_time: false,
+            fnumber: false,
+            gps_latitude: false,
+            gps_longitude: false,
+            gps_altitude: false,
+        }
+    }
+}
+
+fn search_video_metadata(
+    connection: &mut rusqlite::Connection, 
+    query: String,
+) -> (Vec<VideoMetadata>, Vec<FileMetadata>) {
+    let mut files = Vec::new();
+    let mut videos = Vec::new();
+    let mut ids = Vec::new();
+    let mut video_id = 0_i64;
+
+    match connection.prepare(&query) {
+        Ok(mut statement) => {
+            match statement.query(params![]) {
+                Ok(mut rows) => {
+                    loop {
+                        match rows.next() {
+                            Ok(Some(row)) => {
+                                match row.get(0) {
+                                    Ok(val) => {
+                                        video_id = val;
+                                        ids.push(video_id);
+                                    },
+                                    Err(error) => {
+                                        log::error!("Failed to read id for video: {}", error);
+                                        continue;
+                                    }
+                                }
+                                
+                            },
+                            Ok(None) => {
+                                //log::warn!("No data read from indices.");
+                                break;
+                            },
+                            Err(error) => {
+                                log::error!("Failed to read a row from indices: {}", error);
+                                break;
+                            }
+                        }
+                    }
+                },
+                Err(err) => {
+                    log::error!("could not read line from videostore_indices database: {}", err);
+                }
+            }
+        },
+        Err(err) => {
+            log::error!("could not prepare SQL statement: {}", err);
+        }
+    }
+    for video_id in ids {
+        let filedata = file_by_id(connection, video_id);
+        let pathstr = crate::parsers::osstr_to_string(filedata.filepath.clone().into_os_string());
+        let videodata = video_by_id(connection, &pathstr, video_id);
+        files.push(filedata);
+        videos.push(videodata);
+    }
+    (videos, files)
+}
+
+pub fn search_video(
+    connection: &mut rusqlite::Connection, 
+    search: &SearchData,
+) -> (Vec<VideoMetadata>, Vec<FileMetadata>) {
+    let mut files: Vec<FileMetadata> = Vec::new();
+    let mut videos: Vec<VideoMetadata> = Vec::new();
+    let mut used_files: std::collections::BTreeSet<PathBuf> = std::collections::BTreeSet::new();
+    if !search.video {
+        return (videos, files);
+    }
+    if search.title {
+        let query = format!("SELECT video_id FROM video_metadata WHERE title LIKE {}", search.search_string);
+        let (newvideos, newfiles) = search_video_metadata(
+            connection, 
+            query, 
+        );
+        for i in 0..files.len() {
+            if !used_files.contains(&files[i].filepath) {
+                used_files.insert(files[i].filepath.clone());
+                files.push(newfiles[i].clone());
+                videos.push(newvideos[i].clone());
+            }
+        }
+    }
+    if search.description {
+        let query = format!("SELECT video_id FROM video_metadata WHERE description LIKE {}", search.search_string);
+        let (newvideos, newfiles) = search_video_metadata(
+            connection, 
+            query, 
+        );
+        for i in 0..files.len() {
+            if !used_files.contains(&files[i].filepath) {
+                used_files.insert(files[i].filepath.clone());
+                files.push(newfiles[i].clone());
+                videos.push(newvideos[i].clone());
+            }
+        }
+    }
+    if search.duration && search.from_value != 0.0 {
+        let query;
+        if search.to_value != 0.0 {
+            query = format!("SELECT video_id FROM video_metadata WHERE duration > {} AND duration < {}", search.from_value as u32, search.to_value as u32);
+        } else {
+            query = format!("SELECT video_id FROM video_metadata WHERE duration > {}", search.from_value as u32);
+        }
+        let (newvideos, newfiles) = search_video_metadata(
+            connection, 
+            query, 
+        );
+        for i in 0..files.len() {
+            if !used_files.contains(&files[i].filepath) {
+                used_files.insert(files[i].filepath.clone());
+                files.push(newfiles[i].clone());
+                videos.push(newvideos[i].clone());
+            }
+        }
+    }
+    if search.actor {
+        let query = format!("SELECT video_id FROM actors 
+                        INNER JOIN people 
+                        ON people.person_id = actors.actor_id
+                        WHERE people.person_name LIKE {}", search.search_string);
+        let (newvideos, newfiles) = search_video_metadata(
+            connection, 
+            query, 
+        );
+        for i in 0..files.len() {
+            if !used_files.contains(&files[i].filepath) {
+                used_files.insert(files[i].filepath.clone());
+                files.push(newfiles[i].clone());
+                videos.push(newvideos[i].clone());
+            }
+        }
+    }
+    if search.director {
+        let query = format!("SELECT video_id FROM directors 
+                        INNER JOIN people 
+                        ON people.person_id = actors.director_id
+                        WHERE people.person_name LIKE {}", search.search_string);
+        let (newvideos, newfiles) = search_video_metadata(
+            connection, 
+            query, 
+        );
+        for i in 0..files.len() {
+            if !used_files.contains(&files[i].filepath) {
+                used_files.insert(files[i].filepath.clone());
+                files.push(newfiles[i].clone());
+                videos.push(newvideos[i].clone());
+            }
+        }
+    }
+    if search.release_date && search.from_string.len() != 0 {
+        let from_date = string_to_linux_time(&search.from_string);
+        let to_date = string_to_linux_time(&search.to_string);
+        let query;
+        if to_date != 0 {
+            query = format!("SELECT video_id FROM video_metadata WHERE released > {} AND released < {}", from_date, to_date);
+        } else {
+            query = format!("SELECT video_id FROM video_metadata WHERE released > {}", from_date);
+        }
+        let (newvideos, newfiles) = search_video_metadata(
+            connection, 
+            query, 
+        );
+        for i in 0..files.len() {
+            if !used_files.contains(&files[i].filepath) {
+                used_files.insert(files[i].filepath.clone());
+                files.push(newfiles[i].clone());
+                videos.push(newvideos[i].clone());
+            }
+        }
+    }
+    
+    (videos, files)
+}
+
+fn search_audio_metadata(
+    connection: &mut rusqlite::Connection, 
+    query: String,
+) -> (Vec<AudioMetadata>, Vec<FileMetadata>) {
+    let mut files = Vec::new();
+    let mut audios = Vec::new();
+    let mut ids = Vec::new();
+    let mut audio_id = 0_i64;
+
+    match connection.prepare(&query) {
+        Ok(mut statement) => {
+            match statement.query(params![]) {
+                Ok(mut rows) => {
+                    loop {
+                        match rows.next() {
+                            Ok(Some(row)) => {
+                                match row.get(0) {
+                                    Ok(val) => {
+                                        audio_id = val;
+                                        ids.push(audio_id);
+                                    },
+                                    Err(error) => {
+                                        log::error!("Failed to read id for video: {}", error);
+                                        continue;
+                                    }
+                                }
+                                
+                            },
+                            Ok(None) => {
+                                //log::warn!("No data read from indices.");
+                                break;
+                            },
+                            Err(error) => {
+                                log::error!("Failed to read a row from indices: {}", error);
+                                break;
+                            }
+                        }
+                    }
+                },
+                Err(err) => {
+                    log::error!("could not read line from videostore_indices database: {}", err);
+                }
+            }
+        },
+        Err(err) => {
+            log::error!("could not prepare SQL statement: {}", err);
+        }
+    }
+    for audio_id in ids {
+        let filedata = file_by_id(connection, audio_id);
+        let pathstr = crate::parsers::osstr_to_string(filedata.filepath.clone().into_os_string());
+        let audiodata = audio_by_id(connection, &pathstr, audio_id);
+        files.push(filedata);
+        audios.push(audiodata);
+    }
+    (audios, files)
+}
+
+pub fn search_audio(
+    connection: &mut rusqlite::Connection, 
+    search: &SearchData,
+) -> (Vec<AudioMetadata>, Vec<FileMetadata>) {
+    let mut files: Vec<FileMetadata> = Vec::new();
+    let mut audios: Vec<AudioMetadata> = Vec::new();
+    let mut used_files: std::collections::BTreeSet<PathBuf> = std::collections::BTreeSet::new();
+    if !search.audio {
+        return (audios, files);
+    }
+    if search.title {
+        let query = format!("SELECT audio_id FROM audio_metadata WHERE title LIKE {}", search.search_string);
+        let (newvideos, newfiles) = search_audio_metadata(
+            connection, 
+            query, 
+        );
+        for i in 0..files.len() {
+            if !used_files.contains(&files[i].filepath) {
+                used_files.insert(files[i].filepath.clone());
+                files.push(newfiles[i].clone());
+                audios.push(newvideos[i].clone());
+            }
+        }
+    }
+    if search.duration && search.from_value != 0.0 {
+        let query;
+        if search.to_value != 0.0 {
+            query = format!("SELECT audio_id FROM audio_metadata WHERE duration > {} AND duration < {}", search.from_value as u32, search.to_value as u32);
+        } else {
+            query = format!("SELECT audio_id FROM audio_metadata WHERE duration > {}", search.from_value as u32);
+        }
+        let (newvideos, newfiles) = search_audio_metadata(
+            connection, 
+            query, 
+        );
+        for i in 0..files.len() {
+            if !used_files.contains(&files[i].filepath) {
+                used_files.insert(files[i].filepath.clone());
+                files.push(newfiles[i].clone());
+                audios.push(newvideos[i].clone());
+            }
+        }
+    }
+    if search.artist {
+        let query = format!("SELECT audio_id FROM artist_audio_map 
+                        INNER JOIN artists 
+                        ON artists.artist_id  = artist_audio_map.artist_id
+                        WHERE artists.artist_name LIKE {}", search.search_string);
+        let (newvideos, newfiles) = search_audio_metadata(
+            connection, 
+            query, 
+        );
+        for i in 0..files.len() {
+            if !used_files.contains(&files[i].filepath) {
+                used_files.insert(files[i].filepath.clone());
+                files.push(newfiles[i].clone());
+                audios.push(newvideos[i].clone());
+            }
+        }
+    }
+    if search.album_artist {
+        let query = format!("SELECT audio_id FROM albumartist_audio_map 
+                        INNER JOIN artists 
+                        ON artists.artist_id  = albumartist_audio_map.artist_id
+                        WHERE artists.artist_name LIKE {}", search.search_string);
+        let (newvideos, newfiles) = search_audio_metadata(
+            connection, 
+            query, 
+        );
+        for i in 0..files.len() {
+            if !used_files.contains(&files[i].filepath) {
+                used_files.insert(files[i].filepath.clone());
+                files.push(newfiles[i].clone());
+                audios.push(newvideos[i].clone());
+            }
+        }
+    }
+    if search.release_date && search.from_string.len() != 0 {
+        let from_date = string_to_linux_time(&search.from_string);
+        let to_date = string_to_linux_time(&search.to_string);
+        let query;
+        if to_date != 0 {
+            query = format!("SELECT audio_id FROM audio_metadata WHERE released > {} AND released < {}", from_date, to_date);
+        } else {
+            query = format!("SELECT audio_id FROM audio_metadata WHERE released > {}", from_date);
+        }
+        let (newvideos, newfiles) = search_audio_metadata(
+            connection, 
+            query, 
+        );
+        for i in 0..files.len() {
+            if !used_files.contains(&files[i].filepath) {
+                used_files.insert(files[i].filepath.clone());
+                files.push(newfiles[i].clone());
+                audios.push(newvideos[i].clone());
+            }
+        }
+    }
+    
+    (audios, files)
+}
+
+fn search_image_metadata(
+    connection: &mut rusqlite::Connection, 
+    query: String,
+) -> (Vec<ImageMetadata>, Vec<FileMetadata>) {
+    let mut files = Vec::new();
+    let mut images = Vec::new();
+    let mut ids = Vec::new();
+    let mut image_id = 0_i64;
+
+    match connection.prepare(&query) {
+        Ok(mut statement) => {
+            match statement.query(params![]) {
+                Ok(mut rows) => {
+                    loop {
+                        match rows.next() {
+                            Ok(Some(row)) => {
+                                match row.get(0) {
+                                    Ok(val) => {
+                                        image_id = val;
+                                        ids.push(image_id);
+                                    },
+                                    Err(error) => {
+                                        log::error!("Failed to read id for video: {}", error);
+                                        continue;
+                                    }
+                                }
+                                
+                            },
+                            Ok(None) => {
+                                //log::warn!("No data read from indices.");
+                                break;
+                            },
+                            Err(error) => {
+                                log::error!("Failed to read a row from indices: {}", error);
+                                break;
+                            }
+                        }
+                    }
+                },
+                Err(err) => {
+                    log::error!("could not read line from videostore_indices database: {}", err);
+                }
+            }
+        },
+        Err(err) => {
+            log::error!("could not prepare SQL statement: {}", err);
+        }
+    }
+    for image_id in ids {
+        let filedata = file_by_id(connection, image_id);
+        let pathstr = crate::parsers::osstr_to_string(filedata.filepath.clone().into_os_string());
+        let imagedata = image_by_id(connection, &pathstr, image_id);
+        files.push(filedata);
+        images.push(imagedata);
+    }
+    (images, files)
+}
+
+pub fn search_image(
+    connection: &mut rusqlite::Connection, 
+    search: &SearchData,
+) -> (Vec<ImageMetadata>, Vec<FileMetadata>) {
+    let mut files = Vec::new();
+    let mut images: Vec<ImageMetadata> = Vec::new();
+
+    let mut used_files: std::collections::BTreeSet<PathBuf> = std::collections::BTreeSet::new();
+    if !search.audio {
+        return (images, files);
+    }
+    if search.title {
+        let query = format!("SELECT image_id FROM image_metadata WHERE name LIKE {}", search.search_string);
+        let (newvideos, newfiles) = search_image_metadata(
+            connection, 
+            query, 
+        );
+        for i in 0..files.len() {
+            if !used_files.contains(&files[i].filepath) {
+                used_files.insert(files[i].filepath.clone());
+                files.push(newfiles[i].clone());
+                images.push(newvideos[i].clone());
+            }
+        }
+    }
+    if search.lense_model {
+        let query = format!("SELECT image_id FROM image_metadata WHERE LenseModel LIKE {}", search.search_string);
+        let (newvideos, newfiles) = search_image_metadata(
+            connection, 
+            query, 
+        );
+        for i in 0..files.len() {
+            if !used_files.contains(&files[i].filepath) {
+                used_files.insert(files[i].filepath.clone());
+                files.push(newfiles[i].clone());
+                images.push(newvideos[i].clone());
+            }
+        }
+    }
+    if search.focal_length {
+        let query = format!("SELECT image_id FROM image_metadata WHERE Focallength LIKE {}", search.search_string);
+        let (newvideos, newfiles) = search_image_metadata(
+            connection, 
+            query, 
+        );
+        for i in 0..files.len() {
+            if !used_files.contains(&files[i].filepath) {
+                used_files.insert(files[i].filepath.clone());
+                files.push(newfiles[i].clone());
+                images.push(newvideos[i].clone());
+            }
+        }
+    }
+    if search.exposure_time {
+        let query = format!("SELECT image_id FROM image_metadata WHERE Exposuretime LIKE {}", search.search_string);
+        let (newvideos, newfiles) = search_image_metadata(
+            connection, 
+            query, 
+        );
+        for i in 0..files.len() {
+            if !used_files.contains(&files[i].filepath) {
+                used_files.insert(files[i].filepath.clone());
+                files.push(newfiles[i].clone());
+                images.push(newvideos[i].clone());
+            }
+        }
+    }
+    if search.fnumber {
+        let query = format!("SELECT image_id FROM image_metadata WHERE FNumber LIKE {}", search.search_string);
+        let (newvideos, newfiles) = search_image_metadata(
+            connection, 
+            query, 
+        );
+        for i in 0..files.len() {
+            if !used_files.contains(&files[i].filepath) {
+                used_files.insert(files[i].filepath.clone());
+                files.push(newfiles[i].clone());
+                images.push(newvideos[i].clone());
+            }
+        }
+    }
+    if search.gps_latitude && search.from_value != 0.0 {
+        let query;
+        if search.to_value != 0.0 {
+            query = format!("SELECT image_id FROM image_metadata WHERE GPSLatitude > {} AND GPSLatitude < {}", search.from_value as u32, search.to_value as u32);
+        } else {
+            query = format!("SELECT image_id FROM image_metadata WHERE GPSLatitude > {}", search.from_value as u32);
+        }
+        let (newvideos, newfiles) = search_image_metadata(
+            connection, 
+            query, 
+        );
+        for i in 0..files.len() {
+            if !used_files.contains(&files[i].filepath) {
+                used_files.insert(files[i].filepath.clone());
+                files.push(newfiles[i].clone());
+                images.push(newvideos[i].clone());
+            }
+        }
+    }
+    if search.gps_longitude && search.from_value != 0.0 {
+        let query;
+        if search.to_value != 0.0 {
+            query = format!("SELECT image_id FROM image_metadata WHERE GPSLongitude > {} AND GPSLongitude < {}", search.from_value as u32, search.to_value as u32);
+        } else {
+            query = format!("SELECT image_id FROM image_metadata WHERE GPSLongitude > {}", search.from_value as u32);
+        }
+        let (newvideos, newfiles) = search_image_metadata(
+            connection, 
+            query, 
+        );
+        for i in 0..files.len() {
+            if !used_files.contains(&files[i].filepath) {
+                used_files.insert(files[i].filepath.clone());
+                files.push(newfiles[i].clone());
+                images.push(newvideos[i].clone());
+            }
+        }
+    }
+    if search.gps_altitude && search.from_value != 0.0 {
+        let query;
+        if search.to_value != 0.0 {
+            query = format!("SELECT image_id FROM image_metadata WHERE GPSAltitude > {} AND GPSAltitude < {}", search.from_value as u32, search.to_value as u32);
+        } else {
+            query = format!("SELECT image_id FROM image_metadata WHERE GPSAltitude > {}", search.from_value as u32);
+        }
+        let (newvideos, newfiles) = search_image_metadata(
+            connection, 
+            query, 
+        );
+        for i in 0..files.len() {
+            if !used_files.contains(&files[i].filepath) {
+                used_files.insert(files[i].filepath.clone());
+                files.push(newfiles[i].clone());
+                images.push(newvideos[i].clone());
+            }
+        }
+    }
+    if search.release_date && search.from_string.len() != 0 {
+        let from_date = string_to_linux_time(&search.from_string);
+        let to_date = string_to_linux_time(&search.to_string);
+        let query;
+        if to_date != 0 {
+            query = format!("SELECT image_id FROM image_metadata WHERE created > {} AND created < {}", from_date, to_date);
+        } else {
+            query = format!("SELECT image_id FROM image_metadata WHERE created > {}", from_date);
+        }
+        let (newvideos, newfiles) = search_image_metadata(
+            connection, 
+            query, 
+        );
+        for i in 0..files.len() {
+            if !used_files.contains(&files[i].filepath) {
+                used_files.insert(files[i].filepath.clone());
+                files.push(newfiles[i].clone());
+                images.push(newvideos[i].clone());
+            }
+        }
+    }
+    
+    (images, files)
+}
+
+fn search_file_metadata(
+    connection: &mut rusqlite::Connection, 
+    query: String,
+) -> Vec<FileMetadata> {
+    let mut files = Vec::new();
+    let mut ids = Vec::new();
+    let mut file_id = 0_i64;
+
+    match connection.prepare(&query) {
+        Ok(mut statement) => {
+            match statement.query(params![]) {
+                Ok(mut rows) => {
+                    loop {
+                        match rows.next() {
+                            Ok(Some(row)) => {
+                                match row.get(0) {
+                                    Ok(val) => {
+                                        file_id = val;
+                                        ids.push(file_id);
+                                    },
+                                    Err(error) => {
+                                        log::error!("Failed to read id for video: {}", error);
+                                        continue;
+                                    }
+                                }
+                                
+                            },
+                            Ok(None) => {
+                                //log::warn!("No data read from indices.");
+                                break;
+                            },
+                            Err(error) => {
+                                log::error!("Failed to read a row from indices: {}", error);
+                                break;
+                            }
+                        }
+                    }
+                },
+                Err(err) => {
+                    log::error!("could not read line from videostore_indices database: {}", err);
+                }
+            }
+        },
+        Err(err) => {
+            log::error!("could not prepare SQL statement: {}", err);
+        }
+    }
+    for file_id in ids {
+        let filedata = file_by_id(connection, file_id);
+        files.push(filedata);
+    }
+    files
+}
+
+fn stuff_items(
+    connection: &mut rusqlite::Connection, 
+    search: &SearchData,
+    known_files: &mut std::collections::BTreeMap<PathBuf, FileMetadata>,
+    used_files: &mut std::collections::BTreeSet<PathBuf>,
+    file: FileMetadata,
+    items: &mut Vec<crate::tab::Item>,
+) {
+    if !used_files.contains(&file.filepath) {
+        used_files.insert(file.filepath.clone());
+        if file.file_type == 2 && search.video {
+            let pathstr = crate::parsers::osstr_to_string(file.filepath.clone().into_os_string());
+            let video = video(connection, &pathstr, known_files);
+            if let Ok(metadata) = std::fs::metadata(file.filepath.clone()) {
+                let item = crate::parsers::item_from_video(
+                    file.filepath.clone(), 
+                    video.title.clone(), 
+                    &metadata, 
+                    crate::config::IconSizes::default(), 
+                    known_files, 
+                    connection,
+                );
+                items.push(item);
+            }    
+        }
+        if file.file_type == 3 && search.audio {
+            let pathstr = crate::parsers::osstr_to_string(file.filepath.clone().into_os_string());
+            let mut audio = audio(connection, &pathstr, known_files);
+            if let Ok(metadata) = std::fs::metadata(file.filepath.clone()) {
+                let item = crate::parsers::item_from_audiotags(
+                    file.filepath.clone(), 
+                    &mut audio, 
+                    &metadata, 
+                    crate::config::IconSizes::default(), 
+                    known_files, 
+                    connection,
+                );
+                items.push(item);
+            }    
+
+        }
+        if file.file_type == 1 && search.image {
+            let pathstr = crate::parsers::osstr_to_string(file.filepath.clone().into_os_string());
+            let mut image = image(connection, &pathstr, known_files);
+            if let Ok(metadata) = std::fs::metadata(file.filepath.clone()) {
+                let item = crate::parsers::item_from_exif(
+                    file.filepath.clone(), 
+                    &mut image, 
+                    &metadata, 
+                    crate::config::IconSizes::default(), 
+                    known_files, 
+                    connection,
+                );
+                items.push(item);
+            }                
+        }
+    }
+}
+
+/// date has to be in the following format
+/// YYYY-MM-DDThh:mm:ss (1996-12-19T16:39:57)
+fn string_to_linux_time(date: &str) -> i64 {
+    let mut linuxtime = 0;
+    if let Ok(date) = chrono::DateTime::parse_from_rfc3339(date) {
+        let naive = date.naive_utc();
+        linuxtime = naive.and_utc().timestamp();
+    }
+
+    linuxtime
+}
+
+pub fn search(
+    connection: &mut rusqlite::Connection, 
+    search: &SearchData,
+) -> Vec<crate::tab::Item> {
+    let mut items: Vec<crate::tab::Item> = Vec::new();
+    let mut used_files: std::collections::BTreeSet<PathBuf> = std::collections::BTreeSet::new();
+    let mut known_files: std::collections::BTreeMap<PathBuf, FileMetadata> = std::collections::BTreeMap::new();
+    if search.video {
+        let (newmetadata, newfiles) = search_video(connection, search);
+        for i in 0..newfiles.len() {
+            if !used_files.contains(&newfiles[i].filepath) {
+                used_files.insert(newfiles[i].filepath.clone());
+                if let Ok(metadata) = std::fs::metadata(newfiles[i].filepath.clone()) {
+                    let item = crate::parsers::item_from_video(
+                        newfiles[i].filepath.clone(), 
+                        newmetadata[i].title.clone(), 
+                        &metadata, 
+                        crate::config::IconSizes::default(), 
+                        &mut known_files, 
+                        connection,
+                    );
+                    items.push(item);
+                }
+            }
+        }
+    }
+    if search.audio {
+        let (mut newmetadata, newfiles) = search_audio(connection, search);
+        for i in 0..newfiles.len() {
+            if !used_files.contains(&newfiles[i].filepath) {
+                used_files.insert(newfiles[i].filepath.clone());
+                if let Ok(metadata) = std::fs::metadata(newfiles[i].filepath.clone()) {
+                    let item = crate::parsers::item_from_audiotags(
+                        newfiles[i].filepath.clone(), 
+                        &mut newmetadata[i], 
+                        &metadata, 
+                        crate::config::IconSizes::default(), 
+                        &mut known_files, 
+                        connection,
+                    );
+                    items.push(item);
+                }
+            }
+        }
+    }
+    if search.image {
+        let (mut newmetadata, newfiles) = search_image(connection, search);
+        for i in 0..newfiles.len() {
+            if !used_files.contains(&newfiles[i].filepath) {
+                used_files.insert(newfiles[i].filepath.clone());
+                if let Ok(metadata) = std::fs::metadata(newfiles[i].filepath.clone()) {
+                    let item = crate::parsers::item_from_exif(
+                        newfiles[i].filepath.clone(), 
+                        &mut newmetadata[i], 
+                        &metadata, 
+                        crate::config::IconSizes::default(), 
+                        &mut known_files, 
+                        connection,
+                    );
+                    items.push(item);
+                }
+            }
+        }
+    }
+    if search.creation_date && search.from_string.len() != 0 {
+        let from_date = string_to_linux_time(&search.from_string);
+        let to_date = string_to_linux_time(&search.to_string);
+        let query;
+        if to_date != 0 {
+            query = format!("SELECT metadata_id FROM file_metadata WHERE creation_time > {} AND creation_time < {}", from_date, to_date);
+        } else {
+            query = format!("SELECT metadata_id FROM file_metadata WHERE creation_time > {}", from_date);
+        }
+        let newfiles: Vec<FileMetadata> = search_file_metadata(
+            connection, 
+            query, 
+        );
+        for file in newfiles {
+            stuff_items(connection, search, &mut known_files, &mut used_files, file, &mut items);
+        }
+    }
+    if search.modification_date && search.from_string.len() != 0 {
+        let from_date = string_to_linux_time(&search.from_string);
+        let to_date = string_to_linux_time(&search.to_string);
+        let query;
+        if to_date != 0 {
+            query = format!("SELECT metadata_id FROM file_metadata WHERE modification_time > {} AND modification_time < {}", from_date, to_date);
+        } else {
+            query = format!("SELECT metadata_id FROM file_metadata WHERE modification_time > {}", from_date);
+        }
+        let newfiles: Vec<FileMetadata> = search_file_metadata(
+            connection, 
+            query, 
+        );
+        for file in newfiles {
+            stuff_items(connection, search, &mut known_files, &mut used_files, file, &mut items);
+        }
+    }
+    if search.filepath {
+        let query = format!("SELECT metadata_id FROM file_metadata WHERE filepath LIKE {}", search.search_string);
+        let newfiles: Vec<FileMetadata> = search_file_metadata(
+            connection, 
+            query, 
+        );
+        for file in newfiles {
+            stuff_items(connection, search, &mut known_files, &mut used_files, file, &mut items);
+        }
+    }
+    
+    items
+}
+
+#[derive(Clone, Debug, PartialEq, PartialOrd)]
 pub struct VideoMetadata {
     pub name: String,
     pub title: String,
@@ -325,6 +1180,298 @@ pub fn update_video(
 ) {
     delete_video(connection, metadata, known_files);
     insert_video(connection, metadata, statdata, known_files);
+}
+
+pub fn video_by_id(
+    connection: &mut rusqlite::Connection, 
+    filepath: &str,
+    video_id: i64,
+) -> VideoMetadata {
+    let mut v = VideoMetadata {..Default::default()};
+    v.path = filepath.to_string();
+    let query = "SELECT name, title, released, poster, duration, width, height, framerate, description FROM video_metadata WHERE video_id = ?1";
+    match connection.prepare(query) {
+        Ok(mut statement) => {
+            match statement.query(params![&video_id]) {
+                Ok(mut rows) => {
+                    loop {
+                        match rows.next() {
+                            Ok(Some(row)) => {
+                                match row.get(0) {
+                                    Ok(val) => v.name = val,
+                                    Err(error) => {
+                                        log::error!("Failed to read id for video: {}", error);
+                                        continue;
+                                    }
+                                }
+                                match row.get(1) {
+                                    Ok(val) => v.title = val,
+                                    Err(error) => {
+                                        log::error!("Failed to read video_id for video: {}", error);
+                                        continue;
+                                    }
+                                }
+                                match row.get(2) {
+                                    Ok(val) => v.date = val,
+                                    Err(error) => {
+                                        log::error!("Failed to read screenshot_id for video: {}", error);
+                                        continue;
+                                    }
+                                }
+                                match row.get(3) {
+                                    Ok(val) => v.poster = val,
+                                    Err(error) => {
+                                        log::error!("Failed to read runtime for video: {}", error);
+                                        continue;
+                                    }
+                                }
+                                match row.get(4) {
+                                    Ok(val) => v.duration = val,
+                                    Err(error) => {
+                                        log::error!("Failed to read runtime for video: {}", error);
+                                        continue;
+                                    }
+                                }
+                                match row.get(5) {
+                                    Ok(val) => v.width = val,
+                                    Err(error) => {
+                                        log::error!("Failed to read runtime for video: {}", error);
+                                        continue;
+                                    }
+                                }
+                                match row.get(6) {
+                                    Ok(val) => v.height = val,
+                                    Err(error) => {
+                                        log::error!("Failed to read runtime for video: {}", error);
+                                        continue;
+                                    }
+                                }
+                                match row.get(7) {
+                                    Ok(val) => v.framerate = val,
+                                    Err(error) => {
+                                        log::error!("Failed to read runtime for video: {}", error);
+                                        continue;
+                                    }
+                                }
+                                match row.get(8) {
+                                    Ok(val) => v.description = val,
+                                    Err(error) => {
+                                        log::error!("Failed to read runtime for video: {}", error);
+                                        continue;
+                                    }
+                                }
+                            },
+                            Ok(None) => {
+                                //log::warn!("No data read from indices.");
+                                break;
+                            },
+                            Err(error) => {
+                                log::error!("Failed to read a row from indices: {}", error);
+                                break;
+                            }
+                        }
+                    }
+                },
+                Err(err) => {
+                    log::error!("could not read line from videostore_indices database: {}", err);
+                }
+            }
+        },
+        Err(err) => {
+            log::error!("could not prepare SQL statement: {}", err);
+        }
+    }
+    let query = "SELECT subpath FROM subtitles WHERE video_id = ?1";
+    match connection.prepare(query) {
+        Ok(mut statement) => {
+            match statement.query(params![&video_id]) {
+                Ok(mut rows) => {
+                    loop {
+                        match rows.next() {
+                            Ok(Some(row)) => {
+                                match row.get::<usize, String>(0) {
+                                    Ok(val) => {
+                                        let s: String = val;
+                                        v.subtitles.push(s);
+                                    },
+                                    Err(error) => {
+                                        log::error!("Failed to read id for video: {}", error);
+                                        continue;
+                                    }
+                                }
+                            }
+                            Ok(None) => {
+                                //log::warn!("No data read from indices.");
+                                break;
+                            },
+                            Err(error) => {
+                                log::error!("Failed to read a row from indices: {}", error);
+                                break;
+                            }
+                        }
+                    }
+                },
+                Err(err) => {
+                    log::error!("could not read line from subtitles database: {}", err);
+                }
+            }
+        },
+        Err(err) => {
+            log::error!("could not prepare SQL statement: {}", err);
+        }
+    }
+    let query = "SELECT audiolang FROM audiolangs WHERE video_id = ?1";
+    match connection.prepare(query) {
+        Ok(mut statement) => {
+            match statement.query(params![&video_id]) {
+                Ok(mut rows) => {
+                    loop {
+                        match rows.next() {
+                            Ok(Some(row)) => {
+                                match row.get::<usize, String>(0) {
+                                    Ok(val) => v.audiolangs.push(val.clone()),
+                                    Err(error) => {
+                                        log::error!("Failed to audiolangs for video: {}", error);
+                                        continue;
+                                    }
+                                }
+                            }
+                            Ok(None) => {
+                                //log::warn!("No data read from indices.");
+                                break;
+                            },
+                            Err(error) => {
+                                log::error!("Failed to read a row from audiolangs: {}", error);
+                                break;
+                            }
+                        }
+                    }
+                },
+                Err(err) => {
+                    log::error!("could not read line from audiolangs database: {}", err);
+                }
+            }
+        },
+        Err(err) => {
+            log::error!("could not prepare SQL statement: {}", err);
+        }
+    }
+    let query = "SELECT sublang FROM sublangs WHERE video_id = ?1";
+    match connection.prepare(query) {
+        Ok(mut statement) => {
+            match statement.query(params![&video_id]) {
+                Ok(mut rows) => {
+                    loop {
+                        match rows.next() {
+                            Ok(Some(row)) => {
+                                match row.get::<usize, String>(0) {
+                                    Ok(val) => v.sublangs.push(val.clone()),
+                                    Err(error) => {
+                                        log::error!("Failed to read sublangs for video: {}", error);
+                                        continue;
+                                    }
+                                }
+                            }
+                            Ok(None) => {
+                                //log::warn!("No data read from sublangs.");
+                                break;
+                            },
+                            Err(error) => {
+                                log::error!("Failed to read a row from sublangs: {}", error);
+                                break;
+                            }
+                        }
+                    }
+                },
+                Err(err) => {
+                    log::error!("could not read line from videostore_indices database: {}", err);
+                }
+            }
+        },
+        Err(err) => {
+            log::error!("could not prepare SQL statement: {}", err);
+        }
+    }
+    let query = "SELECT person_name FROM people 
+                        INNER JOIN directors 
+                        ON directors.director_id = people.person_id 
+                        WHERE directors.video_id = ?1";
+    match connection.prepare(query) {
+        Ok(mut statement) => {
+            match statement.query(params![&video_id]) {
+                Ok(mut rows) => {
+                    loop {
+                        match rows.next() {
+                            Ok(Some(row)) => {
+                                match row.get::<usize, String>(0) {
+                                    Ok(val) => v.director.push(val.clone()),
+                                    Err(error) => {
+                                        log::error!("Failed to read directors for video: {}", error);
+                                        continue;
+                                    }
+                                }
+                            }
+                            Ok(None) => {
+                                //log::warn!("No data read from indices.");
+                                break;
+                            },
+                            Err(error) => {
+                                log::error!("Failed to read a row from directors: {}", error);
+                                break;
+                            }
+                        }
+                    }
+                },
+                Err(err) => {
+                    log::error!("could not read line from directors database: {}", err);
+                }
+            }
+        },
+        Err(err) => {
+            log::error!("could not prepare SQL statement: {}", err);
+        }
+    }
+    let query = "SELECT person_name FROM people 
+                        INNER JOIN actors 
+                        ON actors.actor_id = people.person_id 
+                        WHERE actors.video_id = ?1";
+    match connection.prepare(query) {
+        Ok(mut statement) => {
+            match statement.query(params![&video_id]) {
+                Ok(mut rows) => {
+                    loop {
+                        match rows.next() {
+                            Ok(Some(row)) => {
+                                match row.get::<usize, String>(0) {
+                                    Ok(val) => v.subtitles.push(val),
+                                    Err(error) => {
+                                        log::error!("Failed to read actors for video: {}", error);
+                                        continue;
+                                    }
+                                }
+                            }
+                            Ok(None) => {
+                                //log::warn!("No data read from indices.");
+                                break;
+                            },
+                            Err(error) => {
+                                log::error!("Failed to read a row from actors: {}", error);
+                                break;
+                            }
+                        }
+                    }
+                },
+                Err(err) => {
+                    log::error!("could not read line from actors database: {}", err);
+                }
+            }
+        },
+        Err(err) => {
+            log::error!("could not prepare SQL statement: {}", err);
+        }
+    }
+
+    v
 }
 
 pub fn video(
@@ -964,6 +2111,209 @@ pub fn update_audio(
     insert_audio(connection, metadata, statdata, known_files);
 }
 
+pub fn audio_by_id(
+    connection: &mut rusqlite::Connection, 
+    filepath: &str,
+    audio_id: i64,
+) -> AudioMetadata {
+    let mut v = AudioMetadata {..Default::default()};
+    v.path = filepath.to_string();
+    // fill v from all tables
+    let query = "SELECT name, title, released, poster, duration, bitrate 
+                        FROM audio_metadata WHERE audio_id = ?1";
+    match connection.prepare(query) {
+        Ok(mut statement) => {
+            match statement.query(params![&audio_id]) {
+                Ok(mut rows) => {
+                    loop {
+                        match rows.next() {
+                            Ok(Some(row)) => {
+                                match row.get(0) {
+                                    Ok(val) => v.name = val,
+                                    Err(error) => {
+                                        log::error!("Failed to read name for audio: {}", error);
+                                        continue;
+                                    }
+                                }
+                                match row.get(1) {
+                                    Ok(val) => v.title = val,
+                                    Err(error) => {
+                                        log::error!("Failed to read title for audio: {}", error);
+                                        continue;
+                                    }
+                                }
+                                match row.get(2) {
+                                    Ok(val) => v.date = val,
+                                    Err(error) => {
+                                        log::error!("Failed to read date for audio: {}", error);
+                                        continue;
+                                    }
+                                }
+                                match row.get(3) {
+                                    Ok(val) => v.poster = val,
+                                    Err(error) => {
+                                        log::error!("Failed to read poster for audio: {}", error);
+                                        continue;
+                                    }
+                                }
+                                match row.get(4) {
+                                    Ok(val) => v.duration = val,
+                                    Err(error) => {
+                                        log::error!("Failed to read duration for audio: {}", error);
+                                        continue;
+                                    }
+                                }
+                                match row.get(4) {
+                                    Ok(val) => v.bitrate = val,
+                                    Err(error) => {
+                                        log::error!("Failed to read bitrate for audio: {}", error);
+                                        continue;
+                                    }
+                                }
+                            },
+                            Ok(None) => {
+                                //log::warn!("No data read from indices.");
+                                break;
+                            },
+                            Err(error) => {
+                                log::error!("Failed to read a row from indices: {}", error);
+                                break;
+                            }
+                        }
+                    }
+                },
+                Err(err) => {
+                    log::error!("could not read line from videostore_indices database: {}", err);
+                }
+            }
+        },
+        Err(err) => {
+            log::error!("could not prepare SQL statement: {}", err);
+        }
+    }
+    let query = "SELECT artist_name FROM artists 
+                        INNER JOIN artist_audio_map 
+                        ON artist_audio_map.artist_id = artists.artist_id 
+                        WHERE artist_audio_map.audio_id = ?1";
+    match connection.prepare(query) {
+        Ok(mut statement) => {
+            match statement.query(params![&audio_id]) {
+                Ok(mut rows) => {
+                    loop {
+                        match rows.next() {
+                            Ok(Some(row)) => {
+                                match row.get::<usize, String>(0) {
+                                    Ok(val) => {
+                                        let s: String = val.to_string();
+                                        v.artist.push(s);
+                                    },
+                                    Err(error) => {
+                                        log::error!("Failed to read artists for video: {}", error);
+                                        continue;
+                                    }
+                                }
+                            }
+                            Ok(None) => {
+                                //log::warn!("No data read from indices.");
+                                break;
+                            },
+                            Err(error) => {
+                                log::error!("Failed to read a row from artists: {}", error);
+                                break;
+                            }
+                        }
+                    }
+                },
+                Err(err) => {
+                    log::error!("could not read line from artists database: {}", err);
+                }
+            }
+        },
+        Err(err) => {
+            log::error!("could not prepare SQL statement: {}", err);
+        }
+    }
+    let query = "SELECT album_name FROM albums 
+                        INNER JOIN album_audio_map 
+                        ON album_audio_map.album_id = albums.album_id 
+                        WHERE album_audio_map.audio_id = ?1";
+    match connection.prepare(query) {
+        Ok(mut statement) => {
+            match statement.query(params![&audio_id]) {
+                Ok(mut rows) => {
+                    loop {
+                        match rows.next() {
+                            Ok(Some(row)) => {
+                                match row.get::<usize, String>(0) {
+                                    Ok(val) => v.album = val.clone(),
+                                    Err(error) => {
+                                        log::error!("Failed to read albums for video: {}", error);
+                                        continue;
+                                    }
+                                }
+                            }
+                            Ok(None) => {
+                                //log::warn!("No data read from indices.");
+                                break;
+                            },
+                            Err(error) => {
+                                log::error!("Failed to read a row from albums: {}", error);
+                                break;
+                            }
+                        }
+                    }
+                },
+                Err(err) => {
+                    log::error!("could not read line from albums database: {}", err);
+                }
+            }
+        },
+        Err(err) => {
+            log::error!("could not prepare SQL statement: {}", err);
+        }
+    }
+    let query = "SELECT artist_name FROM artists 
+                        INNER JOIN albumartist_audio_map 
+                        ON albumartist_audio_map.albumartist_id = artists.artist_id 
+                        WHERE albumartist_audio_map.audio_id = ?1";
+    match connection.prepare(query) {
+        Ok(mut statement) => {
+            match statement.query(params![&audio_id]) {
+                Ok(mut rows) => {
+                    loop {
+                        match rows.next() {
+                            Ok(Some(row)) => {
+                                match row.get::<usize, String>(0) {
+                                    Ok(val) => v.albumartist.push(val.clone()),
+                                    Err(error) => {
+                                        log::error!("Failed to read album_artists for audio: {}", error);
+                                        continue;
+                                    }
+                                }
+                            }
+                            Ok(None) => {
+                                //log::warn!("No data read from indices.");
+                                break;
+                            },
+                            Err(error) => {
+                                log::error!("Failed to read a row from album_artists: {}", error);
+                                break;
+                            }
+                        }
+                    }
+                },
+                Err(err) => {
+                    log::error!("could not read line from album_artists database: {}", err);
+                }
+            }
+        },
+        Err(err) => {
+            log::error!("could not prepare SQL statement: {}", err);
+        }
+    }
+    v
+}
+
 pub fn audio(
     connection: &mut rusqlite::Connection, 
     filepath: &str,
@@ -1251,7 +2601,7 @@ pub fn insert_image(
         }
     }
 
-    insert_file(connection, &metadata.path, statdata, 3, image_id, known_files);
+    insert_file(connection, &metadata.path, statdata, 1, image_id, known_files);
 
 }
 
@@ -1305,6 +2655,140 @@ pub fn update_image(
 ) {
     delete_image(connection, metadata, known_files);
     insert_image(connection, metadata, statdata, known_files);
+}
+
+pub fn image_by_id(
+    connection: &mut rusqlite::Connection, 
+    filepath: &str,
+    image_id: i64,
+) -> ImageMetadata {
+    let mut v = ImageMetadata {..Default::default()};
+    v.path = filepath.to_string();
+    // fill v from all tables
+    let query = "SELECT name, path, created, poster, created, Photographer, 
+                        LenseModel, Focallength, Exposuretime, FNumber, 
+                        GPSString, GPSLatitude, GPSLongitude, GPSAltitude
+                        FROM image_metadata WHERE image_id = ?1";
+    match connection.prepare(query) {
+        Ok(mut statement) => {
+            match statement.query(params![&image_id]) {
+                Ok(mut rows) => {
+                    loop {
+                        match rows.next() {
+                            Ok(Some(row)) => {
+                                match row.get(0) {
+                                    Ok(val) => v.name = val,
+                                    Err(error) => {
+                                        log::error!("Failed to read name for audio: {}", error);
+                                        continue;
+                                    }
+                                }
+                                match row.get(1) {
+                                    Ok(val) => v.path = val,
+                                    Err(error) => {
+                                        log::error!("Failed to read title for audio: {}", error);
+                                        continue;
+                                    }
+                                }
+                                match row.get(2) {
+                                    Ok(val) => v.date = val,
+                                    Err(error) => {
+                                        log::error!("Failed to read date for audio: {}", error);
+                                        continue;
+                                    }
+                                }
+                                match row.get(3) {
+                                    Ok(val) => v.poster = val,
+                                    Err(error) => {
+                                        log::error!("Failed to read poster for audio: {}", error);
+                                        continue;
+                                    }
+                                }
+                                match row.get(4) {
+                                    Ok(val) => v.photographer = val,
+                                    Err(error) => {
+                                        log::error!("Failed to read duration for audio: {}", error);
+                                        continue;
+                                    }
+                                }
+                                match row.get(5) {
+                                    Ok(val) => v.lense_model = val,
+                                    Err(error) => {
+                                        log::error!("Failed to read bitrate for audio: {}", error);
+                                        continue;
+                                    }
+                                }
+                                match row.get(6) {
+                                    Ok(val) => v.focal_length = val,
+                                    Err(error) => {
+                                        log::error!("Failed to read bitrate for audio: {}", error);
+                                        continue;
+                                    }
+                                }
+                                match row.get(7) {
+                                    Ok(val) => v.exposure_time = val,
+                                    Err(error) => {
+                                        log::error!("Failed to read bitrate for audio: {}", error);
+                                        continue;
+                                    }
+                                }
+                                match row.get(8) {
+                                    Ok(val) => v.fnumber = val,
+                                    Err(error) => {
+                                        log::error!("Failed to read bitrate for audio: {}", error);
+                                        continue;
+                                    }
+                                }
+                                match row.get(9) {
+                                    Ok(val) => v.gps_string = val,
+                                    Err(error) => {
+                                        log::error!("Failed to read bitrate for audio: {}", error);
+                                        continue;
+                                    }
+                                }
+                                match row.get(10) {
+                                    Ok(val) => v.gps_latitude = val,
+                                    Err(error) => {
+                                        log::error!("Failed to read bitrate for audio: {}", error);
+                                        continue;
+                                    }
+                                }
+                                match row.get(11) {
+                                    Ok(val) => v.gps_longitude = val,
+                                    Err(error) => {
+                                        log::error!("Failed to read bitrate for audio: {}", error);
+                                        continue;
+                                    }
+                                }
+                                match row.get(12) {
+                                    Ok(val) => v.gps_altitude = val,
+                                    Err(error) => {
+                                        log::error!("Failed to read bitrate for audio: {}", error);
+                                        continue;
+                                    }
+                                }
+                            },
+                            Ok(None) => {
+                                //log::warn!("No data read from indices.");
+                                break;
+                            },
+                            Err(error) => {
+                                log::error!("Failed to read a row from indices: {}", error);
+                                break;
+                            }
+                        }
+                    }
+                },
+                Err(err) => {
+                    log::error!("could not read line from videostore_indices database: {}", err);
+                }
+            }
+        },
+        Err(err) => {
+            log::error!("could not prepare SQL statement: {}", err);
+        }
+    }
+    v
 }
 
 pub fn image(
@@ -1467,6 +2951,81 @@ impl Default for FileMetadata {
     }
 }
 
+pub fn file_by_id(
+    connection: &mut rusqlite::Connection, 
+    metadata_id: i64,
+) -> FileMetadata {
+    let mut v = FileMetadata {..Default::default()};
+    let query = "SELECT * FROM file_metadata WHERE metadata_id = ?1";
+    match connection.prepare(query) {
+        Ok(mut statement) => {
+            match statement.query(params![&metadata_id]) {
+                Ok(mut rows) => {
+                    loop {
+                        match rows.next() {
+                            Ok(Some(row)) => {
+                                match row.get(0) {
+                                    Ok(val) => {
+                                        let st: String = val;
+                                        v.filepath = PathBuf::from(&st);
+                                    },
+                                    Err(error) => {
+                                        log::error!("Failed to read id for video: {}", error);
+                                        continue;
+                                    }
+                                }
+                                match row.get(1) {
+                                    Ok(val) => v.creation_time = val,
+                                    Err(error) => {
+                                        log::error!("Failed to read video_id for video: {}", error);
+                                        continue;
+                                    }
+                                }
+                                match row.get(2) {
+                                    Ok(val) => v.modification_time = val,
+                                    Err(error) => {
+                                        log::error!("Failed to read screenshot_id for video: {}", error);
+                                        continue;
+                                    }
+                                }
+                                match row.get(3) {
+                                    Ok(val) => v.file_type = val,
+                                    Err(error) => {
+                                        log::error!("Failed to read runtime for video: {}", error);
+                                        continue;
+                                    }
+                                }
+                                match row.get(4) {
+                                    Ok(val) => v.metadata_id = val,
+                                    Err(error) => {
+                                        log::error!("Failed to read runtime for video: {}", error);
+                                        continue;
+                                    }
+                                }
+                            },
+                            Ok(None) => {
+                                //log::warn!("No data read from indices.");
+                                break;
+                            },
+                            Err(error) => {
+                                log::error!("Failed to read a row from indices: {}", error);
+                                break;
+                            }
+                        }
+                    }
+                },
+                Err(err) => {
+                    log::error!("could not read line from videostore_indices database: {}", err);
+                }
+            }
+        },
+        Err(err) => {
+            log::error!("could not prepare SQL statement: {}", err);
+        }
+    }
+
+    v
+}
 
 pub fn file(
     connection: &mut rusqlite::Connection, 
@@ -1643,7 +3202,7 @@ pub fn insert_file(
         }
     }
     match connection.execute(
-        "INSERT INTO file_metadata (filepath, creation_time, modificattion_time, file_type, metadata_id) VALUES (?1, ?2, ?3, ?4, ?5)",
+        "INSERT INTO file_metadata (filepath, creation_time, modification_time, file_type, metadata_id) VALUES (?1, ?2, ?3, ?4, ?5)",
         params![&path, &creation_time, &modification_time, &file_type, &metadata_id],
     ) {
         Ok(_retval) => {}, //log::warn!("Inserted {} video with ID {} and location {} into candidates.", video.id, video.index, candidate_id),
@@ -1720,7 +3279,7 @@ pub fn connect() -> Result<rusqlite::Connection, rusqlite::Error> {
             "CREATE TABLE file_metadata (
                 filepath TEXT NOT NULL unique PRIMARY KEY NOT NULL, 
                 creation_time UNSIGNED BIG INT, 
-                modificattion_time UNSIGNED BIG INT, 
+                modification_time UNSIGNED BIG INT, 
                 file_type INT,   
                 metadata_id BIG INT
             )", (),
@@ -1728,6 +3287,15 @@ pub fn connect() -> Result<rusqlite::Connection, rusqlite::Error> {
             Ok(_ret) => {},
             Err(error) => {
                 log::error!("Failed to create table file_metadata: {}", error);
+                return Err(error);
+            }
+        }
+        match connection.execute(
+            "CREATE INDEX index_file_metadata_video_id ON file_metadata (video_id)", (),
+        ) {
+            Ok(_ret) => {},
+            Err(error) => {
+                log::error!("Failed to create index on file_metadata: {}", error);
                 return Err(error);
             }
         }
@@ -1750,6 +3318,15 @@ pub fn connect() -> Result<rusqlite::Connection, rusqlite::Error> {
             Ok(_ret) => {},
             Err(error) => {
                 log::error!("Failed to create table indices: {}", error);
+                return Err(error);
+            }
+        }
+        match connection.execute(
+            "CREATE INDEX index_video_metadata_title ON video_metadata (title)", (),
+        ) {
+            Ok(_ret) => {},
+            Err(error) => {
+                log::error!("Failed to create index on file_metadata: {}", error);
                 return Err(error);
             }
         }
