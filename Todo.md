@@ -10,18 +10,18 @@ Positions ended with a ? are *stretch goals*. If it is possible AND somebody doe
 
 ### Features
 
-X resursive scan of the current directory - depends on image to database
-X skip EXIF extraction for unsupported image formats
-X Make recursive scan run in the background
+DONE resursive scan of the current directory - depends on image to database
+DONE skip EXIF extraction for unsupported image formats
+DONE Make recursive scan run in the background
+DONE filetype, actor, director, artist, albumartist, release date range, duration, chapters, ...
+DONE Saved search management
+DONE multiple file rename feature, using the sort order of the model
+DONE fix the About and settings panel
 
 - Search panel with a separate result model/view
-  - (new tab per search, derived from tab? so ESC returns to the search and the search handles the previous/next)
-  - filetype, actor, director, artist, albumartist, release date range, duration, chapters, ...
-  - Saved search management
+  - (new tab per search result, derived from tab? so ESC returns to the search and the search handles the previous/next)
 - disable the sidebar by default
 - sort by release date / creation / modification time
-- multiple file rename feature, using the sort order of the model
-- fix the About and settings panel
 - display detail information of entry?
 - view files of only one type?
 - adjust the sort options when just one type is displayed and more details are available?
@@ -29,8 +29,8 @@ X Make recursive scan run in the background
 
 ## Image viewer
 
-X add a popup selection strip of the files/images in the same directory
-X include images into the database
+DONE add a popup selection strip of the files/images in the same directory
+DONE include images into the database
 
 - make the popup strip disappear once the mouse is no longer hovering over it?
 - adjust the size and shape away from the original aspect ratio of the image viewer on zoom-in if there is room to grow in the window?
@@ -39,7 +39,7 @@ X include images into the database
 
 ## Video viewer
 
-- make the player zoom a video that is smaller than the diaplay area
+- make the player zoom a video that is smaller than the display area
 - add a browse button to have the same navigation strip as in image view
 - add chapter navigation?
 - add playback speed control?

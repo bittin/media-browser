@@ -1,173 +1,243 @@
-cosmic-media-browser = COSMIC Medien Manager
+cosmic-media-browser = COSMIC Medien Betrachter
 empty-folder = Leerer Ordner
-empty-folder-hidden = Leerer Ordner (hat versteckte Elemente)
+empty-folder-hidden = Leerer Ordner (mit versteckten Dateien)
+no-results = No results found
 filesystem = Dateisystem
-home = Benutzerordner
+home = Home
+networks = Netzwerke
+notification-in-progress = Dateioperation werden ausgeführt.
 trash = Papierkorb
-recents = Aktuelle
-undo = Rückgängig
+recents = Zuletzt
+undo = Zurück
+today = Heute
 
-# Listenansicht
+# List view
 name = Name
 modified = Geändert
 size = Größe
 
-# Dialoge
+# Dialogs
 
-## Dialogfeld zum Leeren des Papierkorbs
-empty-trash = Papierkorb leeren?
-empty-trash-warning = Bist du sicher, dass du alle Elemente im Papierkorb endgültig löschen möchtest?
+## Compress Dialog
+create-archive = Create archive
 
-# Neue(r) Datei/Ordner-Dialog
-create-new-file = Neue Datei erstellen
-create-new-folder = Neuen Ordner erstellen
+## Empty Trash Dialog
+empty-trash = Papierkorb leeren
+empty-trash-warning = Sind Sie sicher, dass Sie den alle Dateien im Papierkorb löschen wollen?
+
+## New File/Folder Dialog
+create-new-file = Neue Datei
+create-new-folder = Neuen Ordner
 file-name = Dateiname
-folder-name = Ordnername
-file-already-exists = Eine Datei mit diesem Namen existiert bereits.
-folder-already-exists = Ein Ordner mit diesem Namen existiert bereits.
-name-hidden = Mit „.“ beginnende Namen werden ausgeblendet.
-name-invalid = Name darf nicht „{$filename}“ sein.
-name-no-slashes = Namen dürfen keine Schrägstriche enthalten.
-recursive-scan-directories = Durchsuche alle Unterverzeichnisse nach Medien.
+folder-name = Verzeichnisname
+file-already-exists = A file with that name already exists.
+folder-already-exists = A folder with that name already exists.
+name-hidden = Names starting with "." will be hidden.
+name-invalid = Name cannot be "{$filename}".
+name-no-slashes = Name cannot contain slashes.
+recursive-scan-directories = Durchsuche alle Unterverzeichnisse nach Medien
 
-# Öffnen/Speichern-Dialog
+## Open/Save Dialog
 cancel = Abbrechen
+create = Erzeugen
 open = Öffnen
-open-file = Datei öffnen
-open-folder = Ordner öffnen
-open-in-new-tab = In neuem Tab öffnen
-open-in-new-window = In neuem Fenster öffnen
-open-multiple-files = Mehrere Dateien öffnen
-open-multiple-folders = Mehrere Ordner öffnen
+open-file = Öffne Datei
+open-folder = Öffne Ordner
+open-in-new-tab = Open in new tab
+open-in-new-window = Open in new window
+open-item-location = Open item location
+open-multiple-files = Open multiple files
+open-multiple-folders = Open multiple folders
 save = Speichern
 save-file = Datei speichern
 
-# Umbenennen-Dialog
+## Rename Dialog
 rename-file = Datei umbenennen
 rename-folder = Ordner umbenennen
 
-# Ersetzen-Dialog
+## Replace Dialog
 replace = Ersetzen
-replace-title = {$filename} existiert bereits an diesem Ort.
-replace-warning = Möchtest du sie durch diejenige ersetzen, die du gerade speicherst? Beim Ersetzen wird ihr Inhalt überschrieben.
-replace-warning-operation = Möchtest du sie ersetzen? Beim Ersetzen wird ihr Inhalt überschrieben.
-original-file = Originaldatei
-replace-with = Ersetzen mit
+replace-title = {$filename} existiert schon.
+replace-warning = Wollen Sie sie ersetzen? Das wird ihren Inhalt überschreiben.
+replace-warning-operation = Wollen Sie sie ersetzen? Das wird ihren Inhalt überschreiben.
+original-file = Original Datei
+replace-with = Ersetze durch
 apply-to-all = Auf alle anwenden
 keep-both = Beide behalten
 skip = Überspringen
 
-# Kontextseiten
+## Metadata Dialog
+owner = Besitzer
+group = Gruppe
+other = Andere
+read = Lesen
+write = Schreiben
+execute = Ausführen
 
-## Über
-git-description = Git-Commit {$hash} am {$date}
+# Context Pages
 
-## Operationen
-edit-history = Verlauf bearbeiten
-history = Verlauf
-no-history = Keine Einträge im Verlauf.
+## About
+git-description = Git commit {$hash} vom {$date}
+
+## Add Network Drive
+add-network-drive = Netzlaufwerk hinzufügen
+connect = Verbinde
+connect-anonymously = Verbinde anonym
+connecting = Verbinde...
+domain = Domäne
+enter-server-address = Enter server address
+network-drive-description =
+    Server addresses include a protocol prefix and address.
+    Beispiele: ssh://192.168.0.1, ftp://[2001:db8::1]
+### Make sure to keep the comma which separates the columns
+network-drive-schemes =
+    Available protocols,Prefix
+    AppleTalk,afp://
+    File Transfer Protocol,ftp:// or ftps://
+    Network File System,nfs://
+    Server Message Block,smb://
+    SSH File Transfer Protocol,sftp:// or ssh://
+    WebDav,dav:// or davs://
+network-drive-error = Kann Netzlaufwerk nicht verbinden
+password = Passwort
+remember-password = Password speichern
+try-again = Nochmal versuchen
+username = Nutzername
+
+## Operations
+edit-history = Historie bearbeiten
+history = Historie
+no-history = leer.
 pending = Ausstehend
 failed = Fehlgeschlagen
-complete = Abgeschlossen
-copy_noun = Kopie
-creating = {$name} in {$parent} wird erstellt
-created = {$name} in {$parent} wurde erstellt
-copying = {$items} {$items ->
-        [one] Element wird
-        *[other] Elemente werden
-    } von {$from} nach {$to} kopiert
-copied = {$items} {$items ->
-        [one] Element wurde
-        *[other] Elemente wurden
-    } von {$from} nach {$to} kopiert
-emptying-trash = {trash} wird geleert
-emptied-trash = {trash} geleert
+complete = Fertig
+compressing = Compressing {$items} {$items ->
+        [one] item
+        *[other] items
+    } from {$from} to {$to}
+compressed = Compressed {$items} {$items ->
+        [one] item
+        *[other] items
+    } from {$from} to {$to}
+copy_noun = Copy
+creating = Creating {$name} in {$parent}
+created = Created {$name} in {$parent}
+copying = Copying {$items} {$items ->
+        [one] item
+        *[other] items
+    } from {$from} to {$to}
+copied = Copied {$items} {$items ->
+        [one] item
+        *[other] items
+    } from {$from} to {$to}
+emptying-trash = Emptying {trash}
+emptied-trash = Emptied {trash}
+extracting = Extracting {$items} {$items ->
+        [one] item
+        *[other] items
+    } from {$from} to {$to}
+extracted = Extracted {$items} {$items ->
+        [one] item
+        *[other] items
+    } from {$from} to {$to}
 moving = {$items} {$items ->
-        [one] Element wird
-        *[other] Elemente werden
-    } von {$from} nach {$to} verschoben
+        [one] verschiebe Datei
+        *[other] items
+    } von {$from} nach {$to}
 moved = {$items} {$items ->
-        [one] Element wurde
-        *[other] Elemente wurden
-    } von {$from} nach {$to} verschoben
-renaming = {$from} wird in {$to} umbenannt
-renamed = {$from} wurde in {$to} umbenannt
+        [one] Dateien verschoben
+        *[other] items
+    } von {$from} nach {$to}
+renaming = {$from} umbenennen nach {$to}
+renamed = {$from} umbenannt nach {$to}
 restoring = {$items} {$items ->
-        [one] Element wird
-        *[other] Elemente werden
-    } aus dem {trash} wiederhergestellt 
+        [one] Datei von
+        *[other] Dateien wiederhergestellt
+    } aus dem {trash}
 restored = {$items} {$items ->
-        [one] Element wurde
-        *[other] Elemente wurden
-    } aus dem {trash} wiederhergestellt
+        [one] Datei von
+        *[other] Dateien wiederhergestellt
+    } aus dem {trash}
 unknown-folder = unbekannter Ordner
 
-## Öffnen mit
-open-with = Öffnen mit
-default-app = {$name} (Standard)
+## Open with
+open-with = Öffnen mit...
+default-app = {$name} (default)
 
-## Eigenschaften
-properties = Eigenschaften
+## Show details
+show-details = Details zeigen
 
-## Einstellungen
+## Settings
 settings = Einstellungen
-settings-tab = Tab
-settings-show-hidden = Versteckte Dateien anzeigen
-default-view = Standardansicht
-icon-size-list = Symbolgröße (Liste)
-icon-size-grid = Symbolgröße (Raster)
+settings-tab = Reiter
+settings-show-hidden = versteckte Dateien
+default-view = Standard Ansicht
+icon-size-list = Bild (Liste)
+icon-size-grid = Bild (Grid)
 sorting-name = Sortieren nach
 direction = Richtung
 ascending = Aufsteigend
 descending = Absteigend
 
-### Aussehen
+### Appearance
 appearance = Aussehen
 theme = Thema
-match-desktop = An Desktop anpassen
+match-desktop = Wie System
 dark = Dunkel
 light = Hell
 
-# Kontextmenü
+# Context menu
 add-to-sidebar = Zur Seitenleiste hinzufügen
-new-file = Neue Datei
-new-folder = Neuer Ordner
+compress = Komprimieren
+extract-here = Auspacken
+new-file = Neue Datei...
+new-folder = Neuer Ordner...
 open-in-terminal = Im Terminal öffnen
-move-to-trash = In den Papierkorb verschieben
-restore-from-trash = Aus dem Papierkorb wiederherstellen
-remove-from-sidebar = Von der Seitenleiste entfernen
-sort-by-name = Nach Name sortieren
-sort-by-modified = Nach Änderung sortieren
-sort-by-size = Nach Größe sortieren
+move-to-trash = Löschen
+restore-from-trash = Wiederherstellen
+remove-from-sidebar = Aus Seitenleiste entfernen
+sort-by-name = Nach Namen sortieren
+sort-by-modified = neueste zuerst
+sort-by-size = kleinste zuerst
 
-# Menü
+# Menu
 
-## Datei
+## File
 file = Datei
-new-tab = Neuer Tab
+new-tab = Neuer Reiter
 new-window = Neues Fenster
-rename = Umbenennen
+rename = Umbenennen...
+menu-show-details = Details anzeigen...
 close-tab = Tab schließen
 quit = Beenden
 
-## Bearbeiten
+## Edit
 edit = Bearbeiten
 cut = Ausschneiden
 copy = Kopieren
 paste = Einfügen
-select-all = Alles auswählen
+select-all = Alle Auswählen
 
-## Ansicht
-zoom-in = Vergrößern
-default-size = Standardgröße
-zoom-out = Verkleinern
+## View
+zoom-in = Zoom +
+default-size = Standard
+zoom-out = Zoom -
 view = Ansicht
-grid-view = Rasteransicht
+grid-view = Bilderansicht
 list-view = Listenansicht
-show-hidden-files = Versteckte Dateien anzeigen
-list-directories-first = Verzeichnisse zuerst auflisten
+show-hidden-files = versteckte Dateien anzeigen
+list-directories-first = Verzeichnisse zuerst
 menu-settings = Einstellungen...
-menu-about = Über COSMIC Dateien...
+menu-about = Über COSMIC Medien Betrachter...
+
+## Sort
+sort = Sort
+sort-a-z = A-Z
+sort-z-a = Z-A
+sort-newest-first = Neuestes zuerst
+sort-oldest-first = Ältestes zuerst
+sort-smallest-to-largest = Kleinstes zu Größtes
+sort-largest-to-smallest = Größtes zu Kleinstes
 
 # Buttons
 button-back = Zurück
@@ -175,8 +245,8 @@ button-previous-file = Vorherige
 button-next-file = Nächste
 button-play = Abspielen
 button-pause = Pause
-button-mute = Stumm
-button-loop-on = Wiederholen
+button-mute = Ton aus
+button-loop-on = wiederholen
 button-loop-off = nicht wiederholen
 button-subtitle = Untertitel
 button-audio = Tonspur
@@ -185,19 +255,20 @@ button-zoom-minus = Zoom -
 button-zoom-fit = Anpassen
 button-seek = ...
 
-description-back = Zurück zum Dateimanager
-description-previous-element = Vorheriges Element in der Liste
-description-next-element = Nächstes Element in der Liste
-description-play = Die Datei abspielen
-description-pause = Das abspielen pausieren
-description-mute = Den Ton stumm schalten
-description-loop = Die aktuelle Datei wiederholen
-description-subtitle = Wähle die Untertitel
-description-audio = Wähle die Tonspur
-description-zoom-plus = Bild vergrößern
-description-zoom-minus = Bild verkleinern
-description-zoom-fit = Bild an Fenstergröße anpassen
-description-seek = Wähle aus Dateien in der Liste
+descripttion-back = Zurück zur Dateiübersicht
+description-previous-element = Vorherige Datei in der Liste
+description-next-element = Nächste Datei in der Liste
+description-play = Abspielen
+description-pause = Pause
+description-mute = Ton aus
+description-loop-on = Aktuelles Medium wiederholen
+description-loop-off = Aktuelles Medium nicht wiederholen
+description-subtitle = Untertitel auswählen
+description-audio = Tonspur auswählen
+description-zoom-plus = hinein Zoomen
+description-zoom-minus = heraus Zoomen
+description-zoom-fit = Bild in das Fenster einpassen
+description-seek = Aus anderen Dateien wählen
 
 # Player
 audio = Tonspur
