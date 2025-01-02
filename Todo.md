@@ -22,6 +22,7 @@ X Make recursive scan run in the background
 - sort by release date / creation / modification time
 - multiple file rename feature, using the sort order of the model
 - fix the About and settings panel
+- display detail information of entry?
 - view files of only one type?
 - adjust the sort options when just one type is displayed and more details are available?
 - find similar images in background? (duplo-rs runs very long, better started on the command line!)
@@ -32,8 +33,9 @@ X add a popup selection strip of the files/images in the same directory
 X include images into the database
 
 - make the popup strip disappear once the mouse is no longer hovering over it?
-- adjust the size of the image viewer on zoom-in if there is space in the window?
-- allow images larger than 2000x2000 pixels to be displayed without scaling it down? WGPU crashes currently.
+- adjust the size and shape away from the original aspect ratio of the image viewer on zoom-in if there is room to grow in the window?
+- allow images larger than 2000x2000 pixels to be displayed without scaling it down?
+  (cosmic::iced_WGPU crashes currently if files over 2048 are attempted to load into the buffer).
 
 ## Video viewer
 

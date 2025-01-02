@@ -5,6 +5,7 @@ use chrono::NaiveDate;
 
 #[derive(Clone, Debug, PartialEq, PartialOrd)]
 pub struct SearchData {
+    pub search_id: u32,
     pub search_string: String,
     pub from_string: String,
     pub from_value: f32,
@@ -36,6 +37,7 @@ pub struct SearchData {
 impl Default for SearchData {
     fn default() -> SearchData {
         SearchData {
+            search_id: 0,
             search_string: String::new(),
             from_string: String::new(),
             from_value: 0.0,
@@ -73,7 +75,7 @@ fn search_video_metadata(
     let mut files = Vec::new();
     let mut videos = Vec::new();
     let mut ids = Vec::new();
-    let mut video_id = 0_i64;
+    let mut video_id;
 
     match connection.prepare(&query) {
         Ok(mut statement) => {
@@ -247,7 +249,7 @@ fn search_audio_metadata(
     let mut files = Vec::new();
     let mut audios = Vec::new();
     let mut ids = Vec::new();
-    let mut audio_id = 0_i64;
+    let mut audio_id;
 
     match connection.prepare(&query) {
         Ok(mut statement) => {
@@ -407,7 +409,7 @@ fn search_image_metadata(
     let mut files = Vec::new();
     let mut images = Vec::new();
     let mut ids = Vec::new();
-    let mut image_id = 0_i64;
+    let mut image_id;
 
     match connection.prepare(&query) {
         Ok(mut statement) => {
@@ -627,7 +629,7 @@ fn search_file_metadata(
 ) -> Vec<FileMetadata> {
     let mut files = Vec::new();
     let mut ids = Vec::new();
-    let mut file_id = 0_i64;
+    let mut file_id;
 
     match connection.prepare(&query) {
         Ok(mut statement) => {
@@ -746,7 +748,7 @@ fn string_to_linux_time(date: &str) -> i64 {
     linuxtime
 }
 
-pub fn search(
+pub fn search_items(
     connection: &mut rusqlite::Connection, 
     search: &SearchData,
 ) -> Vec<crate::tab::Item> {
@@ -3202,7 +3204,8 @@ pub fn insert_file(
         }
     }
     match connection.execute(
-        "INSERT INTO file_metadata (filepath, creation_time, modification_time, file_type, metadata_id) VALUES (?1, ?2, ?3, ?4, ?5)",
+        "INSERT INTO file_metadata (filepath, creation_time, modification_time, 
+            file_type, metadata_id) VALUES (?1, ?2, ?3, ?4, ?5)",
         params![&path, &creation_time, &modification_time, &file_type, &metadata_id],
     ) {
         Ok(_retval) => {}, //log::warn!("Inserted {} video with ID {} and location {} into candidates.", video.id, video.index, candidate_id),
@@ -3251,6 +3254,281 @@ pub fn update_file(
     insert_file(connection, path, metadata, file_type, metadata_id, known_files);
 }   
 
+
+pub fn insert_search(
+    connection: &mut rusqlite::Connection, 
+    s: SearchData,
+) {
+    match connection.execute(
+        "INSERT INTO searches (search_string, from_string, from_value, to_string, to_value
+                image, video, audio, filepath, title, description, actor, director, artist, album_artist,
+                duration, creation_date, modification_date, release_date, 
+                lense_model, focal_length, exposure_time, fnumber,
+                gps_latitude, gps_longitude, gps_altitude) VALUES 
+                (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23, ?24, ?25, ?26)",
+        params![&s.search_string, &s.from_string, &s.from_value, &s.to_string, &s.to_value, 
+                &s.image, &s.video, &s.audio, &s.filepath, &s.title, &s.description, &s.actor, &s.director, &s.artist, &s.album_artist,
+                &s.duration, &s.creation_date, &s.modification_date, &s.release_date,
+                &s.lense_model, &s.focal_length, &s.exposure_time, &s.fnumber,
+                &s.gps_latitude, &s.gps_longitude, &s.gps_altitude],
+    ) {
+        Ok(_retval) => {}, //log::warn!("Inserted {} video with ID {} and location {} into candidates.", video.id, video.index, candidate_id),
+        Err(error) => {
+            log::error!("Failed to insert video into  database: {}", error);
+            return;
+        }
+    }
+}
+
+pub fn delete_search(    
+    connection: &mut rusqlite::Connection, 
+    s: SearchData,
+) {
+    let _ret = connection.execute(
+        "DELETE FROM searches WHERE search_id = ?1",
+        params![&s.search_id],
+    );
+}
+
+pub fn update_search(    
+    connection: &mut rusqlite::Connection, 
+    s: SearchData,
+) {
+    delete_search(connection, s.clone());
+    insert_search(connection, s);
+}   
+
+pub fn searches(
+    connection: &mut rusqlite::Connection, 
+    filepath: &str,
+) -> Vec<SearchData> {
+    let mut searches = Vec::new();
+    let query = "SELECT * FROM searches";
+    match connection.prepare(query) {
+        Ok(mut statement) => {
+            match statement.query(params![filepath]) {
+                Ok(mut rows) => {
+                    loop {
+                        match rows.next() {
+                            Ok(Some(row)) => {
+                                let mut v = SearchData {..Default::default()};
+                                match row.get(0) {
+                                    Ok(val) => {
+                                        v.search_id = val;
+                                    },
+                                    Err(error) => {
+                                        log::error!("Failed to read id for video: {}", error);
+                                        continue;
+                                    }
+                                }
+                                match row.get(1) {
+                                    Ok(val) => v.search_string = val,
+                                    Err(error) => {
+                                        log::error!("Failed to read video_id for video: {}", error);
+                                        continue;
+                                    }
+                                }
+                                match row.get(2) {
+                                    Ok(val) => v.from_string = val,
+                                    Err(error) => {
+                                        log::error!("Failed to read screenshot_id for video: {}", error);
+                                        continue;
+                                    }
+                                }
+                                match row.get(3) {
+                                    Ok(val) => v.from_value = val,
+                                    Err(error) => {
+                                        log::error!("Failed to read runtime for video: {}", error);
+                                        continue;
+                                    }
+                                }
+                                match row.get(4) {
+                                    Ok(val) => v.to_string = val,
+                                    Err(error) => {
+                                        log::error!("Failed to read runtime for video: {}", error);
+                                        continue;
+                                    }
+                                }
+                                match row.get(5) {
+                                    Ok(val) => v.to_value = val,
+                                    Err(error) => {
+                                        log::error!("Failed to read runtime for video: {}", error);
+                                        continue;
+                                    }
+                                }
+                                match row.get(6) {
+                                    Ok(val) => v.image = val,
+                                    Err(error) => {
+                                        log::error!("Failed to read runtime for video: {}", error);
+                                        continue;
+                                    }
+                                }
+                                match row.get(7) {
+                                    Ok(val) => v.video = val,
+                                    Err(error) => {
+                                        log::error!("Failed to read runtime for video: {}", error);
+                                        continue;
+                                    }
+                                }
+                                match row.get(8) {
+                                    Ok(val) => v.audio = val,
+                                    Err(error) => {
+                                        log::error!("Failed to read runtime for video: {}", error);
+                                        continue;
+                                    }
+                                }
+                                match row.get(9) {
+                                    Ok(val) => v.filepath = val,
+                                    Err(error) => {
+                                        log::error!("Failed to read runtime for video: {}", error);
+                                        continue;
+                                    }
+                                }
+                                match row.get(10) {
+                                    Ok(val) => v.title = val,
+                                    Err(error) => {
+                                        log::error!("Failed to read runtime for video: {}", error);
+                                        continue;
+                                    }
+                                }
+                                match row.get(11) {
+                                    Ok(val) => v.description = val,
+                                    Err(error) => {
+                                        log::error!("Failed to read runtime for video: {}", error);
+                                        continue;
+                                    }
+                                }
+                                match row.get(12) {
+                                    Ok(val) => v.actor = val,
+                                    Err(error) => {
+                                        log::error!("Failed to read runtime for video: {}", error);
+                                        continue;
+                                    }
+                                }
+                                match row.get(13) {
+                                    Ok(val) => v.director = val,
+                                    Err(error) => {
+                                        log::error!("Failed to read runtime for video: {}", error);
+                                        continue;
+                                    }
+                                }
+                                match row.get(14) {
+                                    Ok(val) => v.artist = val,
+                                    Err(error) => {
+                                        log::error!("Failed to read runtime for video: {}", error);
+                                        continue;
+                                    }
+                                }
+                                match row.get(15) {
+                                    Ok(val) => v.album_artist = val,
+                                    Err(error) => {
+                                        log::error!("Failed to read runtime for video: {}", error);
+                                        continue;
+                                    }
+                                }
+                                match row.get(16) {
+                                    Ok(val) => v.duration = val,
+                                    Err(error) => {
+                                        log::error!("Failed to read runtime for video: {}", error);
+                                        continue;
+                                    }
+                                }
+                                match row.get(17) {
+                                    Ok(val) => v.creation_date = val,
+                                    Err(error) => {
+                                        log::error!("Failed to read runtime for video: {}", error);
+                                        continue;
+                                    }
+                                }
+                                match row.get(18) {
+                                    Ok(val) => v.modification_date = val,
+                                    Err(error) => {
+                                        log::error!("Failed to read runtime for video: {}", error);
+                                        continue;
+                                    }
+                                }
+                                match row.get(19) {
+                                    Ok(val) => v.release_date = val,
+                                    Err(error) => {
+                                        log::error!("Failed to read runtime for video: {}", error);
+                                        continue;
+                                    }
+                                }
+                                match row.get(20) {
+                                    Ok(val) => v.lense_model = val,
+                                    Err(error) => {
+                                        log::error!("Failed to read runtime for video: {}", error);
+                                        continue;
+                                    }
+                                }
+                                match row.get(21) {
+                                    Ok(val) => v.focal_length = val,
+                                    Err(error) => {
+                                        log::error!("Failed to read runtime for video: {}", error);
+                                        continue;
+                                    }
+                                }
+                                match row.get(22) {
+                                    Ok(val) => v.exposure_time = val,
+                                    Err(error) => {
+                                        log::error!("Failed to read runtime for video: {}", error);
+                                        continue;
+                                    }
+                                }
+                                match row.get(23) {
+                                    Ok(val) => v.fnumber = val,
+                                    Err(error) => {
+                                        log::error!("Failed to read runtime for video: {}", error);
+                                        continue;
+                                    }
+                                }
+                                match row.get(24) {
+                                    Ok(val) => v.gps_latitude = val,
+                                    Err(error) => {
+                                        log::error!("Failed to read runtime for video: {}", error);
+                                        continue;
+                                    }
+                                }
+                                match row.get(25) {
+                                    Ok(val) => v.gps_longitude = val,
+                                    Err(error) => {
+                                        log::error!("Failed to read runtime for video: {}", error);
+                                        continue;
+                                    }
+                                }
+                                match row.get(26) {
+                                    Ok(val) => v.gps_altitude = val,
+                                    Err(error) => {
+                                        log::error!("Failed to read runtime for video: {}", error);
+                                        continue;
+                                    }
+                                }
+                                searches.push(v);
+                            },
+                            Ok(None) => {
+                                //log::warn!("No data read from indices.");
+                                break;
+                            },
+                            Err(error) => {
+                                log::error!("Failed to read a row from indices: {}", error);
+                                break;
+                            }
+                        }
+                    }
+                },
+                Err(err) => {
+                    log::error!("could not read line from videostore_indices database: {}", err);
+                }
+            }
+        },
+        Err(err) => {
+            log::error!("could not prepare SQL statement: {}", err);
+        }
+    }
+
+    searches
+}
+
 pub fn connect() -> Result<rusqlite::Connection, rusqlite::Error> {
     let sqlite_file;
     let connection;
@@ -3291,7 +3569,7 @@ pub fn connect() -> Result<rusqlite::Connection, rusqlite::Error> {
             }
         }
         match connection.execute(
-            "CREATE INDEX index_file_metadata_video_id ON file_metadata (video_id)", (),
+            "CREATE INDEX index_file_metadata_metadata_id ON file_metadata (metadata_id)", (),
         ) {
             Ok(_ret) => {},
             Err(error) => {
@@ -3636,7 +3914,7 @@ pub fn connect() -> Result<rusqlite::Connection, rusqlite::Error> {
             }
         }
         match connection.execute(
-            "CREATE INDEX index_image_ImageTitle ON image_metadata (title)", (),
+            "CREATE INDEX index_image_name ON image_metadata (name)", (),
         ) {
             Ok(_ret) => {},
             Err(error) => {
@@ -3644,7 +3922,45 @@ pub fn connect() -> Result<rusqlite::Connection, rusqlite::Error> {
                 return Err(error);
             }
         }
-    } else {
+        match connection.execute("
+            CREATE TABLE searches (
+                search_id INTEGER,
+                search_string  TEXT, 
+                from_string  TEXT, 
+                from_value DOUBLE, 
+                to_string  TEXT, 
+                to_value DOUBLE, 
+                image  INTEGER, 
+                video  INTEGER, 
+                audio  INTEGER, 
+                filepath  INTEGER, 
+                title  INTEGER, 
+                description  INTEGER, 
+                actor  INTEGER, 
+                director  INTEGER, 
+                artist  INTEGER, 
+                album_artist  INTEGER, 
+                duration  INTEGER, 
+                creation_date  INTEGER, 
+                modification_date  INTEGER, 
+                release_date  INTEGER, 
+                lense_model  INTEGER, 
+                focal_length  INTEGER, 
+                exposure_time  INTEGER, 
+                fnumber  INTEGER, 
+                gps_latitude  INTEGER, 
+                gps_longitude  INTEGER, 
+                gps_altitude  INTEGER, 
+                PRIMARY KEY(search_id AUTOINCREMENT)
+            )", [],
+        ) {
+            Ok(_ret) => {},
+            Err(error) => {
+                log::error!("Failed to create table image_metadata: {}", error);
+                return Err(error);
+            }
+        }
+} else {
         connection = Connection::open(sqlite_file)?;
     }
     Ok(connection)
