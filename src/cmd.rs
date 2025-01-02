@@ -56,3 +56,58 @@ impl CmdRunner {
     }
 }
 
+fn free_file_name(
+    pattern: String,
+    ext: String,
+    numdigits: i32,
+    num: i32,
+) -> std::path::PathBuf {
+    let to_name;
+    if numdigits == 1 {
+        to_name = format!("{}{:01}{}", pattern, num, ext);
+    } else if numdigits == 2 {
+        to_name = format!("{}{:02}{}", pattern, num, ext);
+    } else if numdigits == 3 {
+        to_name = format!("{}{:03}{}", pattern, num, ext);
+    } else if numdigits == 4 {
+        to_name = format!("{}{:04}{}", pattern, num, ext);
+    } else if numdigits == 5 {
+        to_name = format!("{}{:05}{}", pattern, num, ext);
+    } else {
+        to_name = format!("{}{:06}{}", pattern, num, ext);
+    }
+    let to = std::path::PathBuf::from(&to_name);
+    to
+}
+
+pub fn rename_with_pattern(
+    selected: Vec<std::path::PathBuf>,
+    pattern: String,
+    start_val: i32,
+    numdigits: i32,
+) {
+    if !selected.is_empty() {
+        let mut num = start_val;
+        for path in selected {
+            let mut ext = String::new();
+            if let Some(extension) = path.extension() {
+                ext = format!(".{}", crate::parsers::osstr_to_string(extension.to_os_string()));
+            }
+            let name = crate::parsers::osstr_to_string(path.clone().into_os_string());
+            if !path.is_dir() {
+                let mut to = free_file_name(pattern.clone(), ext.clone(), numdigits, num);
+                while to.is_file() {
+                    num += 1;
+                    to = free_file_name(pattern.clone(), ext.clone(), numdigits, num);
+                }
+                match std::fs::rename(path, to) {
+                    Err(error) => log::error!("Failed to rename file {}: {}", name, error),
+                    _ => {},
+                }
+                num += 1;
+            }
+        }
+    }
+
+}
+

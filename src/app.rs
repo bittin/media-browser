@@ -303,6 +303,7 @@ pub enum Message {
     RecursiveScanDirectories(Option<Entity>),
     RescanTrash,
     Rename(Option<Entity>),
+    RenameWithPattern(Option<Entity>, String, i32, i32),
     ReplaceResult(ReplaceResult),
     RestoreFromTrash(Option<Entity>),
     SearchActivate,
@@ -3121,6 +3122,26 @@ impl Application for App {
                                 }
                                 return widget::text_input::focus(self.dialog_text_input.clone());
                             }
+                        }
+                    }
+                }
+            }
+            Message::RenameWithPattern(entity_opt, pattern, start_val, numdigits) => {
+                let entity = entity_opt.unwrap_or_else(|| self.tab_model.active());
+                if let Some(tab) = self.tab_model.data_mut::<Tab>(entity) {
+                    if let Location::Path(parent) = &tab.location {
+                        if let Some(items) = tab.items_opt() {
+                            let mut selected = Vec::new();
+                            for item in items.iter() {
+                                if item.selected {
+                                    if let Some(Location::Path(path)) = &item.location_opt {
+                                        selected.push(path.clone());
+                                    }
+                                }
+                            }
+                            let _joinhandle = std::thread::spawn(
+                                move || crate::cmd::rename_with_pattern(selected, pattern, start_val, numdigits)
+                            );
                         }
                     }
                 }
