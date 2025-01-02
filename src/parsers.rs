@@ -303,7 +303,7 @@ fn parse_exif(path: &PathBuf, metadata: &mut crate::sql::ImageMetadata) {
     let mut parser = MediaParser::new();
     if let Some(ext) = path.extension() {
         let extension = osstr_to_string(ext.to_os_string()).to_ascii_lowercase();
-        if &extension == "png" || &extension == "gif" {
+        if &extension == "png" || &extension == "gif" || &extension == "webp" {
             return;
         }
     }
