@@ -114,7 +114,7 @@ where
         renderer: &Renderer,
         limits: &layout::Limits,
     ) -> layout::Node {
-        let image_size = renderer.dimensions(&self.handle);
+        let image_size = renderer.measure_image(&self.handle);
         let image_size_f32 = Size::new(image_size.width as f32, image_size.height as f32);
         let raw_size = limits.resolve(
             self.width,
@@ -335,7 +335,7 @@ where
 
         renderer.with_layer(bounds, |renderer| {
             renderer.with_translation(translation, |renderer| {
-                image::Renderer::draw(
+                image::Renderer::draw_image(
                     renderer,
                     self.handle.clone(),
                     self.filter_method,
@@ -344,6 +344,8 @@ where
                         y: bounds.y,
                         ..Rectangle::with_size(image_size)
                     },
+                    cosmic::iced::Radians::from(0.0),
+                    1.0,        
                     [0.0; 4],
                 );
             });
@@ -422,7 +424,7 @@ pub fn image_size<Renderer>(
 where
     Renderer: image::Renderer,
 {
-    let Size { width, height } = renderer.dimensions(handle);
+    let Size { width, height } = renderer.measure_image(handle);
 
     let (width, height) = {
         let dimensions = (width as f32, height as f32);

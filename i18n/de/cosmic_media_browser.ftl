@@ -14,7 +14,16 @@ today = Heute
 # List view
 name = Name
 modified = Geändert
+trashed-on = Gelöscht
 size = Größe
+
+# Progress footer
+details = Details
+dismiss = Dismiss message
+operations-running = {$running} operations running ({$percent}%)...
+operations-running-finished = {$running} operations running ({$percent}%), {$finished} finished...
+pause = Pause
+resume = Resume
 
 # Dialogs
 
@@ -24,6 +33,9 @@ create-archive = Create archive
 ## Empty Trash Dialog
 empty-trash = Papierkorb leeren
 empty-trash-warning = Sind Sie sicher, dass Sie den alle Dateien im Papierkorb löschen wollen?
+
+## Mount Error Dialog
+mount-error = Kann auf Laufwerk nicht zugreifen
 
 ## New File/Folder Dialog
 create-new-file = Neue Datei
@@ -51,6 +63,10 @@ open-multiple-folders = Open multiple folders
 save = Speichern
 save-file = Datei speichern
 
+## Open With Dialog
+open-with-title = How do you want to open "{$name}"?
+browse-store = Browse {$store}
+
 ## Rename Dialog
 rename-file = Datei umbenennen
 rename-folder = Ordner umbenennen
@@ -65,6 +81,11 @@ replace-with = Ersetze durch
 apply-to-all = Auf alle anwenden
 keep-both = Beide behalten
 skip = Überspringen
+
+## Set as Executable and Launch Dialog
+set-executable-and-launch = Set as executable and launch
+set-executable-and-launch-description = Do you want to set "{$name}" as executable and launch it?
+set-and-launch = Set and launch
 
 ## Metadata Dialog
 owner = Besitzer
@@ -105,20 +126,16 @@ try-again = Nochmal versuchen
 username = Nutzername
 
 ## Operations
+cancelled = Abgebrochen
 edit-history = Historie bearbeiten
 history = Historie
 no-history = leer.
 pending = Ausstehend
+progress = {$percent}%
+progress-cancelled = {$percent}%, abgebrochen
+progress-paused = {$percent}%, pausiert
 failed = Fehlgeschlagen
 complete = Fertig
-compressing = Compressing {$items} {$items ->
-        [one] item
-        *[other] items
-    } from {$from} to {$to}
-compressed = Compressed {$items} {$items ->
-        [one] item
-        *[other] items
-    } from {$from} to {$to}
 copy_noun = Copy
 creating = Creating {$name} in {$parent}
 created = Created {$name} in {$parent}
@@ -132,14 +149,8 @@ copied = Copied {$items} {$items ->
     } from {$from} to {$to}
 emptying-trash = Emptying {trash}
 emptied-trash = Emptied {trash}
-extracting = Extracting {$items} {$items ->
-        [one] item
-        *[other] items
-    } from {$from} to {$to}
-extracted = Extracted {$items} {$items ->
-        [one] item
-        *[other] items
-    } from {$from} to {$to}
+setting-executable-and-launching = "{$name}" ausführbar machen und starten
+set-executable-and-launched = "{$name}" wurde ausführbar gemacht und gestartet
 moving = {$items} {$items ->
         [one] verschiebe Datei
         *[other] items
@@ -165,7 +176,26 @@ open-with = Öffnen mit...
 default-app = {$name} (default)
 
 ## Show details
-show-details = Details zeigen
+show-details = Show details
+type = Type: {$mime}
+items = Items: {$items}
+item-size = Size: {$size}
+item-created = Created: {$created}
+item-modified = Modified: {$modified}
+item-accessed = Accessed: {$accessed}
+calculating = Calculating...
+
+## Search
+search-context = Search
+mediatypes = Suche Medien Typen
+images = Images
+videos = Videos
+audios = Audio Dateien
+textentry = Text der gesucht werden soll
+text-from = Von / Minimum (Text)
+text-to = Bis / Maximum (Text)
+value-from = Von / Minimum (Zahl)
+value-to = Bis / Maximum (Zahl)
 
 ## Settings
 settings = Einstellungen

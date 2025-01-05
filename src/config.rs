@@ -4,22 +4,19 @@ use std::{any::TypeId, num::NonZeroU16, path::PathBuf};
 
 use cosmic::{
     cosmic_config::{self, cosmic_config_derive::CosmicConfigEntry, CosmicConfigEntry},
-    iced::subscription::Subscription,
+    iced::Subscription,
     theme, Application,
 };
 use serde::{Deserialize, Serialize};
 
-use crate::{
-    app::App,
-    tab::{HeadingOptions, View},
-};
+use crate::{app::App, tab::View};
 
 pub const CONFIG_VERSION: u64 = 1;
 
 // Default icon sizes
 pub const ICON_SIZE_LIST: u16 = 32;
 pub const ICON_SIZE_LIST_CONDENSED: u16 = 48;
-pub const ICON_SIZE_GRID: u16 = 128;
+pub const ICON_SIZE_GRID: u16 = 64;
 // TODO: 5 is an arbitrary number. Maybe there's a better icon size max
 pub const ICON_SCALE_MAX: u16 = 5;
 
@@ -93,9 +90,12 @@ impl Favorite {
 }
 
 #[derive(Clone, CosmicConfigEntry, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(default)]
 pub struct Config {
     pub app_theme: AppTheme,
+    pub desktop: DesktopConfig,
     pub favorites: Vec<Favorite>,
+    pub show_details: bool,
     pub tab: TabConfig,
 }
 
@@ -133,6 +133,7 @@ impl Default for Config {
     fn default() -> Self {
         Self {
             app_theme: AppTheme::System,
+            desktop: DesktopConfig::default(),
             favorites: vec![
                 Favorite::Home,
                 Favorite::Documents,
@@ -141,7 +142,26 @@ impl Default for Config {
                 Favorite::Pictures,
                 Favorite::Videos,
             ],
+            show_details: false,
             tab: TabConfig::default(),
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq, CosmicConfigEntry, Deserialize, Serialize)]
+#[serde(default)]
+pub struct DesktopConfig {
+    pub show_content: bool,
+    pub show_mounted_drives: bool,
+    pub show_trash: bool,
+}
+
+impl Default for DesktopConfig {
+    fn default() -> Self {
+        Self {
+            show_content: true,
+            show_mounted_drives: false,
+            show_trash: false,
         }
     }
 }
@@ -152,15 +172,13 @@ impl Default for Config {
 /// These options are set globally through the main config, but each tab may change options
 /// locally. Local changes aren't saved to the main config.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, CosmicConfigEntry, Deserialize, Serialize)]
+#[serde(default)]
 pub struct TabConfig {
     pub view: View,
     /// Show folders before files
     pub folders_first: bool,
     /// Show hidden files and folders
     pub show_hidden: bool,
-    /// Sorter
-    pub sort_name: HeadingOptions,
-    pub sort_direction: bool,
     /// Icon zoom
     pub icon_sizes: IconSizes,
 }
@@ -168,11 +186,9 @@ pub struct TabConfig {
 impl Default for TabConfig {
     fn default() -> Self {
         Self {
-            view: View::Grid,
+            view: View::List,
             folders_first: true,
             show_hidden: false,
-            sort_name: HeadingOptions::Name,
-            sort_direction: true,
             icon_sizes: IconSizes::default(),
         }
     }
@@ -185,6 +201,7 @@ macro_rules! percent {
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, CosmicConfigEntry, Deserialize, Serialize)]
+#[serde(default)]
 pub struct IconSizes {
     pub list: NonZeroU16,
     pub grid: NonZeroU16,

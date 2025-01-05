@@ -66,9 +66,12 @@ flate2 = "1.0"
 liblzma = { version = "0.3", optional = true } #TODO: replace with pure Rust crate
 tar = "0.4.43"
 # Internationalization
-i18n-embed = { version = "0.13", features = ["fluent-system", "desktop-requester"] }
-i18n-embed-fl = "0.6"
-rust-embed = "6"
+i18n-embed = { version = "0.14", features = [
+    "fluent-system",
+    "desktop-requester",
+] }
+i18n-embed-fl = "0.7"
+rust-embed = "8"
 slotmap = "1.0.7"
 recently-used-xbel = "1.1.0"
 zip = "2.1.6"
@@ -77,9 +80,8 @@ uzers = "0.12.0"
 
 [dependencies.libcosmic]
 git = "https://github.com/pop-os/libcosmic.git"
-branch = "prev-master"
 default-features = false
-features = ["a11y", "clipboard", "multi-window", "tokio", "winit", "wgpu"]
+features = ["a11y", "multi-window", "tokio", "winit", "wgpu"]
 
 #[dependencies.iced_video_player]
 #git = "https://github.com/jackpot51/iced_video_player.git"

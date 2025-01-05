@@ -1,6 +1,7 @@
-use cosmic::iced::Rectangle;
-use cosmic::iced_wgpu::primitive::pipeline::{Primitive, Storage};
-use cosmic::iced_wgpu::wgpu;
+use cosmic::iced;
+use cosmic::iced::wgpu::PipelineCompilationOptions;
+use cosmic::iced_core::Rectangle;
+use cosmic::iced_wgpu::{self, primitive::Primitive, wgpu};
 use std::{
     collections::{btree_map::Entry, BTreeMap},
     sync::{
@@ -32,12 +33,12 @@ struct VideoPipeline {
 impl VideoPipeline {
     fn new(device: &wgpu::Device, format: wgpu::TextureFormat) -> Self {
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
-            label: Some("cosmic-media-browser shader"),
+            label: Some("iced_video_player shader"),
             source: wgpu::ShaderSource::Wgsl(include_str!("shader.wgsl").into()),
         });
 
         let bg0_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-            label: Some("cosmic-media-browser bind group 0 layout"),
+            label: Some("iced_video_player bind group 0 layout"),
             entries: &[
                 wgpu::BindGroupLayoutEntry {
                     binding: 0,
@@ -79,17 +80,19 @@ impl VideoPipeline {
         });
 
         let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-            label: Some("cosmic-media-browser pipeline layout"),
+            label: Some("iced_video_player pipeline layout"),
             bind_group_layouts: &[&bg0_layout],
             push_constant_ranges: &[],
         });
 
-        let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-            label: Some("cosmic-media-browser pipeline"),
+        let pipeline = device.create_render_pipeline(
+            &wgpu::RenderPipelineDescriptor {
+            label: Some("iced_video_player pipeline"),
             layout: Some(&layout),
             vertex: wgpu::VertexState {
                 module: &shader,
                 entry_point: "vs_main",
+                compilation_options: PipelineCompilationOptions {..Default::default()},
                 buffers: &[],
             },
             primitive: wgpu::PrimitiveState::default(),
@@ -102,6 +105,7 @@ impl VideoPipeline {
             fragment: Some(wgpu::FragmentState {
                 module: &shader,
                 entry_point: "fs_main",
+                compilation_options: PipelineCompilationOptions {..Default::default()},
                 targets: &[Some(wgpu::ColorTargetState {
                     format,
                     blend: None,
@@ -109,10 +113,11 @@ impl VideoPipeline {
                 })],
             }),
             multiview: None,
+            cache: None,
         });
 
         let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
-            label: Some("cosmic-media-browser sampler"),
+            label: Some("iced_video_player sampler"),
             address_mode_u: wgpu::AddressMode::ClampToEdge,
             address_mode_v: wgpu::AddressMode::ClampToEdge,
             address_mode_w: wgpu::AddressMode::ClampToEdge,
@@ -145,7 +150,7 @@ impl VideoPipeline {
     ) {
         if let Entry::Vacant(entry) = self.videos.entry(video_id) {
             let texture_y = device.create_texture(&wgpu::TextureDescriptor {
-                label: Some("cosmic-media-browser texture"),
+                label: Some("iced_video_player texture"),
                 size: wgpu::Extent3d {
                     width,
                     height,
@@ -160,7 +165,7 @@ impl VideoPipeline {
             });
 
             let texture_uv = device.create_texture(&wgpu::TextureDescriptor {
-                label: Some("cosmic-media-browser texture"),
+                label: Some("iced_video_player texture"),
                 size: wgpu::Extent3d {
                     width: width / 2,
                     height: height / 2,
@@ -175,7 +180,7 @@ impl VideoPipeline {
             });
 
             let view_y = texture_y.create_view(&wgpu::TextureViewDescriptor {
-                label: Some("cosmic-media-browser texture view"),
+                label: Some("iced_video_player texture view"),
                 format: None,
                 dimension: None,
                 aspect: wgpu::TextureAspect::All,
@@ -197,14 +202,14 @@ impl VideoPipeline {
             });
 
             let buffer = device.create_buffer(&wgpu::BufferDescriptor {
-                label: Some("cosmic-media-browser uniform buffer"),
+                label: Some("iced_video_player uniform buffer"),
                 size: std::mem::size_of::<Uniforms>() as _,
                 usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::UNIFORM,
                 mapped_at_creation: false,
             });
 
             let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-                label: Some("cosmic-media-browser bind group"),
+                label: Some("iced_video_player bind group"),
                 layout: &self.bg0_layout,
                 entries: &[
                     wgpu::BindGroupEntry {
@@ -247,7 +252,7 @@ impl VideoPipeline {
 
         queue.write_texture(
             wgpu::ImageCopyTexture {
-                texture: &texture_y,
+                texture: texture_y,
                 mip_level: 0,
                 origin: wgpu::Origin3d::ZERO,
                 aspect: wgpu::TextureAspect::All,
@@ -267,7 +272,7 @@ impl VideoPipeline {
 
         queue.write_texture(
             wgpu::ImageCopyTexture {
-                texture: &texture_uv,
+                texture: texture_uv,
                 mip_level: 0,
                 origin: wgpu::Origin3d::ZERO,
                 aspect: wgpu::TextureAspect::All,
@@ -301,7 +306,7 @@ impl VideoPipeline {
         }
     }
 
-    fn prepare(&mut self, queue: &wgpu::Queue, video_id: u64, bounds: &Rectangle) {
+    fn prepare(&mut self, queue: &wgpu::Queue, video_id: u64, bounds: &iced::Rectangle) {
         if let Some(video) = self.videos.get(&video_id) {
             let uniforms = Uniforms {
                 rect: [
@@ -326,12 +331,12 @@ impl VideoPipeline {
         &self,
         target: &wgpu::TextureView,
         encoder: &mut wgpu::CommandEncoder,
-        viewport: &Rectangle<u32>,
+        viewport: &iced::Rectangle<u32>,
         video_id: u64,
     ) {
         if let Some(video) = self.videos.get(&video_id) {
             let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: Some("cosmic-media-browser render pass"),
+                label: Some("iced_video_player render pass"),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                     view: target,
                     resolve_target: None,
@@ -412,14 +417,13 @@ fn render(
 impl Primitive for VideoPrimitive {
     fn prepare(
         &self,
-        format: wgpu::TextureFormat,
         device: &wgpu::Device,
         queue: &wgpu::Queue,
-        bounds: cosmic::iced::Rectangle,
-        target_size: cosmic::iced::Size<u32>,
-        scale_factor: f32,
-        storage: &mut Storage,
-        ) {
+        format: wgpu::TextureFormat,
+        storage: &mut iced_wgpu::primitive::Storage,
+        bounds: &Rectangle,
+        _viewport: &iced_wgpu::graphics::Viewport,
+    ) {
         if !storage.has::<VideoPipeline>() {
             storage.store(VideoPipeline::new(device, format));
         }
@@ -442,13 +446,12 @@ impl Primitive for VideoPrimitive {
 
     fn render(
         &self,
-        storage: &Storage,
-        target: &wgpu::TextureView,
-        target_size: cosmic::iced::Size<u32>,
-        viewport: cosmic::iced::Rectangle<u32>,
         encoder: &mut wgpu::CommandEncoder,
+        storage: &iced_wgpu::primitive::Storage,
+        target: &wgpu::TextureView,
+        clip_bounds: &Rectangle<u32>,
     ) {
         let pipeline = storage.get::<VideoPipeline>().unwrap();
-        pipeline.draw(target, encoder, &viewport, self.video_id);
+        pipeline.draw(target, encoder, &clip_bounds, self.video_id);
     }
 }

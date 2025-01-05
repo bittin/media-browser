@@ -1,19 +1,14 @@
 // Copyright 2023 System76 <info@system76.com>
 // SPDX-License-Identifier: GPL-3.0-only
 
-#[cfg(feature = "winit")]
-use cosmic::iced::multi_window::Application as IcedApplication;
-#[cfg(feature = "wayland")]
-use cosmic::iced::Application as IcedApplication;
 use cosmic::{
-    app::{self, cosmic::Cosmic, message, Command, Core},
+    app::{self, context_drawer, cosmic::Cosmic, message, Core, Task},
     cosmic_config, cosmic_theme, executor,
     iced::{
         event,
         futures::{self, SinkExt},
-        keyboard::{Event as KeyEvent, Modifiers},
-        subscription::{self, Subscription},
-        window, Alignment, Event, Length, Size,
+        keyboard::{Event as KeyEvent, Key, Modifiers},
+        stream, window, Alignment, Event, Length, Size, Subscription,
     },
     theme,
     widget::{
@@ -33,18 +28,20 @@ use std::{
     any::TypeId,
     collections::{HashMap, HashSet, VecDeque},
     env, fmt, fs,
+    num::NonZeroU16,
     path::PathBuf,
     str::FromStr,
-    time,
+    time::{self, Instant},
 };
 
 use crate::{
-    app::{Action, ContextPage, Message as AppMessage},
-    config::{Config, Favorite, TabConfig},
+    app::{Action, ContextPage, Message as AppMessage, PreviewItem, PreviewKind},
+    config::{Config, Favorite, IconSizes, TabConfig},
     fl, home_dir,
+    key_bind::key_binds,
     localize::LANGUAGE_SORTER,
     menu,
-    mounter::{mounters, MounterItem, MounterItems, MounterKey, MounterMessage, Mounters},
+    mounter::{MounterItem, MounterItems, MounterKey, MounterMessage, MOUNTERS},
     tab::{self, ItemMetadata, Location, Tab},
 };
 
@@ -154,7 +151,7 @@ impl<M: Send + 'static> Dialog<M> {
         path_opt: Option<PathBuf>,
         mapper: fn(DialogMessage) -> M,
         on_result: impl Fn(DialogResult) -> M + 'static,
-    ) -> (Self, Command<M>) {
+    ) -> (Self, Task<M>) {
         //TODO: only do this once somehow?
         crate::localize::localize();
 
@@ -163,18 +160,20 @@ impl<M: Send + 'static> Dialog<M> {
         let mut settings = window::Settings::default();
         settings.decorations = false;
         settings.exit_on_close_request = false;
-        settings.transparent = true;
-        settings.size = Size::new(1024.0, 640.0);
+        settings.min_size = Some(Size::new(360.0, 180.0));
         settings.resizable = true;
+        settings.size = Size::new(1024.0, 640.0);
+        settings.transparent = true;
 
         #[cfg(target_os = "linux")]
         {
             settings.platform_specific.application_id = App::APP_ID.to_string();
         }
 
-        let (window_id, window_command) = window::spawn(settings);
+        let (window_id, window_command) = window::open(settings.clone());
 
-        let core = Core::default();
+        let mut core = Core::default();
+        core.set_main_window_id(Some(window_id));
         let flags = Flags {
             kind,
             path_opt: path_opt
@@ -190,21 +189,24 @@ impl<M: Send + 'static> Dialog<M> {
             config_handler,
             config,
         };
-        let (cosmic, cosmic_command) = <Cosmic<App> as IcedApplication>::new((core, flags));
 
+        let (cosmic, cosmic_command) = Cosmic::<App>::init((core, flags));
         (
             Self {
                 cosmic,
                 mapper,
                 on_result: Box::new(on_result),
             },
-            Command::batch([window_command, cosmic_command])
-                .map(DialogMessage)
-                .map(move |message| app::Message::App(mapper(message))),
+            Task::batch([
+                window_command.map(|_id| message::none()),
+                cosmic_command
+                    .map(DialogMessage)
+                    .map(move |message| app::Message::App(mapper(message))),
+            ]),
         )
     }
 
-    pub fn set_title(&mut self, title: impl Into<String>) -> Command<M> {
+    pub fn set_title(&mut self, title: impl Into<String>) -> Task<M> {
         let mapper = self.mapper;
         self.cosmic.app.title = title.into();
         self.cosmic
@@ -234,7 +236,7 @@ impl<M: Send + 'static> Dialog<M> {
         &mut self,
         filters: impl Into<Vec<DialogFilter>>,
         filter_selected: Option<usize>,
-    ) -> Command<M> {
+    ) -> Task<M> {
         let mapper = self.mapper;
         self.cosmic.app.filters = filters.into();
         self.cosmic.app.filter_selected = filter_selected;
@@ -252,7 +254,7 @@ impl<M: Send + 'static> Dialog<M> {
             .map(self.mapper)
     }
 
-    pub fn update(&mut self, message: DialogMessage) -> Command<M> {
+    pub fn update(&mut self, message: DialogMessage) -> Task<M> {
         let mapper = self.mapper;
         let command = self
             .cosmic
@@ -261,9 +263,9 @@ impl<M: Send + 'static> Dialog<M> {
             .map(move |message| app::Message::App(mapper(message)));
         if let Some(result) = self.cosmic.app.result_opt.take() {
             let on_result_message = (self.on_result)(result);
-            Command::batch([
+            Task::batch([
                 command,
-                Command::perform(async move { app::Message::App(on_result_message) }, |x| x),
+                Task::perform(async move { app::Message::App(on_result_message) }, |x| x),
             ])
         } else {
             command
@@ -278,7 +280,7 @@ impl<M: Send + 'static> Dialog<M> {
     }
 
     pub fn window_id(&self) -> window::Id {
-        self.cosmic.app.main_window_id()
+        self.cosmic.app.flags.window_id
     }
 }
 
@@ -309,25 +311,39 @@ enum Message {
     DialogUpdate(DialogPage),
     Filename(String),
     Filter(usize),
+    Key(Modifiers, Key),
     Modifiers(Modifiers),
     MounterItems(MounterKey, MounterItems),
     NewFolder,
     NotifyEvents(Vec<DebouncedEvent>),
     NotifyWatcher(WatcherWrapper),
     Open,
+    Preview,
     Save(bool),
     SearchActivate,
     SearchClear,
     SearchInput(String),
-    SearchSubmit,
     TabMessage(tab::Message),
-    TabRescan(Vec<tab::Item>),
+    TabRescan(Location, Option<tab::Item>, Vec<tab::Item>),
+    TabView(tab::View),
+    ToggleFoldersFirst,
+    ZoomDefault,
+    ZoomIn,
+    ZoomOut,
 }
 
 impl From<AppMessage> for Message {
     fn from(app_message: AppMessage) -> Message {
         match app_message {
+            AppMessage::None => Message::None,
+            AppMessage::Preview(_entity_opt) => Message::Preview,
+            AppMessage::SearchActivate => Message::SearchActivate,
             AppMessage::TabMessage(_entity_opt, tab_message) => Message::TabMessage(tab_message),
+            AppMessage::TabView(_entity_opt, view) => Message::TabView(view),
+            AppMessage::ToggleFoldersFirst => Message::ToggleFoldersFirst,
+            AppMessage::ZoomDefault(_entity_opt) => Message::ZoomDefault,
+            AppMessage::ZoomIn(_entity_opt) => Message::ZoomIn,
+            AppMessage::ZoomOut(_entity_opt) => Message::ZoomOut,
             unsupported => {
                 log::warn!("{unsupported:?} not supported in dialog mode");
                 Message::None
@@ -374,27 +390,37 @@ struct App {
     filter_selected: Option<usize>,
     filename_id: widget::Id,
     modifiers: Modifiers,
-    mounters: Mounters,
     mounter_items: HashMap<MounterKey, MounterItems>,
     nav_model: segmented_button::SingleSelectModel,
     result_opt: Option<DialogResult>,
-    search_active: bool,
     search_id: widget::Id,
-    search_input: String,
     tab: Tab,
     key_binds: HashMap<KeyBind, Action>,
     watcher_opt: Option<(Debouncer<RecommendedWatcher, FileIdMap>, HashSet<PathBuf>)>,
 }
 
 impl App {
-    fn button_row(&self) -> Element<Message> {
-        let cosmic_theme::Spacing { space_xxs, .. } = theme::active().cosmic().spacing;
+    fn button_view(&self) -> Element<Message> {
+        let cosmic_theme::Spacing {
+            space_xxs,
+            space_xs,
+            ..
+        } = theme::active().cosmic().spacing;
+
+        let mut col = widget::column::with_capacity(2).spacing(space_xxs);
+        if let DialogKind::SaveFile { filename } = &self.flags.kind {
+            col = col.push(
+                widget::text_input("", filename)
+                    .id(self.filename_id.clone())
+                    .on_input(Message::Filename)
+                    .on_submit(Message::Save(false)),
+            );
+        }
 
         let mut row = widget::row::with_capacity(
             if !self.filters.is_empty() { 1 } else { 0 } + self.choices.len() * 2 + 3,
         )
-        .align_items(Alignment::Center)
-        .padding(space_xxs)
+        .align_y(Alignment::Center)
         .spacing(space_xxs);
         if !self.filters.is_empty() {
             row = row.push(widget::dropdown(
@@ -406,7 +432,7 @@ impl App {
         for (choice_i, choice) in self.choices.iter().enumerate() {
             match choice {
                 DialogChoice::CheckBox { label, value, .. } => {
-                    row = row.push(widget::checkbox(label, *value, move |checked| {
+                    row = row.push(widget::checkbox(label, *value).on_toggle(move |checked| {
                         Message::Choice(choice_i, if checked { 1 } else { 0 })
                     }));
                 }
@@ -423,16 +449,7 @@ impl App {
                 }
             }
         }
-        if let DialogKind::SaveFile { filename } = &self.flags.kind {
-            row = row.push(
-                widget::text_input("", filename)
-                    .id(self.filename_id.clone())
-                    .on_input(Message::Filename)
-                    .on_submit(Message::Save(false)),
-            );
-        } else {
-            row = row.push(widget::horizontal_space(Length::Fill));
-        }
+        row = row.push(widget::horizontal_space());
         row = row.push(widget::button::standard(fl!("cancel")).on_press(Message::Cancel));
         row = row.push(if self.flags.kind.save() {
             widget::button::suggested(&self.accept_label).on_press(Message::Save(false))
@@ -440,18 +457,63 @@ impl App {
             widget::button::suggested(&self.accept_label).on_press(Message::Open)
         });
 
-        row.into()
+        col = col.push(row);
+
+        widget::layer_container(col)
+            .layer(cosmic_theme::Layer::Primary)
+            .padding([8, space_xs])
+            .into()
     }
 
-    fn rescan_tab(&self) -> Command<Message> {
+    fn preview<'a>(&'a self, kind: &'a PreviewKind) -> Element<'a, AppMessage> {
+        let mut children = Vec::with_capacity(1);
+        match kind {
+            PreviewKind::Custom(PreviewItem(item)) => {
+                children.push(item.preview_view(IconSizes::default()));
+            }
+            PreviewKind::Location(location) => {
+                if let Some(items) = self.tab.items_opt() {
+                    for item in items.iter() {
+                        if item.location_opt.as_ref() == Some(location) {
+                            children.push(item.preview_view(self.tab.config.icon_sizes));
+                            // Only show one property view to avoid issues like hangs when generating
+                            // preview images on thousands of files
+                            break;
+                        }
+                    }
+                }
+            }
+            PreviewKind::Selected => {
+                if let Some(items) = self.tab.items_opt() {
+                    for item in items.iter() {
+                        if item.selected {
+                            children.push(item.preview_view(self.tab.config.icon_sizes));
+                            // Only show one property view to avoid issues like hangs when generating
+                            // preview images on thousands of files
+                            break;
+                        }
+                    }
+                    if children.is_empty() {
+                        if let Some(item) = &self.tab.parent_item_opt {
+                            children.push(item.preview_view(self.tab.config.icon_sizes));
+                        }
+                    }
+                }
+            }
+        }
+        widget::column::with_children(children).into()
+    }
+
+    fn rescan_tab(&self) -> Task<Message> {
         let location = self.tab.location.clone();
-        let mounters = self.mounters.clone();
         let icon_sizes = self.tab.config.icon_sizes;
-        Command::perform(
+        Task::perform(
             async move {
-                match tokio::task::spawn_blocking(move || location.scan(mounters, icon_sizes)).await
-                {
-                    Ok(items) => message::app(Message::TabRescan(items)),
+                let location2 = location.clone();
+                match tokio::task::spawn_blocking(move || location2.scan(icon_sizes)).await {
+                    Ok((parent_item_opt, items)) => {
+                        message::app(Message::TabRescan(location, parent_item_opt, items))
+                    }
                     Err(err) => {
                         log::warn!("failed to rescan: {}", err);
                         message::none()
@@ -462,24 +524,51 @@ impl App {
         )
     }
 
-    fn search(&mut self) -> Command<Message> {
+    fn search_get(&self) -> Option<&str> {
         match &self.tab.location {
-            Location::Path(path) | Location::Search(path, ..) => {
-                let location = if !self.search_input.is_empty() {
-                    Location::Search(path.clone(), self.search_input.clone())
-                } else {
-                    Location::Path(path.clone())
-                };
-                self.tab.change_location(&location, None);
-                Command::batch([self.update_watcher(), self.rescan_tab()])
-            }
-            _ => Command::none(),
+            Location::Search(_, term, ..,_, _) => Some(term),
+            _ => None,
         }
     }
 
-    fn update_config(&mut self) -> Command<Message> {
+    fn search_set(&mut self, term_opt: Option<String>) -> Task<Message> {
+        let location_opt = match term_opt {
+            Some(term) => match &self.tab.location {
+                Location::Path(path) | Location::Search(path, ..,_, _) => Some((
+                    Location::Search(
+                        path.to_path_buf(),
+                        term,
+                        self.tab.config.show_hidden,
+                        Instant::now(),
+                    ),
+                    true,
+                )),
+                _ => None,
+            },
+            None => match &self.tab.location {
+                Location::Search(path, ..,_, _) => Some((Location::Path(path.to_path_buf()), false)),
+                _ => None,
+            },
+        };
+        if let Some((location, focus_search)) = location_opt {
+            self.tab.change_location(&location, None);
+            return Task::batch([
+                self.update_title(),
+                self.update_watcher(),
+                self.rescan_tab(),
+                if focus_search {
+                    widget::text_input::focus(self.search_id.clone())
+                } else {
+                    Task::none()
+                },
+            ]);
+        }
+        Task::none()
+    }
+
+    fn update_config(&mut self) -> Task<Message> {
         self.update_nav_model();
-        Command::none()
+        Task::none()
     }
 
     fn activate_nav_model_location(&mut self, location: &Location) {
@@ -549,7 +638,7 @@ impl App {
                 if let Some(path) = item.path() {
                     b = b.data(Location::Path(path.clone()));
                 }
-                if let Some(icon) = item.icon() {
+                if let Some(icon) = item.icon(true) {
                     b = b.icon(widget::icon::icon(icon).size(16));
                 }
                 if item.is_mounted() {
@@ -567,16 +656,16 @@ impl App {
         self.activate_nav_model_location(&self.tab.location.clone());
     }
 
-    fn update_title(&mut self) -> Command<Message> {
+    fn update_title(&mut self) -> Task<Message> {
         self.set_header_title(self.title.clone());
-        self.set_window_title(self.title.clone(), self.main_window_id())
+        self.set_window_title(self.title.clone(), self.flags.window_id)
     }
 
-    fn update_watcher(&mut self) -> Command<Message> {
+    fn update_watcher(&mut self) -> Task<Message> {
         if let Some((mut watcher, old_paths)) = self.watcher_opt.take() {
             let mut new_paths = HashSet::new();
-            if let Location::Path(path) = &self.tab.location {
-                new_paths.insert(path.clone());
+            if let Some(path) = &self.tab.location.path_opt() {
+                new_paths.insert(path.to_path_buf());
             }
 
             // Unwatch paths no longer used
@@ -598,7 +687,8 @@ impl App {
                 if !old_paths.contains(path) {
                     //TODO: should this be recursive?
                     match watcher
-                        .watcher().watch(path, notify::RecursiveMode::NonRecursive)
+                        .watcher()
+                        .watch(path, notify::RecursiveMode::NonRecursive)
                     {
                         Ok(()) => {
                             log::debug!("watching {:?}", path);
@@ -614,7 +704,7 @@ impl App {
         }
 
         //TODO: should any of this run in a command?
-        Command::none()
+        Task::none()
     }
 }
 
@@ -641,11 +731,13 @@ impl Application for App {
     }
 
     /// Creates the application, and optionally emits command on initialize.
-    fn init(mut core: Core, flags: Self::Flags) -> (Self, Command<Message>) {
+    fn init(mut core: Core, flags: Self::Flags) -> (Self, Task<Message>) {
         core.window.context_is_overlay = false;
         core.window.show_close = false;
         core.window.show_maximize = false;
         core.window.show_minimize = false;
+        // Only show details context drawer by default in open dialog
+        core.window.show_context = !flags.kind.save();
 
         let title = flags.kind.title();
         let accept_label = flags.kind.accept_label();
@@ -661,12 +753,14 @@ impl Application for App {
         let tab_config = TabConfig {
             view: tab::View::List,
             folders_first: false,
-            sort_name: tab::HeadingOptions::Modified,
-            sort_direction: false,
             ..Default::default()
         };
         let mut tab = Tab::new(location, tab_config);
         tab.mode = tab::Mode::Dialog(flags.kind.clone());
+        tab.sort_name = tab::HeadingOptions::Modified;
+        tab.sort_direction = false;
+
+        let key_binds = key_binds(&tab.mode);
 
         let mut app = App {
             core,
@@ -674,26 +768,23 @@ impl Application for App {
             title,
             accept_label,
             choices: Vec::new(),
-            context_page: ContextPage::Settings,
+            context_page: ContextPage::Preview(None, PreviewKind::Selected),
             dialog_pages: VecDeque::new(),
             dialog_text_input: widget::Id::unique(),
             filters: Vec::new(),
             filter_selected: None,
             filename_id: widget::Id::unique(),
             modifiers: Modifiers::empty(),
-            mounters: mounters(),
             mounter_items: HashMap::new(),
             nav_model: segmented_button::ModelBuilder::default().build(),
             result_opt: None,
-            search_active: false,
             search_id: widget::Id::unique(),
-            search_input: String::new(),
             tab,
-            key_binds: HashMap::new(),
+            key_binds,
             watcher_opt: None,
         };
 
-        let commands = Command::batch([
+        let commands = Task::batch([
             app.update_config(),
             app.update_title(),
             app.update_watcher(),
@@ -703,46 +794,48 @@ impl Application for App {
         (app, commands)
     }
 
-    fn main_window_id(&self) -> window::Id {
-        self.flags.window_id
-    }
-
-    fn context_drawer(&self) -> Option<Element<Message>> {
+    fn context_drawer(&self) -> Option<context_drawer::ContextDrawer<Message>> {
         if !self.core.window.show_context {
             return None;
         }
 
         match &self.context_page {
+            ContextPage::Preview(_, kind) => {
+                let mut actions = Vec::with_capacity(3);
+                if let Some(items) = self.tab.items_opt() {
+                    for item in items.iter() {
+                        if item.selected {
+                            actions.extend(
+                                item.preview_header()
+                                    .into_iter()
+                                    .map(|element| element.map(Message::from)),
+                            )
+                        }
+                    }
+                };
+                Some(
+                    context_drawer::context_drawer(
+                        self.preview(kind).map(Message::from),
+                        Message::Preview,
+                    )
+                    .header_actions(actions),
+                )
+            }
             _ => None,
         }
     }
 
     fn dialog(&self) -> Option<Element<Message>> {
-        //TODO: should gallery view just be a dialog?
-        if self.tab.gallery {
-            return Some(
-                widget::column::with_children(vec![
-                    self.tab.gallery_view().map(Message::TabMessage),
-                    // Draw button row as part of the overlay
-                    widget::container(self.button_row())
-                        .width(Length::Fill)
-                        .style(theme::Container::WindowBackground)
-                        .into(),
-                ])
-                .into(),
-            );
-        }
+        let cosmic_theme::Spacing { space_xxs, .. } = theme::active().cosmic().spacing;
 
         let dialog_page = match self.dialog_pages.front() {
             Some(some) => some,
             None => return None,
         };
 
-        let cosmic_theme::Spacing { space_xxs, .. } = theme::active().cosmic().spacing;
-
         let dialog = match dialog_page {
             DialogPage::NewFolder { parent, name } => {
-                let mut dialog = widget::dialog(fl!("create-new-folder"));
+                let mut dialog = widget::dialog().title(fl!("create-new-folder"));
 
                 let complete_maybe = if name.is_empty() {
                     None
@@ -799,53 +892,72 @@ impl Application for App {
                         .spacing(space_xxs),
                     )
             }
-            DialogPage::Replace { filename } => {
-                widget::dialog(fl!("replace-title", filename = filename.as_str()))
-                    .icon(widget::icon::from_name("dialog-question").size(64))
-                    .body(fl!("replace-warning"))
-                    .primary_action(
-                        widget::button::suggested(fl!("replace")).on_press(Message::DialogComplete),
-                    )
-                    .secondary_action(
-                        widget::button::standard(fl!("cancel")).on_press(Message::DialogCancel),
-                    )
-            }
+            DialogPage::Replace { filename } => widget::dialog()
+                .title(fl!("replace-title", filename = filename.as_str()))
+                .icon(widget::icon::from_name("dialog-question").size(64))
+                .body(fl!("replace-warning"))
+                .primary_action(
+                    widget::button::suggested(fl!("replace")).on_press(Message::DialogComplete),
+                )
+                .secondary_action(
+                    widget::button::standard(fl!("cancel")).on_press(Message::DialogCancel),
+                ),
         };
 
         Some(dialog.into())
     }
 
+    fn footer(&self) -> Option<Element<Message>> {
+        Some(self.button_view())
+    }
+
     fn header_end(&self) -> Vec<Element<Message>> {
         let mut elements = Vec::with_capacity(3);
 
-        if self.search_active {
-            elements.push(
-                widget::text_input::search_input("", &self.search_input)
-                    .width(Length::Fixed(240.0))
-                    .id(self.search_id.clone())
-                    .on_clear(Message::SearchClear)
-                    .on_input(Message::SearchInput)
-                    .on_submit(Message::SearchSubmit)
-                    .into(),
-            )
+        if let Some(term) = self.search_get() {
+            if self.core.is_condensed() {
+                elements.push(
+                    //TODO: selected state is not appearing different
+                    widget::button::icon(widget::icon::from_name("system-search-symbolic"))
+                        .on_press(Message::SearchClear)
+                        .padding(8)
+                        .selected(true)
+                        .into(),
+                );
+            } else {
+                elements.push(
+                    widget::text_input::search_input("", term)
+                        .width(Length::Fixed(240.0))
+                        .id(self.search_id.clone())
+                        .on_clear(Message::SearchClear)
+                        .on_input(Message::SearchInput)
+                        .into(),
+                );
+            }
         } else {
             elements.push(
                 widget::button::icon(widget::icon::from_name("system-search-symbolic"))
                     .on_press(Message::SearchActivate)
+                    .padding(8)
                     .into(),
-            )
+            );
         }
 
         if self.flags.kind.save() {
             elements.push(
                 widget::button::icon(widget::icon::from_name("folder-new-symbolic"))
                     .on_press(Message::NewFolder)
+                    .padding(8)
                     .into(),
             );
         }
 
+        let show_details = match self.context_page {
+            ContextPage::Preview(..) => self.core.window.show_context,
+            _ => false,
+        };
         elements.push(
-            menu::dialog_menu(&self.tab, &self.key_binds)
+            menu::dialog_menu(&self.tab, &self.key_binds, show_details)
                 .map(Message::from)
                 .into(),
         );
@@ -890,10 +1002,7 @@ impl Application for App {
         None
     }
 
-    fn on_nav_select(&mut self, entity: segmented_button::Entity) -> Command<Message> {
-        self.search_active = false;
-        self.search_input.clear();
-
+    fn on_nav_select(&mut self, entity: segmented_button::Entity) -> Task<Message> {
         self.nav_model.activate(entity);
         if let Some(location) = self.nav_model.data::<Location>(entity) {
             let message = Message::TabMessage(tab::Message::Location(location.clone()));
@@ -901,29 +1010,34 @@ impl Application for App {
         }
 
         if let Some(data) = self.nav_model.data::<MounterData>(entity).clone() {
-            if let Some(mounter) = self.mounters.get(&data.0) {
+            if let Some(mounter) = MOUNTERS.get(&data.0) {
                 return mounter.mount(data.1.clone()).map(|_| message::none());
             }
         }
-        Command::none()
+        Task::none()
     }
 
-    fn on_escape(&mut self) -> Command<Message> {
+    fn on_escape(&mut self) -> Task<Message> {
         if self.tab.gallery {
             // Close gallery if open
             self.tab.gallery = false;
-            return Command::none();
+            return Task::none();
         }
 
-        if self.search_active {
+        if self.search_get().is_some() {
             // Close search if open
-            self.search_active = false;
-            return Command::none();
+            return self.search_set(None);
         }
 
         if self.tab.context_menu.is_some() {
             self.tab.context_menu = None;
-            return Command::none();
+            return Task::none();
+        }
+
+        if self.tab.edit_location.is_some() {
+            // Close location editing if enabled
+            self.tab.edit_location = None;
+            return Task::none();
         }
 
         let had_focused_button = self.tab.select_focus_id().is_some();
@@ -932,19 +1046,19 @@ impl Application for App {
                 // Unfocus if there was a focused button
                 return widget::button::focus(widget::Id::unique());
             }
-            return Command::none();
+            return Task::none();
         }
 
         self.update(Message::Cancel)
     }
 
     /// Handle application events here.
-    fn update(&mut self, message: Message) -> Command<Message> {
+    fn update(&mut self, message: Message) -> Task<Message> {
         match message {
             Message::None => {}
             Message::Cancel => {
                 self.result_opt = Some(DialogResult::Cancel);
-                return window::close(self.main_window_id());
+                return window::close(self.flags.window_id);
             }
             Message::Choice(choice_i, option_i) => {
                 if let Some(choice) = self.choices.get_mut(choice_i) {
@@ -1017,6 +1131,13 @@ impl Application for App {
                 }
                 return self.rescan_tab();
             }
+            Message::Key(modifiers, key) => {
+                for (key_bind, action) in self.key_binds.iter() {
+                    if key_bind.matches(modifiers, &key) {
+                        return self.update(Message::from(action.message()));
+                    }
+                }
+            }
             Message::Modifiers(modifiers) => {
                 self.modifiers = modifiers;
             }
@@ -1064,12 +1185,12 @@ impl Application for App {
                 //TODO: this could change favorites IDs while they are in use
                 self.update_nav_model();
 
-                return Command::batch(commands);
+                return Task::batch(commands);
             }
             Message::NewFolder => {
-                if let Location::Path(path) = &self.tab.location {
+                if let Some(path) = self.tab.location.path_opt() {
                     self.dialog_pages.push_back(DialogPage::NewFolder {
-                        parent: path.clone(),
+                        parent: path.to_path_buf(),
                         name: String::new(),
                     });
                     return widget::text_input::focus(self.dialog_text_input.clone());
@@ -1078,7 +1199,7 @@ impl Application for App {
             Message::NotifyEvents(events) => {
                 log::debug!("{:?}", events);
 
-                if let Location::Path(path) = &self.tab.location {
+                if let Some(path) = self.tab.location.path_opt() {
                     let mut contains_change = false;
                     for event in events.iter() {
                         for event_path in event.paths.iter() {
@@ -1144,12 +1265,12 @@ impl Application for App {
                 if let Some(items) = self.tab.items_opt() {
                     for item in items.iter() {
                         if item.selected {
-                            if let Some(Location::Path(path)) = &item.location_opt {
+                            if let Some(path) = item.path_opt() {
                                 paths.push(path.clone());
                                 let _ = update_recently_used(
                                     &path.clone(),
                                     App::APP_ID.to_string(),
-                                    "cosmic-media-browser".to_string(),
+                                    "cosmic-files".to_string(),
                                     None,
                                 );
                             }
@@ -1170,7 +1291,7 @@ impl Application for App {
                             return self.update(message);
                         } else {
                             // Otherwise, this is not a legal selection
-                            return Command::none();
+                            return Task::none();
                         }
                     }
                 }
@@ -1178,7 +1299,7 @@ impl Application for App {
                 // If there are proper matching items, return them
                 if !paths.is_empty() {
                     self.result_opt = Some(DialogResult::Open(paths));
-                    return window::close(self.main_window_id());
+                    return window::close(self.flags.window_id);
                 }
 
                 // If we are in directory mode, return the current directory
@@ -1186,16 +1307,25 @@ impl Application for App {
                     match &self.tab.location {
                         Location::Path(tab_path) => {
                             self.result_opt = Some(DialogResult::Open(vec![tab_path.clone()]));
-                            return window::close(self.main_window_id());
+                            return window::close(self.flags.window_id);
                         }
                         _ => {}
                     }
                 }
             }
+            Message::Preview => match self.context_page {
+                ContextPage::Preview(..) => {
+                    self.core.window.show_context = !self.core.window.show_context;
+                }
+                _ => {
+                    self.context_page = ContextPage::Preview(None, PreviewKind::Selected);
+                    self.core.window.show_context = true;
+                }
+            },
             Message::Save(replace) => {
                 if let DialogKind::SaveFile { filename } = &self.flags.kind {
                     if !filename.is_empty() {
-                        if let Location::Path(tab_path) = &self.tab.location {
+                        if let Some(tab_path) = self.tab.location.path_opt() {
                             let path = tab_path.join(&filename);
                             if path.is_dir() {
                                 // cd to directory
@@ -1209,40 +1339,24 @@ impl Application for App {
                                 });
                             } else {
                                 self.result_opt = Some(DialogResult::Open(vec![path]));
-                                return window::close(self.main_window_id());
+                                return window::close(self.flags.window_id);
                             }
                         }
                     }
                 }
             }
             Message::SearchActivate => {
-                self.search_active = true;
-                return widget::text_input::focus(self.search_id.clone());
+                return if self.search_get().is_none() {
+                    self.search_set(Some(String::new()))
+                } else {
+                    widget::text_input::focus(self.search_id.clone())
+                };
             }
             Message::SearchClear => {
-                self.search_active = false;
-                self.search_input.clear();
+                return self.search_set(None);
             }
             Message::SearchInput(input) => {
-                if input != self.search_input {
-                    self.search_input = input;
-                    /*TODO: live search? (probably needs subscription for streaming results)
-                    // This performs live search
-                    if !self.search_input.is_empty() {
-                        return self.search();
-                    }
-                    */
-                }
-            }
-            Message::SearchSubmit => {
-                if !self.search_input.is_empty() {
-                    return self.search();
-                } else {
-                    // rescan the tab to get the contents back
-                    // and exit search
-                    self.search_active = false;
-                    return self.search();
-                }
+                return self.search_set(Some(input));
             }
             Message::TabMessage(tab_message) => {
                 let click_i_opt = match tab_message {
@@ -1271,132 +1385,212 @@ impl Application for App {
                         tab::Command::Action(action) => {
                             commands.push(self.update(Message::from(action.message())));
                         }
-                        tab::Command::ChangeLocation(_tab_title, _tab_path, _selection_path) => {
-                            commands
-                                .push(Command::batch([self.update_watcher(), self.rescan_tab()]));
+                        tab::Command::ChangeLocation(_tab_title, _tab_path, _selection_paths) => {
+                            commands.push(Task::batch([self.update_watcher(), self.rescan_tab()]));
                         }
                         tab::Command::Iced(iced_command) => {
                             commands.push(
-                                iced_command.map(|tab_message| {
+                                iced_command.0.map(|tab_message| {
                                     message::app(Message::TabMessage(tab_message))
                                 }),
                             );
                         }
-                        tab::Command::OpenInExternalApp(_item_path) => {
+                        tab::Command::Open(_item_path) => {
                             if self.flags.kind.save() {
                                 commands.push(self.update(Message::Save(false)));
                             } else {
                                 commands.push(self.update(Message::Open));
                             }
                         }
+                        tab::Command::Preview(kind) => {
+                            self.context_page = ContextPage::Preview(None, kind);
+                            self.set_show_context(true);
+                        }
                         tab::Command::WindowDrag => {
-                            commands.push(window::drag(self.main_window_id()));
+                            commands.push(window::drag(self.flags.window_id));
                         }
                         tab::Command::WindowToggleMaximize => {
-                            commands.push(window::toggle_maximize(self.main_window_id()));
+                            commands.push(window::toggle_maximize(self.flags.window_id));
                         }
                         unsupported => {
                             log::warn!("{unsupported:?} not supported in dialog mode");
                         }
                     }
                 }
-                return Command::batch(commands);
+                return Task::batch(commands);
             }
-            Message::TabRescan(mut items) => {
-                // Filter
-                if let Some(filter_i) = self.filter_selected {
-                    if let Some(filter) = self.filters.get(filter_i) {
-                        // Parse filters
-                        let mut parsed_globs = Vec::new();
-                        let mut parsed_mimes = Vec::new();
-                        for pattern in filter.patterns.iter() {
-                            match pattern {
-                                DialogFilterPattern::Glob(value) => {
-                                    match glob::Pattern::new(value) {
-                                        Ok(glob) => parsed_globs.push(glob),
-                                        Err(err) => {
-                                            log::warn!("failed to parse glob {:?}: {}", value, err);
+            Message::TabRescan(location, parent_item_opt, mut items) => {
+                if location == self.tab.location {
+                    // Filter
+                    if let Some(filter_i) = self.filter_selected {
+                        if let Some(filter) = self.filters.get(filter_i) {
+                            // Parse filters
+                            let mut parsed_globs = Vec::new();
+                            let mut parsed_mimes = Vec::new();
+                            for pattern in filter.patterns.iter() {
+                                match pattern {
+                                    DialogFilterPattern::Glob(value) => {
+                                        match glob::Pattern::new(value) {
+                                            Ok(glob) => parsed_globs.push(glob),
+                                            Err(err) => {
+                                                log::warn!(
+                                                    "failed to parse glob {:?}: {}",
+                                                    value,
+                                                    err
+                                                );
+                                            }
                                         }
                                     }
-                                }
-                                DialogFilterPattern::Mime(value) => {
-                                    match mime_guess::Mime::from_str(value) {
-                                        Ok(mime) => parsed_mimes.push(mime),
-                                        Err(err) => {
-                                            log::warn!("failed to parse mime {:?}: {}", value, err);
+                                    DialogFilterPattern::Mime(value) => {
+                                        match mime_guess::Mime::from_str(value) {
+                                            Ok(mime) => parsed_mimes.push(mime),
+                                            Err(err) => {
+                                                log::warn!(
+                                                    "failed to parse mime {:?}: {}",
+                                                    value,
+                                                    err
+                                                );
+                                            }
                                         }
                                     }
                                 }
                             }
+
+                            items.retain(|item| {
+                                if item.metadata.is_dir() {
+                                    // Directories are always shown
+                                    return true;
+                                }
+
+                                // Check for mime type match (first because it is faster)
+                                for mime in parsed_mimes.iter() {
+                                    if mime == &item.mime {
+                                        return true;
+                                    }
+                                }
+
+                                // Check for glob match (last because it is slower)
+                                for glob in parsed_globs.iter() {
+                                    if glob.matches(&item.name) {
+                                        return true;
+                                    }
+                                }
+
+                                // No filters matched
+                                false
+                            });
                         }
+                    }
 
-                        items.retain(|item| {
-                            if item.metadata.is_dir() {
-                                // Directories are always shown
-                                return true;
-                            }
+                    // Select based on filename
+                    if let DialogKind::SaveFile { filename } = &self.flags.kind {
+                        for item in items.iter_mut() {
+                            item.selected = &item.name == filename;
+                        }
+                    }
 
-                            // Check for mime type match (first because it is faster)
-                            for mime in parsed_mimes.iter() {
-                                if mime == &item.mime {
-                                    return true;
-                                }
-                            }
+                    self.tab.parent_item_opt = parent_item_opt;
+                    self.tab.set_items(items);
 
-                            // Check for glob match (last because it is slower)
-                            for glob in parsed_globs.iter() {
-                                if glob.matches(&item.name) {
-                                    return true;
-                                }
-                            }
-
-                            // No filters matched
-                            false
-                        });
+                    // Reset focus on location change
+                    if self.search_get().is_some() {
+                        return widget::text_input::focus(self.search_id.clone());
+                    } else {
+                        return widget::text_input::focus(self.filename_id.clone());
                     }
                 }
-
-                // Select based on filename
-                if let DialogKind::SaveFile { filename } = &self.flags.kind {
-                    for item in items.iter_mut() {
-                        item.selected = &item.name == filename;
+            }
+            Message::TabView(view) => {
+                self.tab.config.view = view;
+            }
+            Message::ToggleFoldersFirst => {
+                self.tab.config.folders_first = !self.tab.config.folders_first;
+            }
+            Message::ZoomDefault => match self.tab.config.view {
+                tab::View::List => self.tab.config.icon_sizes.list = 100.try_into().unwrap(),
+                tab::View::Grid => self.tab.config.icon_sizes.grid = 100.try_into().unwrap(),
+            },
+            Message::ZoomIn => {
+                let zoom_in = |size: &mut NonZeroU16, min: u16, max: u16| {
+                    let mut step = min;
+                    while step <= max {
+                        if size.get() < step {
+                            *size = step.try_into().unwrap();
+                            break;
+                        }
+                        step += 25;
                     }
+                    if size.get() > step {
+                        *size = step.try_into().unwrap();
+                    }
+                };
+                match self.tab.config.view {
+                    tab::View::List => zoom_in(&mut self.tab.config.icon_sizes.list, 50, 500),
+                    tab::View::Grid => zoom_in(&mut self.tab.config.icon_sizes.grid, 50, 500),
                 }
-
-                self.tab.set_items(items);
-
-                // Reset focus on location change
-                return widget::text_input::focus(self.filename_id.clone());
+            }
+            Message::ZoomOut => {
+                let zoom_out = |size: &mut NonZeroU16, min: u16, max: u16| {
+                    let mut step = max;
+                    while step >= min {
+                        if size.get() > step {
+                            *size = step.try_into().unwrap();
+                            break;
+                        }
+                        step -= 25;
+                    }
+                    if size.get() < step {
+                        *size = step.try_into().unwrap();
+                    }
+                };
+                match self.tab.config.view {
+                    tab::View::List => zoom_out(&mut self.tab.config.icon_sizes.list, 50, 500),
+                    tab::View::Grid => zoom_out(&mut self.tab.config.icon_sizes.grid, 50, 500),
+                }
             }
         }
 
-        Command::none()
+        Task::none()
     }
 
     /// Creates a view after each update.
     fn view(&self) -> Element<Message> {
-        let mut tab_column = widget::column::with_capacity(2);
+        let cosmic_theme::Spacing { space_xxs, .. } = theme::active().cosmic().spacing;
 
-        tab_column = tab_column.push(
-            //TODO: key binds for dialog
+        let mut col = widget::column::with_capacity(2);
+
+        if self.core.is_condensed() {
+            if let Some(term) = self.search_get() {
+                col = col.push(
+                    widget::container(
+                        widget::text_input::search_input("", term)
+                            .width(Length::Fill)
+                            .id(self.search_id.clone())
+                            .on_clear(Message::SearchClear)
+                            .on_input(Message::SearchInput),
+                    )
+                    .padding(space_xxs),
+                )
+            }
+        }
+
+        col = col.push(
             self.tab
                 .view(&self.key_binds)
                 .map(move |message| Message::TabMessage(message)),
         );
 
-        tab_column = tab_column.push(self.button_row());
-
-        let content: Element<_> = tab_column.into();
-
-        // Uncomment to debug layout:
-        //content.explain(cosmic::iced::Color::WHITE)
-        content
+        col.into()
     }
 
     fn subscription(&self) -> Subscription<Message> {
         struct WatcherSubscription;
         let mut subscriptions = vec![
-            event::listen_with(|event, _status| match event {
+            event::listen_with(|event, status, _window_id| match event {
+                Event::Keyboard(KeyEvent::KeyPressed { key, modifiers, .. }) => match status {
+                    event::Status::Ignored => Some(Message::Key(modifiers, key)),
+                    event::Status::Captured => None,
+                },
                 Event::Keyboard(KeyEvent::ModifiersChanged(modifiers)) => {
                     Some(Message::Modifiers(modifiers))
                 }
@@ -1412,10 +1606,9 @@ impl Application for App {
                 }
                 Message::Config(update.config)
             }),
-            subscription::channel(
+            Subscription::run_with_id(
                 TypeId::of::<WatcherSubscription>(),
-                100,
-                |mut output| async move {
+                stream::channel(100, |mut output| async move {
                     let watcher_res = {
                         let mut output = output.clone();
                         new_debouncer(
@@ -1485,12 +1678,20 @@ impl Application for App {
                     }
 
                     std::future::pending().await
-                },
+                }),
             ),
-            self.tab.subscription().map(Message::TabMessage),
+            self.tab
+                .subscription(
+                    self.core.window.show_context
+                        && matches!(
+                            self.context_page,
+                            ContextPage::Preview(_, PreviewKind::Selected)
+                        ),
+                )
+                .map(Message::TabMessage),
         ];
 
-        for (key, mounter) in self.mounters.iter() {
+        for (key, mounter) in MOUNTERS.iter() {
             let key = *key;
             subscriptions.push(mounter.subscription().map(move |mounter_message| {
                 match mounter_message {

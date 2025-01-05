@@ -1,5 +1,7 @@
 use cosmic::iced;
-use cosmic::iced_wgpu::{self, primitive::pipeline::Primitive, wgpu};
+use cosmic::iced::wgpu::PipelineCompilationOptions;
+use cosmic::iced_core::Rectangle;
+use cosmic::iced_wgpu::{self, primitive::Primitive, wgpu};
 use std::{
     collections::{btree_map::Entry, BTreeMap},
     sync::{
@@ -83,12 +85,14 @@ impl VideoPipeline {
             push_constant_ranges: &[],
         });
 
-        let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+        let pipeline = device.create_render_pipeline(
+            &wgpu::RenderPipelineDescriptor {
             label: Some("iced_video_player pipeline"),
             layout: Some(&layout),
             vertex: wgpu::VertexState {
                 module: &shader,
                 entry_point: "vs_main",
+                compilation_options: PipelineCompilationOptions {..Default::default()},
                 buffers: &[],
             },
             primitive: wgpu::PrimitiveState::default(),
@@ -101,6 +105,7 @@ impl VideoPipeline {
             fragment: Some(wgpu::FragmentState {
                 module: &shader,
                 entry_point: "fs_main",
+                compilation_options: PipelineCompilationOptions {..Default::default()},
                 targets: &[Some(wgpu::ColorTargetState {
                     format,
                     blend: None,
@@ -108,6 +113,7 @@ impl VideoPipeline {
                 })],
             }),
             multiview: None,
+            cache: None,
         });
 
         let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
@@ -411,13 +417,12 @@ fn render(
 impl Primitive for VideoPrimitive {
     fn prepare(
         &self,
-        format: wgpu::TextureFormat,
         device: &wgpu::Device,
         queue: &wgpu::Queue,
-        bounds: iced::Rectangle,
-        _target_size: iced::Size<u32>,
-        _scale_factor: f32,
-        storage: &mut iced_wgpu::primitive::pipeline::Storage,
+        format: wgpu::TextureFormat,
+        storage: &mut iced_wgpu::primitive::Storage,
+        bounds: &Rectangle,
+        _viewport: &iced_wgpu::graphics::Viewport,
     ) {
         if !storage.has::<VideoPipeline>() {
             storage.store(VideoPipeline::new(device, format));
@@ -441,11 +446,10 @@ impl Primitive for VideoPrimitive {
 
     fn render(
         &self,
-        storage: &iced_wgpu::primitive::pipeline::Storage,
-        target: &wgpu::TextureView,
-        _target_size: iced::Size<u32>,
-        clip_bounds: iced::Rectangle<u32>,
         encoder: &mut wgpu::CommandEncoder,
+        storage: &iced_wgpu::primitive::Storage,
+        target: &wgpu::TextureView,
+        clip_bounds: &Rectangle<u32>,
     ) {
         let pipeline = storage.get::<VideoPipeline>().unwrap();
         pipeline.draw(target, encoder, &clip_bounds, self.video_id);

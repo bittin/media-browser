@@ -1,6 +1,6 @@
 use cosmic::{
-    iced::{futures::SinkExt, subscription},
-    widget, Command,
+    iced::{futures::SinkExt, stream, Subscription},
+    widget, Task,
 };
 use gio::{glib, prelude::*};
 use std::{any::TypeId, cell::Cell, future::pending, path::PathBuf, sync::Arc};
@@ -10,7 +10,7 @@ use super::{Mounter, MounterAuth, MounterItem, MounterItems, MounterMessage};
 use crate::{
     config::IconSizes,
     err_str,
-    tab::{self, ItemMetadata, ItemThumbnail, Location},
+    tab::{self, DirSize, ItemMetadata, ItemThumbnail, Location},
 };
 
 fn gio_icon_to_path(icon: &gio::Icon, size: u16) -> Option<PathBuf> {
@@ -24,6 +24,37 @@ fn gio_icon_to_path(icon: &gio::Icon, size: u16) -> Option<PathBuf> {
     }
     //TODO: handle more gio icon types
     None
+}
+
+fn items(monitor: &gio::VolumeMonitor, sizes: IconSizes) -> MounterItems {
+    let mut items = MounterItems::new();
+    for (i, mount) in monitor.mounts().into_iter().enumerate() {
+        items.push(MounterItem::Gvfs(Item {
+            kind: ItemKind::Mount,
+            index: i,
+            name: MountExt::name(&mount).to_string(),
+            is_mounted: true,
+            icon_opt: gio_icon_to_path(&MountExt::icon(&mount), sizes.grid()),
+            icon_symbolic_opt: gio_icon_to_path(&MountExt::symbolic_icon(&mount), 16),
+            path_opt: MountExt::root(&mount).path(),
+        }));
+    }
+    for (i, volume) in monitor.volumes().into_iter().enumerate() {
+        if volume.get_mount().is_some() {
+            // Volumes with mounts are already listed by mount
+            continue;
+        }
+        items.push(MounterItem::Gvfs(Item {
+            kind: ItemKind::Volume,
+            index: i,
+            name: VolumeExt::name(&volume).to_string(),
+            is_mounted: false,
+            icon_opt: gio_icon_to_path(&VolumeExt::icon(&volume), sizes.grid()),
+            icon_symbolic_opt: gio_icon_to_path(&VolumeExt::symbolic_icon(&volume), 16),
+            path_opt: None,
+        }));
+    }
+    items
 }
 
 fn network_scan(uri: &str, sizes: IconSizes) -> Result<Vec<tab::Item>, String> {
@@ -102,7 +133,10 @@ fn network_scan(uri: &str, sizes: IconSizes) -> Result<Vec<tab::Item>, String> {
             pos_opt: Cell::new(None),
             rect_opt: Cell::new(None),
             selected: false,
+            highlighted: false,
             overlaps_drag_rect: false,
+            //TODO: scan directory size on gvfs mounts?
+            dir_size: DirSize::NotDirectory,
         });
     }
     Ok(items)
@@ -166,6 +200,7 @@ fn mount_op(uri: String, event_tx: mpsc::UnboundedSender<Event>) -> gio::MountOp
 }
 
 enum Cmd {
+    Items(IconSizes, mpsc::Sender<MounterItems>),
     Rescan,
     Mount(MounterItem),
     NetworkDrive(String),
@@ -180,6 +215,7 @@ enum Cmd {
 enum Event {
     Changed,
     Items(MounterItems),
+    MountResult(MounterItem, Result<bool, String>),
     NetworkAuth(String, MounterAuth, mpsc::Sender<MounterAuth>),
     NetworkResult(String, Result<bool, String>),
 }
@@ -198,6 +234,7 @@ pub struct Item {
     name: String,
     is_mounted: bool,
     icon_opt: Option<PathBuf>,
+    icon_symbolic_opt: Option<PathBuf>,
     path_opt: Option<PathBuf>,
 }
 
@@ -210,10 +247,13 @@ impl Item {
         self.is_mounted
     }
 
-    pub fn icon(&self) -> Option<widget::icon::Handle> {
-        self.icon_opt
-            .as_ref()
-            .map(|icon| widget::icon::from_path(icon.clone()))
+    pub fn icon(&self, symbolic: bool) -> Option<widget::icon::Handle> {
+        if symbolic {
+            self.icon_symbolic_opt.as_ref()
+        } else {
+            self.icon_opt.as_ref()
+        }
+        .map(|icon| widget::icon::from_path(icon.clone()))
     }
 
     pub fn path(&self) -> Option<PathBuf> {
@@ -281,42 +321,14 @@ impl Gvfs {
 
                 while let Some(command) = command_rx.recv().await {
                     match command {
+                        Cmd::Items(sizes, items_tx) => {
+                            items_tx.send(items(&monitor, sizes)).await.unwrap();
+                        }
                         Cmd::Rescan => {
-                            let mut items = MounterItems::new();
-                            for (i, mount) in monitor.mounts().into_iter().enumerate() {
-                                items.push(MounterItem::Gvfs(Item {
-                                    kind: ItemKind::Mount,
-                                    index: i,
-                                    name: MountExt::name(&mount).to_string(),
-                                    is_mounted: true,
-                                    icon_opt: gio_icon_to_path(
-                                        &MountExt::symbolic_icon(&mount),
-                                        16,
-                                    ),
-                                    path_opt: MountExt::root(&mount).path(),
-                                }));
-                            }
-                            for (i, volume) in monitor.volumes().into_iter().enumerate() {
-                                if volume.get_mount().is_some() {
-                                    // Volumes with mounts are already listed by mount
-                                    continue;
-                                }
-                                items.push(MounterItem::Gvfs(Item {
-                                    kind: ItemKind::Volume,
-                                    index: i,
-                                    name: VolumeExt::name(&volume).to_string(),
-                                    is_mounted: false,
-                                    icon_opt: gio_icon_to_path(
-                                        &VolumeExt::symbolic_icon(&volume),
-                                        16,
-                                    ),
-                                    path_opt: None,
-                                }));
-                            }
-                            event_tx.send(Event::Items(items)).unwrap();
+                            event_tx.send(Event::Items(items(&monitor, IconSizes::default()))).unwrap();
                         }
                         Cmd::Mount(mounter_item) => {
-                            let MounterItem::Gvfs(item) = mounter_item else { continue };
+                            let MounterItem::Gvfs(ref item) = mounter_item else { continue };
                             let ItemKind::Volume = item.kind else { continue };
                             for (i, volume) in monitor.volumes().into_iter().enumerate() {
                                 if i != item.index {
@@ -330,14 +342,24 @@ impl Gvfs {
                                 }
 
                                 log::info!("mount {}", name);
+                                //TODO: do not use name as a URI for mount_op
+                                let mount_op = mount_op(name.to_string(), event_tx.clone());
+                                let event_tx = event_tx.clone();
+                                let mounter_item = mounter_item.clone();
                                 VolumeExt::mount(
                                     &volume,
                                     gio::MountMountFlags::NONE,
-                                    //TODO: gio::MountOperation needed for network shares with auth
-                                    gio::MountOperation::NONE,
+                                    Some(&mount_op),
                                     gio::Cancellable::NONE,
-                                    move |result| {
-                                        log::info!("mount {}: result {:?}", name, result);
+                                    move |res| {
+                                        log::info!("mount {}: result {:?}", name, res);
+                                        event_tx.send(Event::MountResult(mounter_item, match res {
+                                            Ok(()) => Ok(true),
+                                            Err(err) => match err.kind::<gio::IOErrorEnum>() {
+                                                Some(gio::IOErrorEnum::FailedHandled) => Ok(false),
+                                                _ => Err(format!("{}", err))
+                                            }
+                                        })).unwrap();
                                     },
                                 );
                             }
@@ -347,7 +369,7 @@ impl Gvfs {
                             let mount_op = mount_op(uri.clone(), event_tx.clone());
                             let event_tx = event_tx.clone();
                             file.mount_enclosing_volume(
-                                gio::MountMountFlags::empty(),
+                                gio::MountMountFlags::NONE,
                                 Some(&mount_op),
                                 gio::Cancellable::NONE,
                                 move |res| {
@@ -410,12 +432,10 @@ impl Gvfs {
                                     continue;
                                 }
 
-                                //TODO: do eject instead of unmount?
                                 log::info!("unmount {}", name);
-                                MountExt::unmount_with_operation(
+                                MountExt::eject_with_operation(
                                     &mount,
                                     gio::MountUnmountFlags::NONE,
-                                    //TODO: gio::MountOperation needed for network shares with auth
                                     gio::MountOperation::NONE,
                                     gio::Cancellable::NONE,
                                     move |result| {
@@ -437,9 +457,15 @@ impl Gvfs {
 }
 
 impl Mounter for Gvfs {
-    fn mount(&self, item: MounterItem) -> Command<()> {
+    fn items(&self, sizes: IconSizes) -> Option<MounterItems> {
+        let (items_tx, mut items_rx) = mpsc::channel(1);
+        self.command_tx.send(Cmd::Items(sizes, items_tx)).unwrap();
+        items_rx.blocking_recv()
+    }
+
+    fn mount(&self, item: MounterItem) -> Task<()> {
         let command_tx = self.command_tx.clone();
-        Command::perform(
+        Task::perform(
             async move {
                 command_tx.send(Cmd::Mount(item)).unwrap();
                 ()
@@ -448,9 +474,9 @@ impl Mounter for Gvfs {
         )
     }
 
-    fn network_drive(&self, uri: String) -> Command<()> {
+    fn network_drive(&self, uri: String) -> Task<()> {
         let command_tx = self.command_tx.clone();
-        Command::perform(
+        Task::perform(
             async move {
                 command_tx.send(Cmd::NetworkDrive(uri)).unwrap();
                 ()
@@ -467,9 +493,9 @@ impl Mounter for Gvfs {
         items_rx.blocking_recv()
     }
 
-    fn unmount(&self, item: MounterItem) -> Command<()> {
+    fn unmount(&self, item: MounterItem) -> Task<()> {
         let command_tx = self.command_tx.clone();
-        Command::perform(
+        Task::perform(
             async move {
                 command_tx.send(Cmd::Unmount(item)).unwrap();
                 ()
@@ -478,26 +504,35 @@ impl Mounter for Gvfs {
         )
     }
 
-    fn subscription(&self) -> subscription::Subscription<MounterMessage> {
+    fn subscription(&self) -> Subscription<MounterMessage> {
         let command_tx = self.command_tx.clone();
         let event_rx = self.event_rx.clone();
-        subscription::channel(TypeId::of::<Self>(), 1, |mut output| async move {
-            command_tx.send(Cmd::Rescan).unwrap();
-            while let Some(event) = event_rx.lock().await.recv().await {
-                match event {
-                    Event::Changed => command_tx.send(Cmd::Rescan).unwrap(),
-                    Event::Items(items) => output.send(MounterMessage::Items(items)).await.unwrap(),
-                    Event::NetworkAuth(uri, auth, auth_tx) => output
-                        .send(MounterMessage::NetworkAuth(uri, auth, auth_tx))
-                        .await
-                        .unwrap(),
-                    Event::NetworkResult(uri, res) => output
-                        .send(MounterMessage::NetworkResult(uri, res))
-                        .await
-                        .unwrap(),
+        Subscription::run_with_id(
+            TypeId::of::<Self>(),
+            stream::channel(1, |mut output| async move {
+                command_tx.send(Cmd::Rescan).unwrap();
+                while let Some(event) = event_rx.lock().await.recv().await {
+                    match event {
+                        Event::Changed => command_tx.send(Cmd::Rescan).unwrap(),
+                        Event::Items(items) => {
+                            output.send(MounterMessage::Items(items)).await.unwrap()
+                        }
+                        Event::MountResult(item, res) => output
+                            .send(MounterMessage::MountResult(item, res))
+                            .await
+                            .unwrap(),
+                        Event::NetworkAuth(uri, auth, auth_tx) => output
+                            .send(MounterMessage::NetworkAuth(uri, auth, auth_tx))
+                            .await
+                            .unwrap(),
+                        Event::NetworkResult(uri, res) => output
+                            .send(MounterMessage::NetworkResult(uri, res))
+                            .await
+                            .unwrap(),
+                    }
                 }
-            }
-            pending().await
-        })
+                pending().await
+            }),
+        )
     }
 }

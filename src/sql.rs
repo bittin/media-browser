@@ -860,6 +860,13 @@ pub fn search_items(
     items
 }
 
+#[derive(Clone, Debug, Default, PartialEq, PartialOrd)]
+pub struct Chapter {
+    pub title: String,
+    pub start: f32,
+    pub end: f32,
+}
+
 #[derive(Clone, Debug, PartialEq, PartialOrd)]
 pub struct VideoMetadata {
     pub name: String,
@@ -877,6 +884,7 @@ pub struct VideoMetadata {
     pub description: String, 
     pub director: Vec<String>,
     pub actors: Vec<String>,
+    pub chapters: Vec<Chapter>,
 }
 
 impl Default for VideoMetadata {
@@ -898,6 +906,7 @@ impl Default for VideoMetadata {
             description: String::new(),
             director: Vec::new(),
             actors: Vec::new(),
+            chapters: Vec::new(),
         }
     }
 }
@@ -970,6 +979,18 @@ pub fn insert_video(
         match connection.execute(
             "INSERT INTO sublangs (video_id, sublang) VALUES (?1, ?2)",
             params![&video_id, &metadata.sublangs[i]],
+        ) {
+            Ok(_retval) => {}, //log::warn!("Inserted {} video with ID {} and location {} into candidates.", video.id, video.index, candidate_id),
+            Err(error) => {
+                log::error!("Failed to insert video into  database: {}", error);
+                return;
+            }
+        }
+    }
+    for i in 0..metadata.chapters.len() {
+        match connection.execute(
+            "INSERT INTO chapters (video_id, title, start, end) VALUES (?1, ?2, ?3, ?4)",
+            params![&video_id, &metadata.chapters[i].title, &metadata.chapters[i].start, &metadata.chapters[i].end],
         ) {
             Ok(_retval) => {}, //log::warn!("Inserted {} video with ID {} and location {} into candidates.", video.id, video.index, candidate_id),
             Err(error) => {
@@ -1688,6 +1709,58 @@ pub fn video(
             log::error!("could not prepare SQL statement: {}", err);
         }
     }
+    let query = "SELECT title, start, end FROM chapters WHERE video_id = ?1 ORDER BY start, end ASC";
+    match connection.prepare(query) {
+        Ok(mut statement) => {
+            match statement.query(params![&video_id]) {
+                Ok(mut rows) => {
+                    loop {
+                        match rows.next() {
+                            Ok(Some(row)) => {
+                                let mut c = Chapter {..Default::default()};
+                                match row.get::<usize, String>(0) {
+                                    Ok(val) => c.title = val.clone(),
+                                    Err(error) => {
+                                        log::error!("Failed to read chapter title for video: {}", error);
+                                        continue;
+                                    }
+                                }
+                                match row.get::<usize, f32>(1) {
+                                    Ok(val) => c.start = val,
+                                    Err(error) => {
+                                        log::error!("Failed to read chapter start for video: {}", error);
+                                        continue;
+                                    }
+                                }
+                                match row.get::<usize, f32>(2) {
+                                    Ok(val) => c.end = val,
+                                    Err(error) => {
+                                        log::error!("Failed to read chapter end for video: {}", error);
+                                        continue;
+                                    }
+                                }
+                                v.chapters.push(c);
+                            }
+                            Ok(None) => {
+                                //log::warn!("No data read from sublangs.");
+                                break;
+                            },
+                            Err(error) => {
+                                log::error!("Failed to read a row from sublangs: {}", error);
+                                break;
+                            }
+                        }
+                    }
+                },
+                Err(err) => {
+                    log::error!("could not read line from videostore_indices database: {}", err);
+                }
+            }
+        },
+        Err(err) => {
+            log::error!("could not prepare SQL statement: {}", err);
+        }
+    }
     let query = "SELECT person_name FROM people 
                         INNER JOIN directors 
                         ON directors.director_id = people.person_id 
@@ -1785,6 +1858,7 @@ pub struct AudioMetadata {
     pub album: String,
     pub artist: Vec<String>,
     pub albumartist: Vec<String>,
+    pub chapters: Vec<Chapter>,
 }
 
 impl Default for AudioMetadata {
@@ -1800,6 +1874,7 @@ impl Default for AudioMetadata {
             album: String::new(),
             artist: Vec::new(),
             albumartist: Vec::new(),
+            chapters: Vec::new(),
         }
     }
 }
@@ -3670,6 +3745,31 @@ pub fn connect() -> Result<rusqlite::Connection, rusqlite::Error> {
         }
         match connection.execute(
             "CREATE INDEX index_sublangs_video_id ON sublangs (video_id)", (),
+        ) {
+            Ok(_ret) => {},
+            Err(error) => {
+                log::error!("Failed to create index on sublangs: {}", error);
+                return Err(error);
+            }
+        }
+        match connection.execute("
+            CREATE TABLE chapters (
+                chapter_id INTEGER, 
+                video_id INTEGER, 
+                title TEXT, 
+                start DOUBLE,
+                end DOUBLE,
+                PRIMARY KEY(chapter_id AUTOINCREMENT)
+            )", [],
+        ) {
+            Ok(_ret) => {},
+            Err(error) => {
+                log::error!("Failed to create table parameters: {}", error);
+                return Err(error);
+            }
+        }
+        match connection.execute(
+            "CREATE INDEX index_chapters_video_id ON chapters (video_id)", (),
         ) {
             Ok(_ret) => {},
             Err(error) => {

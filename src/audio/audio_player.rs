@@ -3,7 +3,7 @@ use cosmic::iced::{
     advanced::{self, layout, widget, Widget},
     Element
 };
-use cosmic::iced_wgpu::primitive::pipeline::Renderer as PrimitiveRenderer;
+use cosmic::iced_wgpu::primitive::Renderer as PrimitiveRenderer;
 use std::{marker::PhantomData, sync::atomic::Ordering};
 use std::{sync::Arc, time::Instant};
 
@@ -217,7 +217,7 @@ where
 
         let drawing_bounds = cosmic::iced::Rectangle::new(position, final_size);
 
-        renderer.draw_pipeline_primitive(
+        renderer.draw_primitive(
             drawing_bounds,
             VideoPrimitive::new(
                 inner.id,
@@ -242,7 +242,7 @@ where
     ) -> cosmic::iced::event::Status {
         let mut inner = self.audio.write();
 
-        if let cosmic::iced::Event::Window(_, cosmic::iced::window::Event::RedrawRequested(_)) = event {
+        if let cosmic::iced::Event::Window(cosmic::iced::window::Event::RedrawRequested(_)) = event {
             if inner.restart_stream || (!inner.is_eos && !inner.paused()) {
                 let mut restart_stream = false;
                 if inner.restart_stream {

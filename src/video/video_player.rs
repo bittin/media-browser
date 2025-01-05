@@ -9,7 +9,7 @@ use std::{marker::PhantomData, sync::atomic::Ordering, time::Duration};
 use std::{sync::Arc, time::Instant};
 
 use crate::video::pipeline::VideoPrimitive;
-use cosmic::iced_wgpu::primitive::pipeline::Renderer as PrimitiveRenderer;
+use cosmic::iced_wgpu::primitive::Renderer as PrimitiveRenderer;
 
 /// Video player widget which displays the current frame of a [`Video`](crate::Video).
 pub struct VideoPlayer<'a, Message, Theme = iced::Theme, Renderer = iced::Renderer>
@@ -228,7 +228,7 @@ where
         }
 
         #[cfg(feature = "wgpu")]
-        renderer.draw_pipeline_primitive(
+        renderer.draw_primitive(
             drawing_bounds,
             VideoPrimitive::new(
                 inner.id,
@@ -282,7 +282,7 @@ where
     ) -> Status {
         let mut inner = self.video.write();
 
-        if let iced::Event::Window(_, iced::window::Event::RedrawRequested(_)) = event {
+        if let iced::Event::Window(iced::window::Event::RedrawRequested(_)) = event {
             if inner.restart_stream || (!inner.is_eos && !inner.paused()) {
                 let mut restart_stream = false;
                 if inner.restart_stream {

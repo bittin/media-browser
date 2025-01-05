@@ -14,7 +14,16 @@ today = Today
 # List view
 name = Name
 modified = Modified
+trashed-on = Trashed
 size = Size
+
+# Progress footer
+details = Details
+dismiss = Dismiss message
+operations-running = {$running} operations running ({$percent}%)...
+operations-running-finished = {$running} operations running ({$percent}%), {$finished} finished...
+pause = Pause
+resume = Resume
 
 # Dialogs
 
@@ -24,6 +33,9 @@ create-archive = Create archive
 ## Empty Trash Dialog
 empty-trash = Empty trash
 empty-trash-warning = Are you sure you want to permanently delete all the items in Trash?
+
+## Mount Error Dialog
+mount-error = Unable to access drive
 
 ## New File/Folder Dialog
 create-new-file = Create new file
@@ -51,6 +63,10 @@ open-multiple-folders = Open multiple folders
 save = Save
 save-file = Save file
 
+## Open With Dialog
+open-with-title = How do you want to open "{$name}"?
+browse-store = Browse {$store}
+
 ## Rename Dialog
 rename-file = Rename file
 rename-folder = Rename folder
@@ -65,6 +81,11 @@ replace-with = Replace with
 apply-to-all = Apply to all
 keep-both = Keep both
 skip = Skip
+
+## Set as Executable and Launch Dialog
+set-executable-and-launch = Set as executable and launch
+set-executable-and-launch-description = Do you want to set "{$name}" as executable and launch it?
+set-and-launch = Set and launch
 
 ## Metadata Dialog
 owner = Owner
@@ -105,20 +126,16 @@ try-again = Try again
 username = Username
 
 ## Operations
+cancelled = Cancelled
 edit-history = Edit history
 history = History
 no-history = No items in history.
 pending = Pending
+progress = {$percent}%
+progress-cancelled = {$percent}%, cancelled
+progress-paused = {$percent}%, paused
 failed = Failed
 complete = Complete
-compressing = Compressing {$items} {$items ->
-        [one] item
-        *[other] items
-    } from {$from} to {$to}
-compressed = Compressed {$items} {$items ->
-        [one] item
-        *[other] items
-    } from {$from} to {$to}
 copy_noun = Copy
 creating = Creating {$name} in {$parent}
 created = Created {$name} in {$parent}
@@ -132,14 +149,8 @@ copied = Copied {$items} {$items ->
     } from {$from} to {$to}
 emptying-trash = Emptying {trash}
 emptied-trash = Emptied {trash}
-extracting = Extracting {$items} {$items ->
-        [one] item
-        *[other] items
-    } from {$from} to {$to}
-extracted = Extracted {$items} {$items ->
-        [one] item
-        *[other] items
-    } from {$from} to {$to}
+setting-executable-and-launching = Setting "{$name}" as executable and launching
+set-executable-and-launched = Set "{$name}" as executable and launched
 moving = Moving {$items} {$items ->
         [one] item
         *[other] items
@@ -166,6 +177,25 @@ default-app = {$name} (default)
 
 ## Show details
 show-details = Show details
+type = Type: {$mime}
+items = Items: {$items}
+item-size = Size: {$size}
+item-created = Created: {$created}
+item-modified = Modified: {$modified}
+item-accessed = Accessed: {$accessed}
+calculating = Calculating...
+
+## Search
+search-context = Search
+mediatypes = Search Media types
+images = Images
+videos = Videos
+audios = Audio files
+textentry = Search term
+text-from = From / Minimum (Text)
+text-to = To / Maximum (Text)
+value-from = From / Minimum (Number)
+value-to = To / Maximum (Number)
 
 ## Settings
 settings = Settings

@@ -1,11 +1,10 @@
 use crate::config::IconSizes;
 use crate::mime_app::mime_apps;
 use crate::mime_icon::{mime_for_path, mime_icon};
-use crate::tab::{hidden_attribute, Item, ItemMetadata, ItemThumbnail, Location};
+use crate::tab::{hidden_attribute, DirSize, Item, ItemMetadata, ItemThumbnail, Location};
 
 use chrono::{NaiveDate, DateTime};
-use cosmic::executor;
-use cosmic::widget::{self, Widget};
+use cosmic::widget;
 use mime_guess::mime;
 use std::cell::Cell;
 use std::ops::ControlFlow;
@@ -31,7 +30,7 @@ fn parse_nfo(nfo_file: &PathBuf, metadata: &mut crate::sql::VideoMetadata) {
 
     let mut prevtag = String::new();
     let mut tag = String::new();
-    let mut level = 0;
+    let mut _level = 0;
     loop {
         match reader.next() {
             Ok(e) => match e {
@@ -64,7 +63,7 @@ fn parse_nfo(nfo_file: &PathBuf, metadata: &mut crate::sql::VideoMetadata) {
                         }
                         _ => {}
                     }
-                    level += 1;
+                    _level += 1;
                     /*
                     if attributes.is_empty() {
                         println!("StartElement({name})");
@@ -82,7 +81,7 @@ fn parse_nfo(nfo_file: &PathBuf, metadata: &mut crate::sql::VideoMetadata) {
                         prevtag.clear();
                     }
                     //println!("EndElement({name})");
-                    level -= 1;
+                    _level -= 1;
                 }
                 XmlEvent::Comment(_data) => {}
                 XmlEvent::CData(_data) => {}
@@ -161,7 +160,7 @@ fn parse_nfo(nfo_file: &PathBuf, metadata: &mut crate::sql::VideoMetadata) {
                 }
                 _ => {}
             },
-            Err(e) => {
+            Err(_e) => {
                 break;
             }
         }
@@ -383,7 +382,6 @@ pub fn item_from_entry(
     let mut display_name = Item::display_name(&name);
 
     let hidden = name.starts_with(".") || hidden_attribute(&metadata);
-
     let (mime, icon_handle_grid, icon_handle_list, icon_handle_list_condensed) =
         if metadata.is_dir() {
             (
@@ -430,16 +428,6 @@ pub fn item_from_entry(
 
     let open_with = mime_apps(&mime);
 
-    let thumbnail_opt = if mime.type_() == mime::IMAGE {
-        if mime.subtype() == mime::SVG {
-            Some(ItemThumbnail::Svg)
-        } else {
-            None
-        }
-    } else {
-        Some(ItemThumbnail::NotImage)
-    };
-
     let children = if metadata.is_dir() {
         //TODO: calculate children in the background (and make it cancellable?)
         match std::fs::read_dir(&path) {
@@ -453,7 +441,13 @@ pub fn item_from_entry(
         0
     };
 
-    Item {
+    let dir_size = if metadata.is_dir() {
+        DirSize::Calculating(crate::operation::controller::Controller::new())
+    } else {
+        DirSize::NotDirectory
+    };
+
+    let mut item = Item {
         name,
         display_name,
         metadata: ItemMetadata::Path { metadata, children },
@@ -464,13 +458,20 @@ pub fn item_from_entry(
         icon_handle_list,
         icon_handle_list_condensed,
         open_with,
-        thumbnail_opt,
+        thumbnail_opt: Some(ItemThumbnail::NotImage),
         button_id: widget::Id::unique(),
         pos_opt: Cell::new(None),
         rect_opt: Cell::new(None),
         selected: false,
+        highlighted: false,
         overlaps_drag_rect: false,
-    }
+        dir_size,
+        image_opt: None,
+        video_opt: None,
+        audio_opt: None,
+    };
+    item.thumbnail_opt = Some(crate::tab::ItemThumbnail::new(item.clone()));
+    item
 }
 
 pub fn item_from_path<P: Into<PathBuf>>(path: P, sizes: IconSizes) -> Result<Item, String> {
@@ -520,23 +521,23 @@ pub fn slice_u8_to_vec_string(utfvec: Vec<u8>) -> Vec<String> {
     v
 }
 
-fn video_metadata(filepath: &str) -> crate::sql::VideoMetadata {
-    let mut meta = crate::sql::VideoMetadata {
-        ..Default::default()
-    };
-    meta.path = filepath.to_string();
+fn video_metadata(meta: &mut crate::sql::VideoMetadata) {
     let basename;
-    let fp = PathBuf::from(filepath);
+    let fp = PathBuf::from(&meta.path);
     if let Some(bn) = fp.file_stem() {
         basename = osstr_to_string(bn.to_os_string());
     } else if let Some(bn) = fp.file_name() {
         basename = osstr_to_string(bn.to_os_string());
     } else {
-        basename = filepath.to_string();
+        basename = meta.path.clone();
     }
-    meta.name = basename.clone();
-    meta.title = basename.clone();
-    let mut cmd_runner = crate::cmd::CmdRunner::new(&format!("ffmpeg -i \"{}\"", filepath));
+    if meta.name.len() == 0 {
+        meta.name = basename.clone();
+    }
+    if meta.title.len() == 0 {
+        meta.title = basename.clone();
+    }
+    let mut cmd_runner = crate::cmd::CmdRunner::new(&format!("ffmpeg -i \"{}\"", meta.path));
     if let Ok((stdout, _stderr)) = cmd_runner.run_with_output() {
         // let ffmpeg_output = std::process::Command::new("ffmpeg")
         //    .args(["-i", filepath])
@@ -564,6 +565,22 @@ fn video_metadata(filepath: &str) -> crate::sql::VideoMetadata {
                     meta.height = string_to_uint(&caps["height"]);
                 }
             }
+            if let Ok(re_chapter) =
+            regex::Regex::new(r"(?i)start (?P<start>\d+\.\d+), end (?P<end>\d+\.\d+)")
+            {
+                if re_chapter.is_match(&line) {
+                    let caps = re_chapter.captures(&line).unwrap();
+                    let start = string_to_float(&caps["start"]);
+                    let end = string_to_float(&caps["end"]);
+                    let name = format!("Chapter_{:02}", meta.chapters.len() + 1);
+                    let mut chapter = crate::sql::Chapter {..Default::default()};
+                    chapter.title = name;
+                    chapter.start = start;
+                    chapter.end = end;
+                    meta.chapters.push(chapter);
+                }
+            }
+
             if let Ok(re_audio) = regex::Regex::new(r"(?i), \((?P<language>\w+)\):\s*Audio") {
                 if re_audio.is_match(&line) {
                     let caps = re_audio.captures(&line).unwrap();
@@ -578,8 +595,6 @@ fn video_metadata(filepath: &str) -> crate::sql::VideoMetadata {
             }
         }
     }
-
-    meta
 }
 
 pub fn string_to_uint(mystring: &str) -> u32 {
@@ -617,11 +632,11 @@ fn timecode_to_ffmpeg_time(timecode: u32) -> String {
     format!("{:02}:{:02}:{:02}.000", hours, minutes, seconds)
 }
 
-fn create_screenshots(filepath: &str) -> Option<crate::sql::VideoMetadata> {
-    let mut meta = video_metadata(filepath);
+fn create_screenshots(meta: &mut crate::sql::VideoMetadata) {
+    video_metadata(meta);
     let timecode = meta.duration / 10;
-    let outputpattern = format!("{}_%03d.jpeg", filepath);
-    let output = format!("{}_001.jpeg", filepath);
+    let outputpattern = format!("{}_%03d.jpeg", meta.path);
+    let output = format!("{}_001.jpeg", meta.path);
     let outputpath = PathBuf::from(&output);
     let time = timecode_to_ffmpeg_time(timecode);
     if outputpath.is_file() {
@@ -629,8 +644,7 @@ fn create_screenshots(filepath: &str) -> Option<crate::sql::VideoMetadata> {
         //if ret.is_err() {
         //    log::error!("could not delete file {}", output);
         //}
-        meta.poster = output;
-        return Some(meta);
+        meta.poster = output.clone();
     }
 
     match std::process::Command::new("ffmpeg")
@@ -638,7 +652,7 @@ fn create_screenshots(filepath: &str) -> Option<crate::sql::VideoMetadata> {
             "-ss",
             &time,
             "-i",
-            filepath,
+            &meta.path,
             "-frames:v",
             "1",
             "-q:v",
@@ -657,12 +671,11 @@ fn create_screenshots(filepath: &str) -> Option<crate::sql::VideoMetadata> {
     if !outputpath.is_file() {
         log::error!(
             "Failed to create screenshot: {}",
-            format!("ffmpeg -ss {} -i {} -frames:v 1 -q:v 2 ", time, filepath)
+            format!("ffmpeg -ss {} -i {} -frames:v 1 -q:v 2 ", time, meta.path)
         );
-        return None;
+        return;
     }
     meta.poster = output;
-    Some(meta)
 }
 
 pub fn item_from_video(
@@ -674,7 +687,9 @@ pub fn item_from_video(
     connection: &mut rusqlite::Connection,
 ) -> Item {
     let mut videometadata = crate::sql::VideoMetadata {..Default::default()};
+    
     videometadata.name = name.clone();
+    videometadata.path = osstr_to_string(path.clone().into_os_string());
     let mut refresh = false;
     let filepath = osstr_to_string(path.clone().into_os_string());
     if known_files.contains_key(&path) {
@@ -688,20 +703,16 @@ pub fn item_from_video(
             }
             if refresh {
                 // file is newer
-                if let Some(vmd) = create_screenshots(&osstr_to_string(path.clone().into_os_string())) {
-                    videometadata = vmd;
-                    crate::sql::insert_video(connection, &mut videometadata, metadata, known_files);
-                }
+                create_screenshots(&mut videometadata);
+                crate::sql::insert_video(connection, &mut videometadata, metadata, known_files);
                 crate::sql::update_video(connection, &mut videometadata, metadata, known_files);
             } else {
                 videometadata = crate::sql::video(connection, &filepath, known_files);
             }
         }
     } else {
-        if let Some(vmd) = create_screenshots(&osstr_to_string(path.clone().into_os_string())) {
-            videometadata = vmd;
-            crate::sql::insert_video(connection, &mut videometadata, metadata, known_files);
-        }
+        create_screenshots(&mut videometadata);
+        crate::sql::insert_video(connection, &mut videometadata, metadata, known_files);
     }
     let mut display_name = Item::display_name(&name);
 
@@ -719,8 +730,8 @@ pub fn item_from_video(
         )
     } else {
         if videometadata.path.len() > 0 {
-            let thumbpath = PathBuf::from(&videometadata.poster);
-            let thumbmime = mime_for_path(thumbpath.clone());
+            //let thumbpath = PathBuf::from(&videometadata.poster);
+            //let thumbmime = mime_for_path(thumbpath.clone());
             let filemime = mime_for_path(filepath.clone());
             if videometadata.poster.len() > 0 {
                 let thumbpath = PathBuf::from(&videometadata.poster);
@@ -776,16 +787,6 @@ pub fn item_from_video(
 
     let open_with = mime_apps(&mime);
 
-    let thumbnail_opt = if mime.type_() == mime::IMAGE {
-        if mime.subtype() == mime::SVG {
-            Some(ItemThumbnail::Svg)
-        } else {
-            None
-        }
-    } else {
-        Some(ItemThumbnail::NotImage)
-    };
-
     let children = if metadata.is_dir() {
         //TODO: calculate children in the background (and make it cancellable?)
         match std::fs::read_dir(&path) {
@@ -799,7 +800,13 @@ pub fn item_from_video(
         0
     };
 
-    Item {
+    let dir_size = if metadata.is_dir() {
+        DirSize::Calculating(crate::operation::controller::Controller::new())
+    } else {
+        DirSize::NotDirectory
+    };
+
+    let mut item = Item {
         name,
         display_name,
         metadata: ItemMetadata::Path { metadata: metadata.clone(), children },
@@ -810,13 +817,20 @@ pub fn item_from_video(
         icon_handle_list,
         icon_handle_list_condensed,
         open_with,
-        thumbnail_opt,
+        thumbnail_opt: Some(ItemThumbnail::NotImage),
         button_id: widget::Id::unique(),
         pos_opt: Cell::new(None),
         rect_opt: Cell::new(None),
         selected: false,
+        highlighted: false,
         overlaps_drag_rect: false,
-    }
+        dir_size,
+        image_opt: None,
+        video_opt: None,
+        audio_opt: None,
+    };
+    item.thumbnail_opt = Some(crate::tab::ItemThumbnail::new(item.clone()));
+    item
 }
 
 pub fn item_from_nfo(
@@ -850,6 +864,7 @@ pub fn item_from_nfo(
             }
             if refresh {
                 // file is newer
+                video_metadata(metadata);
                 parse_nfo(&nfo_file, metadata);
                 metadata.name = basename.clone();
                 crate::sql::update_video(connection, metadata, statdata, known_files);
@@ -858,6 +873,7 @@ pub fn item_from_nfo(
             }
         }
     } else {
+        video_metadata( metadata);
         parse_nfo(&nfo_file, metadata);
         metadata.name = basename.clone();
         crate::sql::insert_video(connection, metadata, statdata, known_files);
@@ -897,15 +913,6 @@ pub fn item_from_nfo(
 
     let open_with = mime_apps(&mime);
 
-    let thumbnail_opt = if mime.type_() == mime::IMAGE {
-        if mime.subtype() == mime::SVG {
-            Some(ItemThumbnail::Svg)
-        } else {
-            None
-        }
-    } else {
-        Some(ItemThumbnail::NotImage)
-    };
 
     let children = if statdata.is_dir() {
         //TODO: calculate children in the background (and make it cancellable?)
@@ -920,7 +927,13 @@ pub fn item_from_nfo(
         0
     };
 
-    Item {
+    let dir_size = if statdata.is_dir() {
+        DirSize::Calculating(crate::operation::controller::Controller::new())
+    } else {
+        DirSize::NotDirectory
+    };
+
+    let mut item = Item {
         name,
         display_name,
         metadata: ItemMetadata::Path {
@@ -934,13 +947,20 @@ pub fn item_from_nfo(
         icon_handle_list,
         icon_handle_list_condensed,
         open_with,
-        thumbnail_opt,
+        thumbnail_opt: Some(ItemThumbnail::NotImage),
         button_id: widget::Id::unique(),
         pos_opt: Cell::new(None),
         rect_opt: Cell::new(None),
         selected: false,
+        highlighted: false,
         overlaps_drag_rect: false,
-    }
+        dir_size,
+        image_opt: None,
+        video_opt: Some(metadata.clone()),
+        audio_opt: None,
+    };
+    item.thumbnail_opt = Some(crate::tab::ItemThumbnail::new(item.clone()));
+    item
 }
 
 pub fn item_from_audiotags(
@@ -1011,7 +1031,7 @@ pub fn item_from_audiotags(
 
     let (mime, icon_handle_grid, icon_handle_list, icon_handle_list_condensed) = {
         //TODO: clean this up, implement for trash
-        let icon_name_opt = if audiomime == "application/x-desktop" {
+        let _icon_name_opt = if audiomime == "application/x-desktop" {
             let (desktop_name_opt, icon_name_opt) = crate::tab::parse_desktop_file(&filepath);
             if let Some(desktop_name) = desktop_name_opt {
                 display_name = Item::display_name(&desktop_name);
@@ -1041,16 +1061,6 @@ pub fn item_from_audiotags(
 
     let open_with = mime_apps(&audiomime);
 
-    let thumbnail_opt = if thumbmime.type_() == mime::IMAGE {
-        if thumbmime.subtype() == mime::SVG {
-            Some(ItemThumbnail::Svg)
-        } else {
-            None
-        }
-    } else {
-        Some(ItemThumbnail::NotImage)
-    };
-
     let children = if statdata.is_dir() {
         //TODO: calculate children in the background (and make it cancellable?)
         match std::fs::read_dir(PathBuf::from(&metadata.path)) {
@@ -1064,7 +1074,13 @@ pub fn item_from_audiotags(
         0
     };
 
-    Item {
+    let dir_size = if statdata.is_dir() {
+        DirSize::Calculating(crate::operation::controller::Controller::new())
+    } else {
+        DirSize::NotDirectory
+    };
+
+    let mut item = Item {
         name,
         display_name,
         metadata: ItemMetadata::Path {
@@ -1078,13 +1094,20 @@ pub fn item_from_audiotags(
         icon_handle_list,
         icon_handle_list_condensed,
         open_with,
-        thumbnail_opt,
+        thumbnail_opt: Some(ItemThumbnail::NotImage),
         button_id: widget::Id::unique(),
         pos_opt: Cell::new(None),
         rect_opt: Cell::new(None),
         selected: false,
+        highlighted: false,
         overlaps_drag_rect: false,
-    }
+        dir_size,
+        image_opt: None,
+        video_opt: None,
+        audio_opt: Some(metadata.clone()),
+    };
+    item.thumbnail_opt = Some(crate::tab::ItemThumbnail::new(item.clone()));
+    item
 }
 
 pub fn item_from_exif(
@@ -1155,7 +1178,7 @@ pub fn item_from_exif(
 
     let (mime, icon_handle_grid, icon_handle_list, icon_handle_list_condensed) = {
         //TODO: clean this up, implement for trash
-        let icon_name_opt = if imagemime == "application/x-desktop" {
+        let _icon_name_opt = if imagemime == "application/x-desktop" {
             let (desktop_name_opt, icon_name_opt) = crate::tab::parse_desktop_file(&filepath);
             if let Some(desktop_name) = desktop_name_opt {
                 display_name = Item::display_name(&desktop_name);
@@ -1185,16 +1208,6 @@ pub fn item_from_exif(
 
     let open_with = mime_apps(&imagemime);
 
-    let thumbnail_opt = if thumbmime.type_() == mime::IMAGE {
-        if thumbmime.subtype() == mime::SVG {
-            Some(ItemThumbnail::Svg)
-        } else {
-            None
-        }
-    } else {
-        Some(ItemThumbnail::NotImage)
-    };
-
     let children = if statdata.is_dir() {
         //TODO: calculate children in the background (and make it cancellable?)
         match std::fs::read_dir(PathBuf::from(&metadata.path)) {
@@ -1208,7 +1221,13 @@ pub fn item_from_exif(
         0
     };
 
-    Item {
+    let dir_size = if statdata.is_dir() {
+        DirSize::Calculating(crate::operation::controller::Controller::new())
+    } else {
+        DirSize::NotDirectory
+    };
+
+    let mut item = Item {
         name,
         display_name,
         metadata: ItemMetadata::Path {
@@ -1222,13 +1241,20 @@ pub fn item_from_exif(
         icon_handle_list,
         icon_handle_list_condensed,
         open_with,
-        thumbnail_opt,
+        thumbnail_opt: Some(ItemThumbnail::NotImage),
         button_id: widget::Id::unique(),
         pos_opt: Cell::new(None),
         rect_opt: Cell::new(None),
         selected: false,
+        highlighted: false,
         overlaps_drag_rect: false,
-    }
+        dir_size,
+        image_opt: Some(metadata.clone()),
+        video_opt: None,
+        audio_opt: None,
+    };
+    item.thumbnail_opt = Some(crate::tab::ItemThumbnail::new(item.clone()));
+    item
 }
 
 pub fn osstr_to_string(osstr: std::ffi::OsString) -> String {
@@ -1513,9 +1539,8 @@ pub fn scan_single_nfo_dir(
         return ControlFlow::Break(());
     }
     if meta_data.poster.len() == 0 {
-        if let Some(meta) = create_screenshots(&meta_data.path) {
-            meta_data.poster = meta.poster.clone();
-        } else {
+        create_screenshots(&mut meta_data);
+        if meta_data.poster.len() == 0 {
             log::error!("Failed to find poster or create a screenshot for movie {}", &meta_data.path);
             return ControlFlow::Break(());
         }

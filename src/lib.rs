@@ -1,11 +1,8 @@
 // Copyright 2023 System76 <info@system76.com>
 // SPDX-License-Identifier: GPL-3.0-only
 
-use cosmic::{
-    app::{Application, Settings},
-    iced::Limits,
-};
-use std::{env, fs, path::PathBuf};
+use cosmic::{app::Settings, iced::Limits};
+use std::{env, fs, path::PathBuf, process};
 
 use app::{App, Flags};
 pub mod app;

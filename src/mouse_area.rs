@@ -17,8 +17,8 @@ use cosmic::{
         overlay,
         renderer::{self, Quad, Renderer as _},
         touch,
-        widget::{tree, Operation, OperationOutputWrapper, Tree},
-        Clipboard, Color, Layout, Length, Point, Rectangle, Shell, Size, Widget,
+        widget::{tree, Operation, Tree},
+        Clipboard, Color, Layout, Length, Point, Rectangle, Shell, Size, Vector, Widget,
     },
     widget::Id,
     Element, Renderer, Theme,
@@ -46,9 +46,9 @@ pub struct MouseArea<'a, Message> {
     on_back_release: Option<Box<dyn Fn(Option<Point>) -> Message + 'a>>,
     on_forward_press: Option<Box<dyn Fn(Option<Point>) -> Message + 'a>>,
     on_forward_release: Option<Box<dyn Fn(Option<Point>) -> Message + 'a>>,
-    on_enter: Option<Box<dyn Fn(Option<Point>) -> Message + 'a>>,
-    on_exit: Option<Box<dyn Fn(Option<Point>) -> Message + 'a>>,
     on_scroll: Option<Box<dyn Fn(mouse::ScrollDelta, Modifiers) -> Option<Message> + 'a>>,
+    on_enter: Option<Box<dyn Fn() -> Message + 'a>>,
+    on_exit: Option<Box<dyn Fn() -> Message + 'a>>,
     show_drag_rect: bool,
 }
 
@@ -161,20 +161,6 @@ impl<'a, Message> MouseArea<'a, Message> {
         self
     }
 
-    /// The message to emit on a forward button release.
-    #[must_use]
-    pub fn on_enter(mut self, message: impl Fn(Option<Point>) -> Message + 'a) -> Self {
-        self.on_forward_release = Some(Box::new(message));
-        self
-    }
-
-    /// The message to emit on a forward button release.
-    #[must_use]
-    pub fn on_exit(mut self, message: impl Fn(Option<Point>) -> Message + 'a) -> Self {
-        self.on_forward_release = Some(Box::new(message));
-        self
-    }
-
     /// The message to emit on a scroll.
     #[must_use]
     pub fn on_scroll(
@@ -182,6 +168,20 @@ impl<'a, Message> MouseArea<'a, Message> {
         message: impl Fn(mouse::ScrollDelta, Modifiers) -> Option<Message> + 'a,
     ) -> Self {
         self.on_scroll = Some(Box::new(message));
+        self
+    }
+
+    /// The message to emit when a mouse enters the area.
+    #[must_use]
+    pub fn on_enter(mut self, message: impl Fn() -> Message + 'a) -> Self {
+        self.on_enter = Some(Box::new(message));
+        self
+    }
+
+    /// The message to emit when a mouse exits the area.
+    #[must_use]
+    pub fn on_exit(mut self, message: impl Fn() -> Message + 'a) -> Self {
+        self.on_exit = Some(Box::new(message));
         self
     }
 
@@ -202,7 +202,7 @@ impl<'a, Message> MouseArea<'a, Message> {
 /// Local state of the [`MouseArea`].
 #[derive(Default)]
 struct State {
-    // TODO: Support on_mouse_enter and on_mouse_exit
+    last_position: Option<Point>,
     drag_initiated: Option<Point>,
     modifiers: Modifiers,
     prev_click: Option<(mouse::Click, Instant)>,
@@ -234,15 +234,21 @@ impl State {
         let new = if let Some((prev_click, prev_time)) = self.prev_click.take() {
             if now.duration_since(prev_time) < DOUBLE_CLICK_DURATION {
                 match prev_click.kind() {
-                    mouse::click::Kind::Single => mouse::Click::new(pos, Some(prev_click)),
-                    mouse::click::Kind::Double => mouse::Click::new(pos, Some(prev_click)),
-                    mouse::click::Kind::Triple => mouse::Click::new(pos, Some(prev_click)),
+                    mouse::click::Kind::Single => {
+                        mouse::Click::new(pos, mouse::Button::Left, Some(prev_click))
+                    }
+                    mouse::click::Kind::Double => {
+                        mouse::Click::new(pos, mouse::Button::Left, Some(prev_click))
+                    }
+                    mouse::click::Kind::Triple => {
+                        mouse::Click::new(pos, mouse::Button::Left, Some(prev_click))
+                    }
                 }
             } else {
-                mouse::Click::new(pos, None)
+                mouse::Click::new(pos, mouse::Button::Left, None)
             }
         } else {
-            mouse::Click::new(pos, None)
+            mouse::Click::new(pos, mouse::Button::Left, None)
         };
         self.prev_click = Some((new.clone(), now));
         new
@@ -318,7 +324,7 @@ where
         tree: &mut Tree,
         layout: Layout<'_>,
         renderer: &Renderer,
-        operation: &mut dyn Operation<OperationOutputWrapper<Message>>,
+        operation: &mut dyn Operation,
     ) {
         self.content
             .as_widget()
@@ -424,10 +430,11 @@ where
         tree: &'b mut Tree,
         layout: Layout<'_>,
         renderer: &Renderer,
+        translation: Vector,
     ) -> Option<overlay::Element<'b, Message, Theme, Renderer>> {
         self.content
             .as_widget_mut()
-            .overlay(&mut tree.children[0], layout, renderer)
+            .overlay(&mut tree.children[0], layout, renderer, translation)
     }
 
     fn drag_destinations(
@@ -483,6 +490,24 @@ fn update<Message: Clone>(
             state.size = Some(size);
             shell.publish(message(size));
         }
+    }
+
+    if let Event::Mouse(mouse::Event::CursorMoved { .. }) = event {
+        let position_in = cursor.position_in(layout_bounds);
+        match (position_in, state.last_position) {
+            (None, Some(_)) => {
+                if let Some(message) = widget.on_exit.as_ref() {
+                    shell.publish(message())
+                }
+            }
+            (Some(_), None) => {
+                if let Some(message) = widget.on_enter.as_ref() {
+                    shell.publish(message())
+                }
+            }
+            _ => {}
+        }
+        state.last_position = position_in;
     }
 
     if state.drag_initiated.is_none() && !cursor.is_over(layout_bounds) {
@@ -632,29 +657,11 @@ fn update<Message: Clone>(
         }
     }
 
-    if let Some(message) = widget.on_enter.as_ref() {
-        if let Event::Mouse(mouse::Event::CursorEntered) = event {
-            shell.publish(message(cursor.position_in(layout_bounds)));
-
-            return event::Status::Captured;
-        }
-    }
-
-    if let Some(message) = widget.on_exit.as_ref() {
-        if let Event::Mouse(mouse::Event::CursorLeft) = event {
-            shell.publish(message(cursor.position_in(layout_bounds)));
-
-            return event::Status::Captured;
-        }
-    }
-
-    if let Some(message) = widget.on_scroll.as_ref() {
+    if let Some(on_scroll) = widget.on_scroll.as_ref() {
         if let Event::Mouse(mouse::Event::WheelScrolled { delta }) = event {
-            if let Some(on_scroll) = widget.on_scroll.as_ref() {
-                if let Some(message) = on_scroll(delta.clone(), state.modifiers) {
-                    shell.publish(message);
-                    return event::Status::Captured;
-                }
+            if let Some(message) = on_scroll(delta.clone(), state.modifiers) {
+                shell.publish(message);
+                return event::Status::Captured;
             }
         }
     }

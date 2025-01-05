@@ -565,7 +565,7 @@ impl Video {
                     while !inner.upload_frame.load(Ordering::SeqCst) {
                         std::hint::spin_loop();
                     }
-                    Ok(img::Handle::from_pixels(
+                    Ok(img::Handle::from_rgba(
                         inner.width as u32 / downscale,
                         inner.height as u32 / downscale,
                         yuv_to_rgba(

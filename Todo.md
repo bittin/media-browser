@@ -1,43 +1,106 @@
 # Todo list
 
-Positions ended with a ? are *stretch goals*. If it is possible AND somebody does the work, it would be good to have these.
+## Origins
+
+This project is based on the Alpha 2 of COSMIC Files. Most of the file management features have been removed. A media browser does not need to have multiple tabs for multiple directories. The tab feature is handy for showing search results, though.
+
+The Video Player and the Design of the popover are from COSMIC Player of Alpha 4 and the Iced-Video-Player.
+
+The audio player is also derived from it but heavily modified.
+
+The Image viewer is currently the image_viewer widget from the iced project. There is currently no time to learn how to do it more like I would like it to work.
+
+## Content meaning
+
+This is the history of the project as well as the bug-tracker and the list of implemented and planned features.
+
+Open Features are goals that are planned for a 1.0 release (required features) or something that would be neat over the life-time of the project.
+
+Positions ended with a ? are *stretch goals*. If it is possible AND somebody does the work, it would be good to have these. In 1.0 or later. In some cases the way to make them possible is a rewrite of one of the standard tools used. Which makes the effort explode way beyond the available spare time.
 
 ## File browser
 
 ### Bugs
 
-- fix bug that Movie directory is not parsed correctly
+#### Fixed Bugs
+
+- fix the About and settings panel
+- migrate to Alpha4 of libcosmic
+
+#### Open Bugs
+
+- fix bug that single Movie directories are not parsed correctly
+- cosmic::iced::wgpu crashes when loading images larger than 2048 pixels
+- image_view zoom buttons do nothing as iced::widget::image:viewer is fully mouse driven
 
 ### Features
 
-DONE resursive scan of the current directory - depends on image to database
-DONE skip EXIF extraction for unsupported image formats
-DONE Make recursive scan run in the background
-DONE filetype, actor, director, artist, albumartist, release date range, duration, chapters, ...
-DONE Saved search management
-DONE multiple file rename feature, using the sort order of the model
-DONE fix the About and settings panel
+#### Done Features
+
+- Read metadata from video files, Kodi-style NFO files, poster, subtitles
+- Read metadata from audio files including cover-art
+- Read metadata from image files
+- store metadata in database
+- create thumbnails from video files without poster images
+- when entering a directory the contents are scanned automatically if they are not yet in the database
+- display all media files in the tab view and hide the metadata files
+- Display media on enter or double clidk and navigate to Previous and Next file on Button or Page-up and Page-Down, Button or Escape to leave viewer
+- resursive scan of the selected directory by menu or right-click menu
+- skip EXIF extraction for unsupported image formats
+- Make recursive scan run in the background
+  - Only already parsed images / directories can be used normally!
+  - Write access to the database is blocked during runtime!
+- Search for filetype, actor, director, artist, albumartist, release date range, duration, chapters, ... in the database
+- Saved search management in the database
+- multiple file rename feature, using the sort order of the model (skip videos that are not in their own directory)
+- Add Detail information
+
+#### Open Features
 
 - Search panel with a separate result model/view
   - (new tab per search result, derived from tab? so ESC returns to the search and the search handles the previous/next)
 - disable the sidebar by default
 - sort by release date / creation / modification time
-- display detail information of entry?
+- display detail information of entry? (Free-Form Text field with all the available information)
 - view files of only one type?
 - adjust the sort options when just one type is displayed and more details are available?
 - find similar images in background? (duplo-rs runs very long, better started on the command line!)
+  - fill a new tab with the similar image pairs for comparison. (not necessary as they are in a new directory anyway)
+- find similar videos in background? (duplo-rs runs very long, better started on the command line!)
+  - fill a new tab with the similar image pairs for comparison.
 
 ## Image viewer
 
-DONE add a popup selection strip of the files/images in the same directory
-DONE include images into the database
+### Image Features
 
+#### Image Done Features
+
+- use the iced image_viewer widget as base to display images
+- On click show a navigation bar
+- add a popup selection strip of the files/images in the same directory
+- store image metadata in the database
+- workaround cosmic::iced::wgpu crash when loading images larger than 2048 pixels in any direction by scaling them down
+
+#### Image Open Features
+
+- make the zoom buttons work? (might require another viewer)
 - make the popup strip disappear once the mouse is no longer hovering over it?
+  - mouse_area is whole image_viewer, not just the pop_over
 - adjust the size and shape away from the original aspect ratio of the image viewer on zoom-in if there is room to grow in the window?
 - allow images larger than 2000x2000 pixels to be displayed without scaling it down?
   (cosmic::iced_WGPU crashes currently if files over 2048 are attempted to load into the buffer).
 
 ## Video viewer
+
+### Video Features
+
+#### Video Done Features
+
+- use the iced_video_player / GStreamer to play videos
+- support Matroska container files.
+- use a consistent minimal Design - Thanks COSMIC Player!
+
+#### Video Open Features
 
 - make the player zoom a video that is smaller than the display area
 - add a browse button to have the same navigation strip as in image view
@@ -47,6 +110,16 @@ DONE include images into the database
 - add seek on mouse scroll?
   
 ## Audio Player
+
+### Audio Features
+
+#### Audio Done Features
+
+- modify a copy of the iced_video_player / GStreamer to play audio only files
+- use a consistent minimal design - Thanks COSMIC Player!
+- display coverart instead of a video if available in the embedded metadata
+
+#### Audio Open Features
 
 - update the playback positon in the number and slider
 - add a browse button to have the same navigation strip as in image view

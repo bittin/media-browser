@@ -15,7 +15,7 @@ use std::collections::HashMap;
 
 use crate::{
     app::{Action, Message},
-    config::TabConfig,
+    config::Config,
     fl,
     tab::{self, HeadingOptions, Location, LocationMenuAction, Tab},
 };
@@ -27,11 +27,11 @@ macro_rules! menu_button {
                 vec![$(Element::from($x)),+]
             )
             .height(Length::Fixed(24.0))
-            .align_items(Alignment::Center)
+            .align_y(Alignment::Center)
         )
         .padding([theme::active().cosmic().spacing.space_xxxs, 16])
         .width(Length::Fill)
-        .style(theme::Button::MenuItem)
+        .class(theme::Button::MenuItem)
     );
 }
 
@@ -52,17 +52,13 @@ pub fn context_menu<'a>(
         let key = find_key(&action);
         menu_button!(
             text::body(label),
-            horizontal_space(Length::Fill),
+            horizontal_space(),
             text::body(key)
         )
         .on_press(tab::Message::ContextAction(action))
     };
 
-    let TabConfig {
-        sort_name,
-        sort_direction,
-        ..
-    } = tab.config;
+    let (sort_name, sort_direction, _) = tab.sort_options();
     let sort_item = |label, variant| {
         menu_item(
             format!(
@@ -100,18 +96,18 @@ pub fn context_menu<'a>(
     match (&tab.mode, &tab.location) {
         (
             tab::Mode::Audio | tab::Mode::Image | tab::Mode::Video,
-            Location::Path(_) | Location::Search(_, _) | Location::Recents,
+            Location::Path(_) | Location::Search(_, _, _, _) | Location::Recents,
         ) => {
         }
         (
             tab::Mode::App | tab::Mode::Desktop | tab::Mode::Browser,
-            Location::Path(_) | Location::Search(_, _) | Location::Recents,
+            Location::Path(_) | Location::Search(_, _, _, _) | Location::Recents,
         ) => {
             if selected > 0 {
                 if selected_dir == 1 && selected == 1 || selected_dir == 0 {
                     children.push(menu_item(fl!("open"), Action::Open).into());
                 }
-                if matches!(tab.location, Location::Search(_, _)) {
+                if matches!(tab.location, Location::Search(..)) {
                     children.push(
                         menu_item(fl!("open-item-location"), Action::OpenItemLocation).into(),
                     );
@@ -127,7 +123,7 @@ pub fn context_menu<'a>(
                 children.push(menu_item(fl!("rename"), Action::Rename).into());
                 children.push(menu_item(fl!("cut"), Action::Cut).into());
                 children.push(menu_item(fl!("copy"), Action::Copy).into());
-
+                children.push(menu_item(fl!("show-details"), Action::Preview).into());
                 children.push(divider::horizontal::light().into());
                 //TODO: Print?
                 children.push(menu_item(fl!("add-to-sidebar"), Action::AddToSidebar).into());
@@ -151,17 +147,19 @@ pub fn context_menu<'a>(
         }
         (
             tab::Mode::Dialog(dialog_kind),
-            Location::Path(_) | Location::Search(_, _) | Location::Recents,
+            Location::Path(_) | Location::Search(_, _, _, _) | Location::Recents,
         ) => {
             if selected > 0 {
                 if selected_dir == 1 && selected == 1 || selected_dir == 0 {
                     children.push(menu_item(fl!("open"), Action::Open).into());
                 }
-                if matches!(tab.location, Location::Search(_, _)) {
+                if matches!(tab.location, Location::Search(_, _, _, _)) {
                     children.push(
                         menu_item(fl!("open-item-location"), Action::OpenItemLocation).into(),
                     );
                 }
+                children.push(divider::horizontal::light().into());
+                children.push(menu_item(fl!("show-details"), Action::Preview).into());
             } else {
                 if dialog_kind.save() {
                     children.push(menu_item(fl!("new-folder"), Action::NewFolder).into());
@@ -217,10 +215,10 @@ pub fn context_menu<'a>(
     container(column::with_children(children))
         .padding(1)
         //TODO: move style to libcosmic
-        .style(theme::Container::custom(|theme| {
+        .class(theme::Container::custom(|theme| {
             let cosmic = theme.cosmic();
             let component = &cosmic.background.component;
-            container::Appearance {
+            container::Style {
                 icon_color: Some(component.on.into()),
                 text_color: Some(component.on.into()),
                 background: Some(Background::Color(component.base.into())),
@@ -239,14 +237,19 @@ pub fn context_menu<'a>(
 pub fn dialog_menu<'a>(
     tab: &Tab,
     key_binds: &HashMap<KeyBind, Action>,
+    show_details: bool,
 ) -> Element<'static, Message> {
+    let (sort_name, sort_direction, _) = tab.sort_options();
     let sort_item = |label, sort, dir| {
         menu::Item::CheckBox(
             label,
-            tab.config.sort_name == sort && tab.config.sort_direction == dir,
+            None,
+            sort_name == sort && sort_direction == dir,
             Action::SetSort(sort, dir),
         )
     };
+
+    let in_trash = tab.location == Location::Trash;
 
     MenuBar::new(vec![
         menu::Tree::with_children(
@@ -254,17 +257,21 @@ pub fn dialog_menu<'a>(
                 tab::View::Grid => "view-grid-symbolic",
                 tab::View::List => "view-list-symbolic",
             }))
+            // This prevents the button from being shown as insensitive
+            .on_press(Message::None)
             .padding(8),
             menu::items(
                 key_binds,
                 vec![
                     menu::Item::CheckBox(
                         fl!("grid-view"),
+                        None,
                         matches!(tab.config.view, tab::View::Grid),
                         Action::TabViewGrid,
                     ),
                     menu::Item::CheckBox(
                         fl!("list-view"),
+                        None,
                         matches!(tab.config.view, tab::View::List),
                         Action::TabViewList,
                     ),
@@ -272,11 +279,13 @@ pub fn dialog_menu<'a>(
             ),
         ),
         menu::Tree::with_children(
-            widget::button::icon(widget::icon::from_name(if tab.config.sort_direction {
+            widget::button::icon(widget::icon::from_name(if sort_direction {
                 "view-sort-ascending-symbolic"
             } else {
                 "view-sort-descending-symbolic"
             }))
+            // This prevents the button from being shown as insensitive
+            .on_press(Message::None)
             .padding(8),
             menu::items(
                 key_binds,
@@ -285,12 +294,20 @@ pub fn dialog_menu<'a>(
                     sort_item(fl!("sort-z-a"), tab::HeadingOptions::Name, false),
                     sort_item(
                         fl!("sort-newest-first"),
-                        tab::HeadingOptions::Modified,
+                        if in_trash {
+                            tab::HeadingOptions::TrashedOn
+                        } else {
+                            tab::HeadingOptions::Modified
+                        },
                         false,
                     ),
                     sort_item(
                         fl!("sort-oldest-first"),
-                        tab::HeadingOptions::Modified,
+                        if in_trash {
+                            tab::HeadingOptions::TrashedOn
+                        } else {
+                            tab::HeadingOptions::Modified
+                        },
                         true,
                     ),
                     sort_item(
@@ -307,6 +324,34 @@ pub fn dialog_menu<'a>(
                 ],
             ),
         ),
+        menu::Tree::with_children(
+            widget::button::icon(widget::icon::from_name("view-more-symbolic"))
+                // This prevents the button from being shown as insensitive
+                .on_press(Message::None)
+                .padding(8),
+            menu::items(
+                key_binds,
+                vec![
+                    menu::Item::Button(fl!("zoom-in"), None, Action::ZoomIn),
+                    menu::Item::Button(fl!("default-size"), None, Action::ZoomDefault),
+                    menu::Item::Button(fl!("zoom-out"), None, Action::ZoomOut),
+                    menu::Item::Divider,
+                    menu::Item::CheckBox(
+                        fl!("show-hidden-files"),
+                        None,
+                        tab.config.show_hidden,
+                        Action::ToggleShowHidden,
+                    ),
+                    menu::Item::CheckBox(
+                        fl!("list-directories-first"),
+                        None,
+                        tab.config.folders_first,
+                        Action::ToggleFoldersFirst,
+                    ),
+                    menu::Item::CheckBox(fl!("show-details"), None, show_details, Action::Preview),
+                 ],
+            ),
+        ),
     ])
     .item_height(ItemHeight::Dynamic(40))
     .item_width(ItemWidth::Uniform(240))
@@ -316,17 +361,37 @@ pub fn dialog_menu<'a>(
 
 pub fn menu_bar<'a>(
     tab_opt: Option<&Tab>,
+    config: &Config,
     key_binds: &HashMap<KeyBind, Action>,
 ) -> Element<'a, Message> {
+    let sort_options = tab_opt.map(|tab| tab.sort_options());
     let sort_item = |label, sort, dir| {
         menu::Item::CheckBox(
             label,
-            tab_opt.map_or(false, |tab| {
-                tab.config.sort_name == sort && tab.config.sort_direction == dir
+            None,
+            sort_options.map_or(false, |(sort_name, sort_direction, _)| {
+                sort_name == sort && sort_direction == dir
             }),
             Action::SetSort(sort, dir),
         )
     };
+
+    let mut selected_dir = 0;
+    let mut selected = 0;
+    let mut selected_gallery = 0;
+    tab_opt.and_then(|tab| tab.items_opt()).map(|items| {
+        for item in items.iter() {
+            if item.selected {
+                selected += 1;
+                if item.metadata.is_dir() {
+                    selected_dir += 1;
+                }
+                if item.can_gallery() {
+                    selected_gallery += 1;
+                }
+            }
+        }
+    });
 
     MenuBar::new(vec![
         menu::Tree::with_children(
@@ -334,19 +399,18 @@ pub fn menu_bar<'a>(
             menu::items(
                 key_binds,
                 vec![
-                    menu::Item::Button(fl!("new-window"), Action::WindowNew),
-                    menu::Item::Button(fl!("new-folder"), Action::NewFolder),
-                    menu::Item::Button(fl!("open"), Action::Open),
+                    menu::Item::Button(fl!("new-folder"), None, Action::NewFolder),
+                    menu::Item::Button(fl!("open"), None, Action::Open),
                     menu::Item::Divider,
-                    menu::Item::Button(fl!("rename"), Action::Rename),
+                    menu::Item::Button(fl!("rename"), None, Action::Rename),
                     menu::Item::Divider,
-                    menu::Item::Button(fl!("recursive-scan-directories"), Action::RecursiveScanDirectories),
+                    menu::Item::Button(fl!("recursive-scan-directories"), None, Action::RecursiveScanDirectories),
                     menu::Item::Divider,
-                    menu::Item::Button(fl!("add-to-sidebar"), Action::AddToSidebar),
+                    menu::Item::Button(fl!("add-to-sidebar"), None, Action::AddToSidebar),
                     menu::Item::Divider,
-                    menu::Item::Button(fl!("move-to-trash"), Action::MoveToTrash),
+                    menu::Item::Button(fl!("move-to-trash"), None, Action::MoveToTrash),
                     menu::Item::Divider,
-                    menu::Item::Button(fl!("quit"), Action::WindowClose),
+                    menu::Item::Button(fl!("quit"), None, Action::WindowClose),
                 ],
             ),
         ),
@@ -355,12 +419,12 @@ pub fn menu_bar<'a>(
             menu::items(
                 key_binds,
                 vec![
-                    menu::Item::Button(fl!("cut"), Action::Cut),
-                    menu::Item::Button(fl!("copy"), Action::Copy),
-                    menu::Item::Button(fl!("paste"), Action::Paste),
-                    menu::Item::Button(fl!("select-all"), Action::SelectAll),
+                    menu::Item::Button(fl!("cut"), None, Action::Cut),
+                    menu::Item::Button(fl!("copy"), None, Action::Copy),
+                    menu::Item::Button(fl!("paste"), None, Action::Paste),
+                    menu::Item::Button(fl!("select-all"), None, Action::SelectAll),
                     menu::Item::Divider,
-                    menu::Item::Button(fl!("history"), Action::EditHistory),
+                    menu::Item::Button(fl!("history"), None, Action::EditHistory),
                 ],
             ),
         ),
@@ -369,35 +433,45 @@ pub fn menu_bar<'a>(
             menu::items(
                 key_binds,
                 vec![
-                    menu::Item::Button(fl!("zoom-in"), Action::ZoomIn),
-                    menu::Item::Button(fl!("default-size"), Action::ZoomDefault),
-                    menu::Item::Button(fl!("zoom-out"), Action::ZoomOut),
+                    menu::Item::Button(fl!("zoom-in"), None, Action::ZoomIn),
+                    menu::Item::Button(fl!("default-size"), None, Action::ZoomDefault),
+                    menu::Item::Button(fl!("zoom-out"), None, Action::ZoomOut),
                     menu::Item::Divider,
                     menu::Item::CheckBox(
                         fl!("grid-view"),
+                        None,
                         tab_opt.map_or(false, |tab| matches!(tab.config.view, tab::View::Grid)),
                         Action::TabViewGrid,
                     ),
                     menu::Item::CheckBox(
                         fl!("list-view"),
+                        None,
                         tab_opt.map_or(false, |tab| matches!(tab.config.view, tab::View::List)),
                         Action::TabViewList,
                     ),
                     menu::Item::Divider,
                     menu::Item::CheckBox(
                         fl!("show-hidden-files"),
+                        None,
                         tab_opt.map_or(false, |tab| tab.config.show_hidden),
                         Action::ToggleShowHidden,
                     ),
                     menu::Item::CheckBox(
                         fl!("list-directories-first"),
+                        None,
                         tab_opt.map_or(false, |tab| tab.config.folders_first),
                         Action::ToggleFoldersFirst,
                     ),
+                    menu::Item::CheckBox(
+                        fl!("show-details"),
+                        None,
+                        config.show_details,
+                        Action::Preview,
+                    ),
                     menu::Item::Divider,
-                    menu::Item::Button(fl!("menu-settings"), Action::Settings),
+                    menu::Item::Button(fl!("menu-settings"), None, Action::Settings),
                     menu::Item::Divider,
-                    menu::Item::Button(fl!("menu-about"), Action::About),
+                    menu::Item::Button(fl!("menu-about"), None, Action::About),
                 ],
             ),
         ),
@@ -446,14 +520,14 @@ pub fn location_context_menu<'a>(ancestor_index: usize) -> Element<'a, tab::Mess
                 LocationMenuAction::OpenInNewWindow(ancestor_index),
             ))
             .into(),
-    ];
+        ];
 
     container(column::with_children(children))
         .padding(1)
-        .style(theme::Container::custom(|theme| {
+        .class(theme::Container::custom(|theme| {
             let cosmic = theme.cosmic();
             let component = &cosmic.background.component;
-            container::Appearance {
+            container::Style {
                 icon_color: Some(component.on.into()),
                 text_color: Some(component.on.into()),
                 background: Some(Background::Color(component.base.into())),

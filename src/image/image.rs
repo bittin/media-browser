@@ -9,7 +9,6 @@ use cosmic::iced_core::widget::Tree;
 use cosmic::iced_core::{
     ContentFit, Element, Layout, Length, Rectangle, Size, Vector, Widget,
 };
-use image::ImageEncoder;
 use imagesize;
 
 use std::hash::Hash;
@@ -174,7 +173,7 @@ where
 {
     // The raw w/h of the underlying image
     let image_size = {
-        let Size { width, height } = renderer.dimensions(handle);
+        let Size { width, height } = renderer.measure_image(handle);
 
         Size::new(width as f32, height as f32)
     };
@@ -212,7 +211,7 @@ pub fn draw<Renderer, Handle>(
     Renderer: cosmic::iced_core::image::Renderer<Handle = Handle>,
     Handle: Clone + Hash,
 {
-    let Size { width, height } = renderer.dimensions(handle);
+    let Size { width, height } = renderer.measure_image(handle);
     let image_size = Size::new(width as f32, height as f32);
 
     let bounds = layout.bounds();
@@ -230,10 +229,12 @@ pub fn draw<Renderer, Handle>(
             ..bounds
         };
 
-        renderer.draw(
+        renderer.draw_image(
             handle.clone(),
             filter_method,
             drawing_bounds + offset,
+            cosmic::iced::Radians::from(0.0),
+            1.0,
             border_radius,
         );
     };
