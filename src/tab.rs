@@ -118,6 +118,13 @@ static SPECIAL_DIRS: Lazy<HashMap<PathBuf, &'static str>> = Lazy::new(|| {
     special_dirs
 });
 
+fn seconds_to_runtime(timecode: u32) -> String {
+    let hours = timecode / 3600;
+    let minutes = (timecode - hours * 3600) / 60;
+    let seconds = timecode - hours * 3600 - minutes * 60;
+    format!("{:02}:{:02}:{:02}", hours, minutes, seconds)
+}
+
 fn button_appearance(
     theme: &theme::Theme,
     selected: bool,
@@ -460,7 +467,7 @@ pub fn scan_path(tab_path: &PathBuf, sizes: IconSizes, recursive: bool) -> Vec<I
                         } else if &extension == "mkv" || &extension == "mp4" || &extension == "webm"
                         {
                             videos.push(path.clone());
-                        } else if &extension == "jpg" || &extension == "jpeg" || &extension == "tif" || &extension == "tiff" || &extension == "gif" || &extension == "webp" || &extension == "png"
+                        } else if &extension == "jpg" || &extension == "jpeg" || &extension == "jfif" || &extension == "tif" || &extension == "tiff" || &extension == "gif" || &extension == "webp" || &extension == "png"
                         {
                             images.push(path.clone());
                         }
@@ -1054,7 +1061,7 @@ impl ItemThumbnail {
             }
             return ItemThumbnail::Image(
                 widget::image::Handle::from_path(PathBuf::from(&video.poster)),
-                Some((254, 254)),
+                Some((video.width, video.height)),
             );
         }
         if let Some(audio) = item.audio_opt.as_ref() {
@@ -1072,7 +1079,7 @@ impl ItemThumbnail {
             }
             return ItemThumbnail::Image(
                 widget::image::Handle::from_path(PathBuf::from(&image.poster)),
-                Some((254, 254)),
+                Some((image.width, image.height)),
             );
         }
 
@@ -1168,14 +1175,106 @@ impl Item {
         row
     }
 
-    pub fn preview_view<'a>(&'a self, sizes: IconSizes) -> Element<'a, app::Message> {
+    pub fn file_details(
+        &self,
+        path: &PathBuf,
+        name: &str,
+        mime: &Mime,
+    ) -> (
+        cosmic::iced_widget::Column<'_, app::Message, theme::Theme>, 
+        Vec<cosmic::iced_widget::Row<'_, app::Message, theme::Theme>>
+    ) {
+        let cosmic_theme::Spacing {
+            space_xxxs,
+            ..
+        } = theme::active().cosmic().spacing;
+
+        let mut details = widget::column().spacing(space_xxxs);
+        let mut settings = Vec::new();
+        let metadata = match std::fs::metadata(&path) {
+            Ok(ok) => ok,
+            Err(err) => {
+                log::warn!("failed to read metadata for entry at {:?}: {}", path, err);
+                return (details, settings);
+            }
+        };
+    
+        details = details.push(widget::text::heading(name.to_string()));
+        details = details.push(widget::text::body(fl!(
+            "type",
+            mime = mime.to_string()
+        )));
+        if let Ok(time) = metadata.created() {
+            details = details.push(widget::text::body(fl!(
+                "item-created",
+                created = format_time(time).to_string()
+            )));
+        }
+
+        if let Ok(time) = metadata.modified() {
+            details = details.push(widget::text::body(fl!(
+                "item-modified",
+                modified = format_time(time).to_string()
+            )));
+        }
+
+        if let Ok(time) = metadata.accessed() {
+            details = details.push(widget::text::body(fl!(
+                "item-accessed",
+                accessed = format_time(time).to_string()
+            )));
+        }
+
+        if !metadata.is_dir() {
+            details = details.push(widget::text::body(fl!(
+                "item-size",
+                size = format_size(metadata.len())
+            )));
+        }
+        #[cfg(not(target_os = "windows"))]
+        {
+            settings.push(
+                widget::settings::item::builder(format_permissions_owner(
+                    &metadata,
+                    PermissionOwner::Owner,
+                ))
+                .description(fl!("owner"))
+                .control(widget::text::body(format_permissions(
+                    &metadata,
+                    PermissionOwner::Owner,
+                ))),
+            );
+
+            settings.push(
+                widget::settings::item::builder(format_permissions_owner(
+                    &metadata,
+                    PermissionOwner::Group,
+                ))
+                .description(fl!("group"))
+                .control(widget::text::body(format_permissions(
+                    &metadata,
+                    PermissionOwner::Group,
+                ))),
+            );
+
+            settings.push(widget::settings::item::builder(fl!("other")).control(
+                widget::text::body(format_permissions(&metadata, PermissionOwner::Other)),
+            ));
+        }
+        (details, settings)
+    }
+
+    pub fn preview_view<'a>(
+        &'a self, 
+        sizes: IconSizes, 
+    ) -> Element<'a, app::Message> {
         let cosmic_theme::Spacing {
             space_xxxs,
             space_m,
             ..
         } = theme::active().cosmic().spacing;
 
-        let mut column = widget::column().spacing(space_m);
+        let mut column: cosmic::iced_widget::Column<'_, app::Message, theme::Theme> = widget::column().spacing(space_m);
 
         column = column.push(widget::row::with_children(vec![
             widget::horizontal_space().into(),
@@ -1183,96 +1282,156 @@ impl Item {
             widget::horizontal_space().into(),
         ]));
 
-        let mut details = widget::column().spacing(space_xxxs);
-        details = details.push(widget::text::heading(self.name.clone()));
-        details = details.push(widget::text::body(fl!(
-            "type",
-            mime = self.mime.to_string()
-        )));
-        let mut settings = Vec::new();
+        let mut details;
+        let settings; 
         match &self.metadata {
             ItemMetadata::Path { metadata, children } => {
                 if metadata.is_dir() {
-                    details = details.push(widget::text::body(fl!("items", items = children)));
-                    let size = match &self.dir_size {
-                        DirSize::Calculating(_) => fl!("calculating"),
-                        DirSize::Directory(size) => format_size(*size),
-                        DirSize::NotDirectory => String::new(),
-                        DirSize::Error(err) => err.clone(),
-                    };
-                    details = details.push(widget::text::body(fl!("item-size", size = size)));
+                    if let Some(path) = self.path_opt() {
+                        (details, settings) = self.file_details(path, &self.name, &self.mime);
+                        details = details.push(widget::text::body(fl!("items", items = children)));
+                        let size = match &self.dir_size {
+                            DirSize::Calculating(_) => fl!("calculating"),
+                            DirSize::Directory(size) => format_size(*size),
+                            DirSize::NotDirectory => String::new(),
+                            DirSize::Error(err) => err.clone(),
+                        };
+                        details = details.push(widget::text::body(fl!("item-size", size = size)));
+                    } else {
+                        details = widget::column().spacing(space_xxxs);
+                        settings = Vec::new();
+                    }
                 } else {
-                    details = details.push(widget::text::body(fl!(
-                        "item-size",
-                        size = format_size(metadata.len())
-                    )));
+                    if let Some(video) = self.video_opt.as_ref() {
+                        let path = PathBuf::from(&video.path);
+                        
+                        (details, settings) = self.file_details(&path, &self.name, &mime_for_path(path.clone()));
+                        details = details.push(widget::text::body(fl!(
+                            "item-media-release-date",
+                            text = video.date.to_string()
+                        )));
+                        details = details.push(widget::text::body(fl!(
+                            "item-media-size",
+                            width = video.width,
+                            height = video.height
+                        )));
+                        details = details.push(widget::text::body(fl!(
+                            "item-media-runtime",
+                            text = seconds_to_runtime(video.duration)
+                        )));
+                        for l in video.audiolangs.iter() {
+                            details = details.push(widget::text::body(fl!(
+                                "item-audio-languange",
+                                text = l.to_string()
+                            )));
+                        }
+                        for l in video.sublangs.iter() {
+                            details = details.push(widget::text::body(fl!(
+                                "item-subtitle-language",
+                                text = l.to_string()
+                            )));
+                        }
+                        for l in video.director.iter() {
+                            details = details.push(widget::text::body(fl!(
+                                "item-media-director",
+                                text = l.to_string()
+                            )));
+                        }
+                        for l in video.actors.iter() {
+                            details = details.push(widget::text::body(fl!(
+                                "item-media-actor",
+                                text = l.to_string()
+                            )));
+                        }
+                    } else if let Some(audio) = self.audio_opt.as_ref() {
+                        let path = PathBuf::from(&audio.path);
+                            
+                        (details, settings) = self.file_details(&path, &self.name, &mime_for_path(path.clone()));
+                        details = details.push(widget::text::body(fl!(
+                            "item-media-release-date",
+                            text = audio.date.to_string()
+                        )));
+                        details = details.push(widget::text::body(fl!(
+                            "item-media-runtime",
+                            text = seconds_to_runtime(audio.duration)
+                        )));
+                        for l in audio.artist.iter() {
+                            details = details.push(widget::text::body(fl!(
+                                "item-media-artist",
+                                text = l.to_string()
+                            )));
+                        }
+                        for l in audio.albumartist.iter() {
+                            details = details.push(widget::text::body(fl!(
+                                "item-media-albumartist",
+                                text = l.to_string()
+                            )));
+                        }
+                    } else if let Some(image) = self.image_opt.as_ref() {
+                        let path = PathBuf::from(&image.path);
+                            
+                        (details, settings) = self.file_details(&path, &self.name, &mime_for_path(path.clone()));
+                        details = details.push(widget::text::body(fl!(
+                            "item-media-release-date",
+                            text = image.date.to_string()
+                        )));
+                        details = details.push(widget::text::body(fl!(
+                            "item-media-size",
+                            width = image.width,
+                            height = image.height
+                        )));
+                        if image.lense_model.len() > 0 {
+                            details = details.push(widget::text::body(fl!(
+                                "item-image-lense-model",
+                                text = image.lense_model.clone()
+                            )));
+                        }
+                        if image.focal_length.len() > 0 {
+                            details = details.push(widget::text::body(fl!(
+                                "item-image-focal-length",
+                                text = image.focal_length.clone()
+                            )));
+                        }
+                        if image.exposure_time.len() > 0 {
+                            details = details.push(widget::text::body(fl!(
+                                "item-image-exposure-time",
+                                text = image.exposure_time.clone()
+                            )));
+                        }
+                        if image.fnumber.len() > 0 {
+                            details = details.push(widget::text::body(fl!(
+                                "item-image-fnumber",
+                                text = image.fnumber.clone()
+                            )));
+                        }
+                        if image.gps_latitude != 0.0 {
+                            details = details.push(widget::text::body(fl!(
+                                "item-image-gps-latitude",
+                                text = format!("{}", image.gps_latitude)
+                            )));
+                        }
+                        if image.gps_longitude != 0.0 {
+                            details = details.push(widget::text::body(fl!(
+                                "item-image-gps-longitude",
+                                text = format!("{}", image.gps_longitude)
+                            )));
+                        }
+                        if image.gps_altitude != 0.0 {
+                            details = details.push(widget::text::body(fl!(
+                                "item-image-gps-altitude",
+                                text = format!("{}", image.gps_altitude)
+                            )));
+                        }
+                    } else {
+                        details = widget::column().spacing(space_xxxs);
+                        settings = Vec::new();
+                    }
                 }
-
-                if let Ok(time) = metadata.created() {
-                    details = details.push(widget::text::body(fl!(
-                        "item-created",
-                        created = format_time(time).to_string()
-                    )));
-                }
-
-                if let Ok(time) = metadata.modified() {
-                    details = details.push(widget::text::body(fl!(
-                        "item-modified",
-                        modified = format_time(time).to_string()
-                    )));
-                }
-
-                if let Ok(time) = metadata.accessed() {
-                    details = details.push(widget::text::body(fl!(
-                        "item-accessed",
-                        accessed = format_time(time).to_string()
-                    )));
-                }
-
-                #[cfg(not(target_os = "windows"))]
-                {
-                    settings.push(
-                        widget::settings::item::builder(format_permissions_owner(
-                            metadata,
-                            PermissionOwner::Owner,
-                        ))
-                        .description(fl!("owner"))
-                        .control(widget::text::body(format_permissions(
-                            metadata,
-                            PermissionOwner::Owner,
-                        ))),
-                    );
-
-                    settings.push(
-                        widget::settings::item::builder(format_permissions_owner(
-                            metadata,
-                            PermissionOwner::Group,
-                        ))
-                        .description(fl!("group"))
-                        .control(widget::text::body(format_permissions(
-                            metadata,
-                            PermissionOwner::Group,
-                        ))),
-                    );
-
-                    settings.push(widget::settings::item::builder(fl!("other")).control(
-                        widget::text::body(format_permissions(metadata, PermissionOwner::Other)),
-                    ));
-                }
-            }
+            },
             _ => {
-                //TODO: other metadata types
+                details = widget::column().spacing(space_xxxs);
+                settings = Vec::new();
             }
-        }
-        match self
-            .thumbnail_opt
-            .as_ref()
-            .unwrap_or(&ItemThumbnail::NotImage)
-        {
-            ItemThumbnail::Image(_, Some((width, height))) => {
-                details = details.push(widget::text::body(format!("{}x{}", width, height)));
-            }
-            _ => {}
         }
         column = column.push(details);
 

@@ -184,6 +184,23 @@ item-created = Created: {$created}
 item-modified = Modified: {$modified}
 item-accessed = Accessed: {$accessed}
 calculating = Calculating...
+item-media-release-date = Veröffentlichung: {$text}
+item-media-size = Auflösung: {$width} x {$height}
+item-media-runtime = Spieldauer: 
+item-audio-languange = Sprachen: {$text}
+item-subtitle-language = Untertitel: {$text}
+item-media-actor = Darsteller: {$text}
+item-media-director = Regisseur: {$text}
+item-media-artist = Künstler: {$text}
+item-media-albumartist = Album Künstler: {$text}
+item-media-composer = Komponist: {$text}
+item-image-lense-model = Linsenmodel: {$text}
+item-image-focal-length = Brennweite: {$text}
+item-image-exposure-time = Belichtungszeit: {$text}
+item-image-fnumber = Cropfactor: {$text}
+item-image-gps-latitude = GPS Breitengrad: {$text}
+item-image-gps-longitude = GPS Längengrad: {$text}
+item-image-gps-altitude = GPS Höhe: {$text}
 
 ## Search
 search-context = Search

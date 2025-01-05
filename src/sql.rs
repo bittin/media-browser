@@ -2606,6 +2606,8 @@ pub struct ImageMetadata {
     pub date: NaiveDate,
     pub path: String,
     pub poster: String,
+    pub width: u32,
+    pub height: u32,
     pub photographer: String,
     pub lense_model: String,
     pub focal_length: String,
@@ -2625,6 +2627,8 @@ impl Default for ImageMetadata {
             date: NaiveDate::from_ymd_opt(1970, 1, 1).unwrap(),
             path: String::new(),
             poster: String::new(),
+            width: 0,
+            height: 0,
             photographer: String::new(),
             lense_model: String::new(),
             focal_length: String::new(),
@@ -2645,8 +2649,8 @@ pub fn insert_image(
     known_files: &mut std::collections::BTreeMap<PathBuf, crate::sql::FileMetadata>,
 ) {
     match connection.execute(
-        "INSERT INTO image_metadata (name, path, created, poster, photographer, LenseModel, Focallength, Exposuretime, FNumber, gpsstring, gpslatitude, gpslongitude, gpsaltitude) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)",
-        params![&metadata.name, &metadata.path, &metadata.date, &metadata.poster, &metadata.photographer, &metadata.lense_model, &metadata.focal_length, &metadata.exposure_time, &metadata.fnumber, &metadata.gps_string, &metadata.gps_latitude, &metadata.gps_longitude, &metadata.gps_altitude],
+        "INSERT INTO image_metadata (name, path, created, poster, width, height, photographer, LenseModel, Focallength, Exposuretime, FNumber, gpsstring, gpslatitude, gpslongitude, gpsaltitude) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15)",
+        params![&metadata.name, &metadata.path, &metadata.date, &metadata.poster, &metadata.width, &metadata.height, &metadata.photographer, &metadata.lense_model, &metadata.focal_length, &metadata.exposure_time, &metadata.fnumber, &metadata.gps_string, &metadata.gps_latitude, &metadata.gps_longitude, &metadata.gps_altitude],
     ) {
         Ok(_retval) => {}, //log::warn!("Inserted {} image with ID {} and location {} into candidates.", video.id, video.index, candidate_id),
         Err(error) => {
@@ -2742,7 +2746,7 @@ pub fn image_by_id(
     let mut v = ImageMetadata {..Default::default()};
     v.path = filepath.to_string();
     // fill v from all tables
-    let query = "SELECT name, path, created, poster, created, Photographer, 
+    let query = "SELECT name, path, created, poster, width, height, created, Photographer, 
                         LenseModel, Focallength, Exposuretime, FNumber, 
                         GPSString, GPSLatitude, GPSLongitude, GPSAltitude
                         FROM image_metadata WHERE image_id = ?1";
@@ -2782,62 +2786,76 @@ pub fn image_by_id(
                                     }
                                 }
                                 match row.get(4) {
+                                    Ok(val) => v.width = val,
+                                    Err(error) => {
+                                        log::error!("Failed to read poster for audio: {}", error);
+                                        continue;
+                                    }
+                                }
+                                match row.get(5) {
+                                    Ok(val) => v.height = val,
+                                    Err(error) => {
+                                        log::error!("Failed to read poster for audio: {}", error);
+                                        continue;
+                                    }
+                                }
+                                match row.get(6) {
                                     Ok(val) => v.photographer = val,
                                     Err(error) => {
                                         log::error!("Failed to read duration for audio: {}", error);
                                         continue;
                                     }
                                 }
-                                match row.get(5) {
+                                match row.get(7) {
                                     Ok(val) => v.lense_model = val,
                                     Err(error) => {
                                         log::error!("Failed to read bitrate for audio: {}", error);
                                         continue;
                                     }
                                 }
-                                match row.get(6) {
+                                match row.get(8) {
                                     Ok(val) => v.focal_length = val,
                                     Err(error) => {
                                         log::error!("Failed to read bitrate for audio: {}", error);
                                         continue;
                                     }
                                 }
-                                match row.get(7) {
+                                match row.get(9) {
                                     Ok(val) => v.exposure_time = val,
                                     Err(error) => {
                                         log::error!("Failed to read bitrate for audio: {}", error);
                                         continue;
                                     }
                                 }
-                                match row.get(8) {
+                                match row.get(10) {
                                     Ok(val) => v.fnumber = val,
                                     Err(error) => {
                                         log::error!("Failed to read bitrate for audio: {}", error);
                                         continue;
                                     }
                                 }
-                                match row.get(9) {
+                                match row.get(11) {
                                     Ok(val) => v.gps_string = val,
                                     Err(error) => {
                                         log::error!("Failed to read bitrate for audio: {}", error);
                                         continue;
                                     }
                                 }
-                                match row.get(10) {
+                                match row.get(12) {
                                     Ok(val) => v.gps_latitude = val,
                                     Err(error) => {
                                         log::error!("Failed to read bitrate for audio: {}", error);
                                         continue;
                                     }
                                 }
-                                match row.get(11) {
+                                match row.get(13) {
                                     Ok(val) => v.gps_longitude = val,
                                     Err(error) => {
                                         log::error!("Failed to read bitrate for audio: {}", error);
                                         continue;
                                     }
                                 }
-                                match row.get(12) {
+                                match row.get(14) {
                                     Ok(val) => v.gps_altitude = val,
                                     Err(error) => {
                                         log::error!("Failed to read bitrate for audio: {}", error);
@@ -3986,6 +4004,8 @@ pub fn connect() -> Result<rusqlite::Connection, rusqlite::Error> {
                 path  TEXT NOT NULL, 
                 created UNSIGNED BIG INT NOT NULL, 
                 poster  TEXT, 
+                width INTEGER,
+                height INTEGER,
                 Photographer TEXT,
                 LenseModel TEXT,
                 Focallength TEXT,

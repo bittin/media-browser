@@ -299,6 +299,13 @@ fn parse_audiotags(file: &PathBuf, metadata: &mut crate::sql::AudioMetadata) {
 
 fn parse_exif(path: &PathBuf, metadata: &mut crate::sql::ImageMetadata) {
     use nom_exif::*;
+    match imagesize::size(path.to_path_buf()) {
+        Ok(dim) => {
+            metadata.width = dim.width as u32;
+            metadata.height = dim.height as u32;
+        }
+        Err(why) => println!("Error getting size: {:?}", why)
+    }
     let mut parser = MediaParser::new();
     if let Some(ext) = path.extension() {
         let extension = osstr_to_string(ext.to_os_string()).to_ascii_lowercase();
