@@ -26,10 +26,10 @@ Positions ended with a ? are *stretch goals*. If it is possible AND somebody doe
 
 - fix the About and settings panel
 - migrate to Alpha4 of libcosmic
+- fix bug that single Movie directories are not parsed correctly
 
 #### Open Bugs
 
-- fix bug that single Movie directories are not parsed correctly
 - cosmic::iced::wgpu crashes when loading images larger than 2048 pixels
 - image_view zoom buttons do nothing as iced::widget::image:viewer is fully mouse driven
 

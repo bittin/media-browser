@@ -1473,6 +1473,8 @@ pub fn scan_single_nfo_dir(
     let mut nfo = 0;
     let mut nfo_file = dp.clone().join("movie.nfo");
     let mut contents = Vec::new();
+    let mut movie_name = String::new();
+    let mut nfo_names= Vec::new();
     match std::fs::read_dir(dp) {
         Ok(entries) => {
             for entry_res in entries {
@@ -1503,11 +1505,15 @@ pub fn scan_single_nfo_dir(
                 } else if f.contains(".srt") {
                     meta_data.subtitles.push(f.clone());
                 } else if f.contains(".nfo") {
-                    if nfo > 0 {
+                    if nfo > 1 {
                         justdirs.push(dp.clone());
                         return ControlFlow::Break(());
                     }
                     nfo_file = path.clone();
+                    if let Some(basename) = path.file_stem() {
+                        nfo_names.push(osstr_to_string(basename.to_os_string()));
+
+                    }
                     nfo += 1;
                 } else if f.ends_with(".mkv") || f.ends_with(".mp4") || f.ends_with(".webm") {
                     if movie > 0 {
@@ -1521,8 +1527,21 @@ pub fn scan_single_nfo_dir(
                         } else {
                             meta_data.name = osstr_to_string(path.clone().into_os_string());
                         }
+                        movie_name = meta_data.name.clone();
                     }
                     movie += 1;
+                }
+            }
+            if movie_name.len() > 0 && nfo_names.len() > 1 {
+                let mut movienamenfo = false;
+                for n in nfo_names.iter() {
+                    if &movie_name == n {
+                        movienamenfo = true;
+                    }
+                }
+                if !movienamenfo {
+                    justdirs.push(dp.clone());
+                    return ControlFlow::Break(());
                 }
             }
         }
@@ -1604,7 +1623,9 @@ pub fn scan_nfos_in_dir(
             } else if f.contains(".srt") {
                 meta_data.subtitles.push(f.clone());
             } else if f.contains(".nfo") {
-                nfo_file = fp.clone();
+                if !nfo_file.exists() {
+                    nfo_file = fp.clone();
+                }
             } else if f.ends_with(".mkv") || f.ends_with(".mp4") || f.ends_with(".webm") {
                 meta_data.path = osstr_to_string(fp.clone().into_os_string());
             }
