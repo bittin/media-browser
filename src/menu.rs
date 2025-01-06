@@ -99,13 +99,19 @@ pub fn context_menu<'a>(
     match (&tab.mode, &tab.location) {
         (
             tab::Mode::Audio | tab::Mode::Image | tab::Mode::Video,
-            Location::Path(_) | Location::Search(_, _, _, _) | Location::Recents,
+            Location::DBSearch(_) | Location::Path(_) | Location::Search(_, _, _, _) | Location::Recents,
+        ) => {
+        }
+        (
+            tab::Mode::App | tab::Mode::Desktop | tab::Mode::Browser,
+            Location::DBSearch(_),
         ) => {
         }
         (
             tab::Mode::App | tab::Mode::Desktop | tab::Mode::Browser,
             Location::Path(_) | Location::Search(_, _, _, _) | Location::Recents,
         ) => {
+            children.push(menu_item(fl!("search-context"), Action::SearchDB).into());
             if selected > 0 {
                 if selected_dir == 1 && selected == 1 || selected_dir == 0 {
                     children.push(menu_item(fl!("open"), Action::Open).into());
@@ -150,7 +156,7 @@ pub fn context_menu<'a>(
         }
         (
             tab::Mode::Dialog(dialog_kind),
-            Location::Path(_) | Location::Search(_, _, _, _) | Location::Recents,
+            Location::DBSearch(_) | Location::Path(_) | Location::Search(_, _, _, _) | Location::Recents,
         ) => {
             if selected > 0 {
                 if selected_dir == 1 && selected == 1 || selected_dir == 0 {
@@ -408,6 +414,7 @@ pub fn menu_bar<'a>(
                     menu::Item::Button(fl!("rename"), None, Action::Rename),
                     menu::Item::Divider,
                     menu::Item::Button(fl!("recursive-scan-directories"), None, Action::RecursiveScanDirectories),
+                    menu::Item::Button(fl!("search-context"), None, Action::SearchDB),
                     menu::Item::Divider,
                     menu::Item::Button(fl!("add-to-sidebar"), None, Action::AddToSidebar),
                     menu::Item::Divider,
@@ -426,6 +433,8 @@ pub fn menu_bar<'a>(
                     menu::Item::Button(fl!("copy"), None, Action::Copy),
                     menu::Item::Button(fl!("paste"), None, Action::Paste),
                     menu::Item::Button(fl!("select-all"), None, Action::SelectAll),
+                    menu::Item::Divider,
+                    menu::Item::Button(fl!("search-context"), None, Action::SearchDB),
                     menu::Item::Divider,
                     menu::Item::Button(fl!("history"), None, Action::EditHistory),
                 ],

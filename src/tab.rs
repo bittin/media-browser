@@ -585,6 +585,27 @@ pub fn scan_path(tab_path: &PathBuf, sizes: IconSizes, recursive: bool) -> Vec<I
     }
 }
 
+fn scan_search_db(search: &crate::sql::SearchData) -> Vec<Item> {
+    let mut connection;
+    match crate::sql::connect() {
+        Ok(ok) => connection = ok,
+        Err(error) => {
+            log::error!("Could not open SQLite DB connection: {}", error);
+            return Vec::new();
+        }
+    }
+    crate::sql::insert_search(&mut connection, search.to_owned());
+    log::warn!("Searching database");
+    let mut items = crate::sql::search_items(&mut connection, search);
+
+    items.sort_by(|a, b| match (a.metadata.is_dir(), b.metadata.is_dir()) {
+        (true, false) => core::cmp::Ordering::Less,
+        (false, true) => core::cmp::Ordering::Greater,
+        _ => LANGUAGE_SORTER.compare(&a.display_name, &b.display_name),
+    });
+    items
+}
+
 pub fn scan_search<F: Fn(&Path, &str, Metadata) -> bool + Sync>(
     tab_path: &PathBuf,
     term: &str,
@@ -841,6 +862,7 @@ pub enum Location {
     Path(PathBuf),
     Recents,
     Search(PathBuf, String, bool, Instant),
+    DBSearch(crate::sql::SearchData),
     Trash,
 }
 
@@ -851,6 +873,7 @@ impl std::fmt::Display for Location {
             Self::Path(path) => write!(f, "{}", path.display()),
             Self::Recents => write!(f, "recents"),
             Self::Search(path, term, ..) => write!(f, "search {} for {}", path.display(), term),
+            Self::DBSearch(search) => write!(f, "search {} in database for selected entries.", search.search_string),
             Self::Trash => write!(f, "trash"),
         }
     }
@@ -885,6 +908,7 @@ impl Location {
             Self::Trash => scan_trash(sizes),
             Self::Recents => scan_recents(sizes),
             Self::Network(uri, _) => scan_network(uri, sizes),
+            Self::DBSearch(search) => scan_search_db(search),
         };
         let parent_item_opt = match self.path_opt() {
             Some(path) => match super::parsers::item_from_path(path, sizes) {
@@ -1717,6 +1741,7 @@ impl Tab {
             Location::Recents => {
                 fl!("recents")
             }
+            Location::DBSearch(search) => format!("Search {}", search.search_id),
             Location::Network(_uri, display_name) => display_name.clone(),
         }
     }
@@ -3308,6 +3333,18 @@ impl Tab {
                             display_name.clone(),
                             *show_hidden,
                             *instant
+                        )))
+                        .class(theme::Button::Text)
+                        .into(),
+                );
+            }
+            Location::DBSearch(search) => {
+                children.push(
+                    widget::button::custom(
+                        widget::text::heading(fl!("search-context")))
+                        .padding(space_xxxs)
+                        .on_press(Message::Location(Location::DBSearch(
+                            search.clone(),
                         )))
                         .class(theme::Button::Text)
                         .into(),

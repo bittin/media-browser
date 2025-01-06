@@ -143,6 +143,7 @@ pub enum Action {
     Rename,
     RestoreFromTrash,
     SearchActivate,
+    SearchDB,
     SelectAll,
     SetSort(HeadingOptions, bool),
     Settings,
@@ -203,6 +204,7 @@ impl Action {
             Action::Rename => Message::Rename(entity_opt),
             Action::RestoreFromTrash => Message::RestoreFromTrash(entity_opt),
             Action::SearchActivate => Message::SearchActivate,
+            Action::SearchDB => Message::SearchStart,
             Action::SelectAll => Message::TabMessage(entity_opt, tab::Message::SelectAll),
             Action::SetSort(sort, dir) => {
                 Message::TabMessage(entity_opt, tab::Message::SetSort(*sort, *dir))
@@ -347,6 +349,39 @@ pub enum Message {
     SearchActivate,
     SearchClear,
     SearchInput(String),
+    SearchStart,
+    SearchImages(bool),
+    SearchVideos(bool),
+    SearchAudios(bool),
+    SearchSearchString(String),
+    SearchSearchStringSubmit,
+    SearchSearchFromString(String),
+    SearchSearchFromStringSubmit,
+    SearchSearchToString(String),
+    SearchSearchToStringSubmit,
+    SearchSearchFromValue(String),
+    SearchSearchFromValueSubmit,
+    SearchSearchToValue(String),
+    SearchSearchToValueSubmit,
+    SearchFilepath(bool),
+    SearchTitle(bool),
+    SearchDescription(bool),
+    SearchActor(bool),
+    SearchDirector(bool),
+    SearchArtist(bool),
+    SearchAlbumartist(bool),
+    SearchDuration(bool),
+    SearchCreationDate(bool),
+    SearchModificationDate(bool),
+    SearchReleaseDate(bool),
+    SearchLenseModel(bool),
+    SearchFocalLength(bool),
+    SearchExposureTime(bool),
+    SearchFNumber(bool),
+    SearchGpsLatitude(bool),
+    SearchGpsLongitude(bool),
+    SearchGpsAltitude(bool),
+    SearchCommit,
     SetShowDetails(bool),
     SystemThemeModeChange(cosmic_theme::ThemeMode),
     Size(Size),
@@ -513,6 +548,12 @@ pub struct App {
     complete_operations: BTreeMap<u64, Operation>,
     failed_operations: BTreeMap<u64, (Operation, Controller, String)>,
     search_id: widget::Id,
+    search: crate::sql::SearchData,
+    search_string: widget::Id,
+    search_from_string: widget::Id,
+    search_to_string: widget::Id,
+    search_from_value: widget::Id,
+    search_to_value: widget::Id,
     size: Option<Size>,
     #[cfg(feature = "wayland")]
     surface_ids: HashMap<WlOutput, WindowId>,
@@ -1179,9 +1220,212 @@ impl App {
     }
 
     fn search_database(&self) -> Element<Message> {
-        // TODO: Should dialog be updated here too?
-        widget::settings::view_column(vec![
+        let cosmic_theme::Spacing {
+            space_m,
+            ..
+        } = theme::active().cosmic().spacing;
+
+        let mut column = widget::column().spacing(space_m);
+
+        column = column.push(widget::text::heading(fl!("search-mediatypes")));
+        column = column.push(widget::row::with_children(vec![
+            widget::checkbox(fl!("search-images"), self.search.image)
+            .on_toggle(|b| Message::SearchImages(b))
+            .into(),
+            widget::horizontal_space().into(),
+            widget::checkbox(fl!("search-videos"), self.search.video)
+            .on_toggle(|b| Message::SearchVideos(b))
+            .into(),
+            widget::horizontal_space().into(),
+            widget::checkbox(fl!("search-audios"), self.search.audio)
+            .on_toggle(|b| Message::SearchAudios(b))
+            .into(),
+        ]));
+        column = column.push(widget::text::heading(fl!("search-textentry")));
+        column = column.push(
+            widget::text_input("".to_string(), self.search.search_string.as_str())
+            .id(self.search_string.clone())
+            .on_input(Message::SearchSearchString)
+            .on_submit(Message::SearchSearchStringSubmit),
+
+        );
+        column = column.push(widget::text::heading(fl!("search-ranges")));
+        column = column.push(widget::row::with_children(vec![
+            widget::text::heading(fl!("search-text-from")).into(),
+            widget::horizontal_space().into(),
+            widget::text::heading(fl!("search-text-to")).into(),
+        ]));
+        column = column.push(widget::row::with_children(vec![
+            widget::tooltip(
+                widget::text_input("".to_string(), self.search.from_string.as_str())
+                .id(self.search_from_string.clone())
+                .on_input(Message::SearchSearchFromString)
+                .on_submit(Message::SearchSearchFromStringSubmit),
+                widget::text::body(fl!("search-tooltip-date")),
+                widget::tooltip::Position::Top,
+            ).into(),
+            widget::tooltip(
+                widget::text_input("".to_string(), self.search.to_string.as_str())
+                .id(self.search_to_string.clone())
+                .on_input(Message::SearchSearchToString)
+                .on_submit(Message::SearchSearchToStringSubmit),
+                widget::text::body(fl!("search-tooltip-date")),
+                widget::tooltip::Position::Top,
+            ).into(),
+        ]));
+        column = column.push(widget::row::with_children(vec![
+            widget::text::heading(fl!("search-value-from")).into(),
+            widget::horizontal_space().into(),
+            widget::text::heading(fl!("search-value-to")).into(),
+        ]));
+        column = column.push(widget::row::with_children(vec![
+            widget::tooltip(
+                widget::text_input("".to_string(), self.search.from_value_string.as_str())
+                .id(self.search_from_value.clone())
+                .on_input(Message::SearchSearchFromValue)
+                .on_submit(Message::SearchSearchFromValueSubmit),
+                widget::text::body(fl!("search-tooltip-value")),
+                widget::tooltip::Position::Top,
+            ).into(),
+            widget::tooltip(
+                widget::text_input("".to_string(), self.search.to_value_string.as_str())
+                .id(self.search_to_value.clone())
+                .on_input(Message::SearchSearchToValue)
+                .on_submit(Message::SearchSearchToValueSubmit),
+                widget::text::body(fl!("search-tooltip-value")),
+                widget::tooltip::Position::Top,
+            ).into(),
+        ]));
+        column = column.push(widget::row::with_children(vec![
+            widget::checkbox(fl!("search-filepath"), self.search.filepath)
+            .on_toggle(move |value| {
+                Message::SearchFilepath(value)
+            })
+            .into(),
+            widget::horizontal_space().into(),
+            widget::checkbox(fl!("search-title"), self.search.title)
+            .on_toggle(move |value| {
+                Message::SearchTitle(value)
+            })
+            .into(),
+        ]));
+        column = column.push(widget::row::with_children(vec![
+            widget::checkbox(fl!("search-description"), self.search.description)
+            .on_toggle(move |value| {
+                Message::SearchDescription(value)
+            })
+            .into(),
+            widget::horizontal_space().into(),
+            widget::checkbox(fl!("search-actor"), self.search.actor)
+            .on_toggle(move |value| {
+                Message::SearchActor(value)
+            })
+            .into(),
+            widget::horizontal_space().into(),
+            widget::checkbox(fl!("search-director"), self.search.director)
+            .on_toggle(move |value| {
+                Message::SearchDirector(value)
+            })
+            .into(),
+        ]));
+        column = column.push(widget::row::with_children(vec![
+            widget::checkbox(fl!("search-artist"), self.search.artist)
+            .on_toggle(move |value| {
+                Message::SearchArtist(value)
+            })
+            .into(),
+            widget::horizontal_space().into(),
+            widget::checkbox(fl!("search-album_artist"), self.search.album_artist)
+            .on_toggle(move |value| {
+                Message::SearchAlbumartist(value)
+            })
+            .into(),
+            widget::horizontal_space().into(),
+            widget::checkbox(fl!("search-duration"), self.search.duration)
+            .on_toggle(move |value| {
+                Message::SearchDuration(value)
+            })
+            .into(),
+        ]));
+        column = column.push(widget::row::with_children(vec![
+            widget::checkbox(fl!("search-creation_date"), self.search.creation_date)
+            .on_toggle(move |value| {
+                Message::SearchCreationDate(value)
+            })
+            .into(),
+            widget::horizontal_space().into(),
+            widget::checkbox(fl!("search-modification_date"), self.search.modification_date)
+            .on_toggle(move |value| {
+                Message::SearchModificationDate(value)
+            })
+            .into(),
+            widget::horizontal_space().into(),
+            widget::checkbox(fl!("search-release_date"), self.search.release_date)
+            .on_toggle(move |value| {
+                Message::SearchReleaseDate(value)
+            })
+            .into(),
+        ]));
+        column = column.push(widget::row::with_children(vec![
+            widget::checkbox(fl!("search-lense_model"), self.search.lense_model)
+            .on_toggle(move |value| {
+                Message::SearchLenseModel(value)
+            })
+            .into(),
+            widget::horizontal_space().into(),
+            widget::checkbox(fl!("search-focal_length"), self.search.focal_length)
+            .on_toggle(move |value| {
+                Message::SearchFocalLength(value)
+            })
+            .into(),
+            widget::horizontal_space().into(),
+            widget::checkbox(fl!("search-exposure_time"), self.search.exposure_time)
+            .on_toggle(move |value| {
+                Message::SearchExposureTime(value)
+            })
+            .into(),
+            widget::horizontal_space().into(),
+            widget::checkbox(fl!("search-fnumber"), self.search.fnumber)
+            .on_toggle(move |value| {
+                Message::SearchFNumber(value)
+            })
+            .into(),
+        ]));
+        column = column.push(widget::row::with_children(vec![
+            widget::checkbox(fl!("search-gps_latitude"), self.search.gps_latitude)
+            .on_toggle(move |value| {
+                Message::SearchGpsLatitude(value)
+            })
+            .into(),
+            widget::horizontal_space().into(),
+            widget::checkbox(fl!("search-gps_longitude"), self.search.gps_longitude)
+            .on_toggle(move |value| {
+                Message::SearchGpsLongitude(value)
+            })
+            .into(),
+            widget::horizontal_space().into(),
+            widget::checkbox(fl!("search-gps_altitude"), self.search.gps_altitude)
+            .on_toggle(move |value| {
+                Message::SearchGpsAltitude(value)
+            })
+            .into(),
+        ]));
+        column = column.push(
+            widget::tooltip(
+                widget::button::icon(widget::icon::from_name(
+                    "media-playback-start-symbolic",
+                ))
+                .on_press(Message::SearchCommit)
+                .padding(8),
+                widget::text::body(fl!("search-commit")),
+                widget::tooltip::Position::Top,
+            )
+        );
+        widget::column::with_children(vec![
+            widget::text::body(fl!("search-context")).into(),
+            column.into(),
         ])
+        .spacing(space_m)
         .into()
     }
 
@@ -2066,6 +2310,12 @@ impl Application for App {
             complete_operations: BTreeMap::new(),
             failed_operations: BTreeMap::new(),
             search_id: widget::Id::unique(),
+            search: crate::sql::SearchData {..Default::default()},
+            search_string: widget::Id::unique(),
+            search_from_string: widget::Id::unique(),
+            search_to_string: widget::Id::unique(),
+            search_from_value: widget::Id::unique(),
+            search_to_value: widget::Id::unique(),
             size: None,
             #[cfg(feature = "wayland")]
             surface_ids: HashMap::new(),
@@ -3526,6 +3776,154 @@ impl Application for App {
             }
             Message::SearchInput(input) => {
                 return self.search_set(Some(input));
+            }
+            Message::SearchStart => {
+                self.search = crate::sql::SearchData {..Default::default()};
+                self.context_page = ContextPage::Search;
+                self.core.window.show_context = true;        
+            }
+            Message::SearchImages(is_checked) => {
+                self.search.image = is_checked;
+            }
+            Message::SearchVideos(is_checked) => {
+                self.search.video = is_checked;
+            }
+            Message::SearchAudios(is_checked) => {
+                self.search.audio = is_checked;
+            }
+            Message::SearchSearchString(input) => {
+                self.search.search_string = input.clone();
+            }
+            Message::SearchSearchStringSubmit => {
+                log::warn!("{}", self.search.search_string);
+            }
+            Message::SearchSearchFromString(input) => {
+                self.search.from_string = input.clone();
+            }
+            Message::SearchSearchFromStringSubmit => {
+                log::warn!("{}", self.search.search_string);
+            }
+            Message::SearchSearchToString(input) => {
+                self.search.to_string = input.clone();
+            }
+            Message::SearchSearchToStringSubmit => {
+                log::warn!("{}", self.search.search_string);
+            }
+            Message::SearchSearchFromValue(input) => {
+                self.search.from_value_string = input.clone();
+                let float = crate::parsers::string_to_float(&self.search.from_value_string);
+                self.search.from_value = (float * 1000000.0) as u32;
+            }
+            Message::SearchSearchFromValueSubmit => {
+                log::warn!("{}", self.search.search_string);
+            }
+            Message::SearchSearchToValue(input) => {
+                self.search.to_value_string = input.clone();
+                let float = crate::parsers::string_to_float(&self.search.to_value_string);
+                self.search.to_value = (float * 1000000.0) as u32;
+            }
+            Message::SearchSearchToValueSubmit => {
+                log::warn!("{}", self.search.to_value);
+            }
+            Message::SearchFilepath(is_checked) => {
+                self.search.filepath = is_checked;
+            }
+            Message::SearchTitle(is_checked) => {
+                self.search.title = is_checked;
+            }
+            Message::SearchDescription(is_checked) => {
+                self.search.description = is_checked;
+                if !self.search.video {
+                    self.search.video = true;
+                }
+             }
+            Message::SearchActor(is_checked) => {
+                self.search.actor = is_checked;
+                if !self.search.video {
+                    self.search.video = true;
+                }
+            }
+            Message::SearchDirector(is_checked) => {
+                self.search.director = is_checked;
+                if !self.search.video {
+                    self.search.video = true;
+                }
+            }
+            Message::SearchArtist(is_checked) => {
+                self.search.artist = is_checked;
+                if !self.search.audio {
+                    self.search.audio = true;
+                }
+            }
+            Message::SearchAlbumartist(is_checked) => {
+                self.search.album_artist = is_checked;
+                if !self.search.audio {
+                    self.search.audio = true;
+                }
+            }
+            Message::SearchDuration(is_checked) => {
+                self.search.duration = is_checked;
+            }
+            Message::SearchCreationDate(is_checked) => {
+                self.search.creation_date = is_checked;
+            }
+            Message::SearchModificationDate(is_checked) => {
+                self.search.modification_date = is_checked;
+            }
+            Message::SearchReleaseDate(is_checked) => {
+                self.search.release_date = is_checked;
+            }
+            Message::SearchLenseModel(is_checked) => {
+                self.search.lense_model = is_checked;
+                if !self.search.image {
+                    self.search.image = true;
+                }
+            }
+            Message::SearchFocalLength(is_checked) => {
+                self.search.focal_length = is_checked;
+                if !self.search.image {
+                    self.search.image = true;
+                }
+            }
+            Message::SearchExposureTime(is_checked) => {
+                self.search.exposure_time = is_checked;
+                if !self.search.image {
+                    self.search.image = true;
+                }
+            }
+            Message::SearchFNumber(is_checked) => {
+                self.search.fnumber = is_checked;
+                if !self.search.image {
+                    self.search.image = true;
+                }
+            }
+            Message::SearchGpsLatitude(is_checked) => {
+                self.search.gps_latitude = is_checked;
+                if !self.search.image {
+                    self.search.image = true;
+                }
+            }
+            Message::SearchGpsLongitude(is_checked) => {
+                self.search.gps_longitude = is_checked;
+                if !self.search.image {
+                    self.search.image = true;
+                }
+            }
+            Message::SearchGpsAltitude(is_checked) => {
+                self.search.gps_altitude = is_checked;
+                if !self.search.image {
+                    self.search.image = true;
+                }
+            }
+            Message::SearchCommit => {
+                let location = Location::DBSearch(self.search.clone());
+                let (parent_item_opt, items) = location.scan(IconSizes::default());
+                let (entity, command) = self.open_tab_entity(location, true, None);
+                if let Some(tab) = self.tab_model.data_mut::<Tab>(entity) {
+                    tab.parent_item_opt = parent_item_opt;
+                    tab.set_items(items);
+                }
+                return command;
             }
             Message::SetShowDetails(show_details) => {
                 config_set!(show_details, show_details);

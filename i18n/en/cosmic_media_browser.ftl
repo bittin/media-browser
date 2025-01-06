@@ -203,16 +203,41 @@ item-image-gps-longitude = GPS Longitude: {$text}
 item-image-gps-altitude = GPS Altitude: {$text}
 
 ## Search
-search-context = Search
-mediatypes = Search Media types
-images = Images
-videos = Videos
-audios = Audio files
-textentry = Search term
-text-from = From / Minimum (Text)
-text-to = To / Maximum (Text)
-value-from = From / Minimum (Number)
-value-to = To / Maximum (Number)
+search-context = Search the database
+search-mediatypes = Search Media types
+search-images = Images
+search-videos = Videos
+search-audios = Audio files
+search-textentry = Search term
+search-ranges = Search ranges
+search-text-from = From / Minimum (Text)
+search-text-to = To / Maximum (Text)
+search-value-from = From / Minimum (Number)
+search-value-to = To / Maximum (Number)
+search-tooltip-date = For Example:
+    Date in format YYYY-MM-DDThh:mm:ss
+    Example:       2003-01-14T20:15:00
+    The Time can be omitted by giving just the date 2003-01-14
+search-tooltip-value = Numerical value
+search-filepath = Filepath
+search-title = Title
+search-description = Description
+search-actor = Actor/Actress
+search-director = Director
+search-artist = Artist name
+search-album_artist = Album artist
+search-duration = Duration
+search-creation_date = Creation date
+search-modification_date = Modification date
+search-release_date = Release date
+search-lense_model = Lense model
+search-focal_length = Focal length
+search-exposure_time = Exposure time
+search-fnumber = F-number
+search-gps_latitude = GPS latitude
+search-gps_longitude = GPS longitude
+search-gps_altitude = GPS altitude
+search-commit = Start Search
 
 ## Settings
 settings = Settings

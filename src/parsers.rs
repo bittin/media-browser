@@ -697,6 +697,7 @@ pub fn item_from_video(
     sizes: IconSizes,
     known_files: &mut std::collections::BTreeMap<PathBuf, crate::sql::FileMetadata>,
     connection: &mut rusqlite::Connection,
+    from_db: bool,
 ) -> Item {
     let mut videometadata = crate::sql::VideoMetadata {..Default::default()};
     
@@ -704,28 +705,31 @@ pub fn item_from_video(
     videometadata.path = osstr_to_string(path.clone().into_os_string());
     let mut refresh = false;
     let filepath = osstr_to_string(path.clone().into_os_string());
-    if known_files.contains_key(&path) {
-        if let Ok(modified) = metadata.modified() {
-            if let Ok(new_date) = modified.duration_since(UNIX_EPOCH) {
-                let filedata = &known_files[&path];
-                let new_seconds_since_epoch = new_date.as_secs();
-                if new_seconds_since_epoch > filedata.modification_time {
-                    refresh = true;
+    if !from_db {
+        if known_files.contains_key(&path) {
+            if let Ok(modified) = metadata.modified() {
+                if let Ok(new_date) = modified.duration_since(UNIX_EPOCH) {
+                    let filedata = &known_files[&path];
+                    let new_seconds_since_epoch = new_date.as_secs();
+                    if new_seconds_since_epoch > filedata.modification_time {
+                        refresh = true;
+                    }
+                }
+                if refresh {
+                    // file is newer
+                    create_screenshots(&mut videometadata);
+                    crate::sql::insert_video(connection, &mut videometadata, metadata, known_files);
+                    crate::sql::update_video(connection, &mut videometadata, metadata, known_files);
+                } else {
+                    videometadata = crate::sql::video(connection, &filepath, known_files);
                 }
             }
-            if refresh {
-                // file is newer
-                create_screenshots(&mut videometadata);
-                crate::sql::insert_video(connection, &mut videometadata, metadata, known_files);
-                crate::sql::update_video(connection, &mut videometadata, metadata, known_files);
-            } else {
-                videometadata = crate::sql::video(connection, &filepath, known_files);
-            }
+        } else {
+            create_screenshots(&mut videometadata);
+            crate::sql::insert_video(connection, &mut videometadata, metadata, known_files);
         }
-    } else {
-        create_screenshots(&mut videometadata);
-        crate::sql::insert_video(connection, &mut videometadata, metadata, known_files);
     }
+
     let mut display_name = Item::display_name(&name);
 
     let hidden = name.starts_with(".") || hidden_attribute(&metadata);
@@ -852,6 +856,7 @@ pub fn item_from_nfo(
     sizes: IconSizes,
     known_files: &mut std::collections::BTreeMap<PathBuf, crate::sql::FileMetadata>,
     connection: &mut rusqlite::Connection,
+    from_db: bool,
 ) -> Item {
     let filepath = PathBuf::from(&metadata.path);
     let basename;
@@ -864,31 +869,33 @@ pub fn item_from_nfo(
             basename = osstr_to_string(filepath.clone().into_os_string());
         }
     }
-    if known_files.contains_key(&filepath) {
-        let mut refresh = false;
-        if let Ok(modified) = statdata.modified() {
-            if let Ok(new_date) = modified.duration_since(UNIX_EPOCH) {
-                let filedata = &known_files[&filepath];
-                let new_seconds_since_epoch = new_date.as_secs();
-                if new_seconds_since_epoch > filedata.modification_time {
-                    refresh = true;
+    if !from_db {
+        if known_files.contains_key(&filepath) {
+            let mut refresh = false;
+            if let Ok(modified) = statdata.modified() {
+                if let Ok(new_date) = modified.duration_since(UNIX_EPOCH) {
+                    let filedata = &known_files[&filepath];
+                    let new_seconds_since_epoch = new_date.as_secs();
+                    if new_seconds_since_epoch > filedata.modification_time {
+                        refresh = true;
+                    }
+                }
+                if refresh {
+                    // file is newer
+                    video_metadata(metadata);
+                    parse_nfo(&nfo_file, metadata);
+                    metadata.name = basename.clone();
+                    crate::sql::update_video(connection, metadata, statdata, known_files);
+                } else {
+                    *metadata = crate::sql::video(connection, &metadata.path, known_files);
                 }
             }
-            if refresh {
-                // file is newer
-                video_metadata(metadata);
-                parse_nfo(&nfo_file, metadata);
-                metadata.name = basename.clone();
-                crate::sql::update_video(connection, metadata, statdata, known_files);
-            } else {
-                *metadata = crate::sql::video(connection, &metadata.path, known_files);
-            }
+        } else {
+            video_metadata( metadata);
+            parse_nfo(&nfo_file, metadata);
+            metadata.name = basename.clone();
+            crate::sql::insert_video(connection, metadata, statdata, known_files);
         }
-    } else {
-        video_metadata( metadata);
-        parse_nfo(&nfo_file, metadata);
-        metadata.name = basename.clone();
-        crate::sql::insert_video(connection, metadata, statdata, known_files);
     }
     
     let name;
@@ -982,6 +989,7 @@ pub fn item_from_audiotags(
     sizes: IconSizes,
     known_files: &mut std::collections::BTreeMap<PathBuf, crate::sql::FileMetadata>,
     connection: &mut rusqlite::Connection,
+    from_db: bool,
 ) -> Item {
     let filepath = PathBuf::from(&metadata.path);
     let basename;
@@ -994,29 +1002,31 @@ pub fn item_from_audiotags(
             basename = osstr_to_string(filepath.clone().into_os_string());
         }
     }
-    if known_files.contains_key(&filepath) {
-        let mut refresh = false;
-        if let Ok(modified) = statdata.modified() {
-            if let Ok(new_date) = modified.duration_since(UNIX_EPOCH) {
-                let filedata = &known_files[&filepath];
-                let new_seconds_since_epoch = new_date.as_secs();
-                if new_seconds_since_epoch > filedata.modification_time {
-                    refresh = true;
+    if !from_db {
+        if known_files.contains_key(&filepath) {
+            let mut refresh = false;
+            if let Ok(modified) = statdata.modified() {
+                if let Ok(new_date) = modified.duration_since(UNIX_EPOCH) {
+                    let filedata = &known_files[&filepath];
+                    let new_seconds_since_epoch = new_date.as_secs();
+                    if new_seconds_since_epoch > filedata.modification_time {
+                        refresh = true;
+                    }
+                }
+                if refresh {
+                    // file is newer
+                    parse_audiotags(&nfo_file, metadata);
+                    metadata.name = basename.clone();
+                    crate::sql::update_audio(connection, metadata, statdata, known_files);
+                } else {
+                    *metadata = crate::sql::audio(connection, &metadata.path, known_files);
                 }
             }
-            if refresh {
-                // file is newer
-                parse_audiotags(&nfo_file, metadata);
-                metadata.name = basename.clone();
-                crate::sql::update_audio(connection, metadata, statdata, known_files);
-            } else {
-                *metadata = crate::sql::audio(connection, &metadata.path, known_files);
-            }
+        } else {
+            parse_audiotags(&nfo_file, metadata);
+            metadata.name = basename.clone();
+            crate::sql::insert_audio(connection, metadata, statdata, known_files);
         }
-    } else {
-        parse_audiotags(&nfo_file, metadata);
-        metadata.name = basename.clone();
-        crate::sql::insert_audio(connection, metadata, statdata, known_files);
     }
 
     let name;
@@ -1129,6 +1139,7 @@ pub fn item_from_exif(
     sizes: IconSizes,
     known_files: &mut std::collections::BTreeMap<PathBuf, crate::sql::FileMetadata>,
     connection: &mut rusqlite::Connection,
+    from_db: bool,
 ) -> Item {
     let filepath = PathBuf::from(&metadata.path);
     let basename;
@@ -1141,30 +1152,32 @@ pub fn item_from_exif(
             basename = osstr_to_string(filepath.clone().into_os_string());
         }
     }
-    if known_files.contains_key(&filepath) {
-        let mut refresh = false;
-        if let Ok(modified) = statdata.modified() {
-            if let Ok(new_date) = modified.duration_since(UNIX_EPOCH) {
-                let filedata = &known_files[&filepath];
-                let new_seconds_since_epoch = new_date.as_secs();
-                if new_seconds_since_epoch > filedata.modification_time {
-                    refresh = true;
+    if !from_db {
+        if known_files.contains_key(&filepath) {
+            let mut refresh = false;
+            if let Ok(modified) = statdata.modified() {
+                if let Ok(new_date) = modified.duration_since(UNIX_EPOCH) {
+                    let filedata = &known_files[&filepath];
+                    let new_seconds_since_epoch = new_date.as_secs();
+                    if new_seconds_since_epoch > filedata.modification_time {
+                        refresh = true;
+                    }
+                }
+                if refresh {
+                    // file is newer
+                    parse_exif(&image_file, metadata);
+                    metadata.name = basename.clone();
+                    crate::sql::update_image(connection, metadata, statdata, known_files);
+                } else {
+                    *metadata = crate::sql::image(connection, &metadata.path, known_files);
                 }
             }
-            if refresh {
-                // file is newer
-                parse_exif(&image_file, metadata);
-                metadata.name = basename.clone();
-                crate::sql::update_image(connection, metadata, statdata, known_files);
-            } else {
-                *metadata = crate::sql::image(connection, &metadata.path, known_files);
-            }
+        } else {
+            parse_exif(&image_file, metadata);
+            metadata.name = basename.clone();
+            crate::sql::insert_image(connection, metadata, statdata, known_files);
         }
-    } else {
-        parse_exif(&image_file, metadata);
-        metadata.name = basename.clone();
-        crate::sql::insert_image(connection, metadata, statdata, known_files);
-    }
+    } 
 
     let name;
     if metadata.title.len() == 0 {
@@ -1360,7 +1373,7 @@ pub fn scan_videos(
     let mut thumb = osstr_to_string(path.clone().into_os_string());
     thumb.push_str("_001.jpeg");
     special_files.insert(PathBuf::from(&thumb));
-    items.push(crate::parsers::item_from_video(path, name, &metadata, sizes, known_files, connection));
+    items.push(crate::parsers::item_from_video(path, name, &metadata, sizes, known_files, connection, false));
 
     ControlFlow::Continue(())
 }
@@ -1413,6 +1426,7 @@ pub fn scan_audiotags(
         sizes,
         known_files,
         connection,
+        false,
     ));
 
     ControlFlow::Continue(())
@@ -1459,6 +1473,7 @@ pub fn scan_exif(
         sizes,
         known_files,
         connection,
+        false,
     ));
 
     ControlFlow::Continue(())
@@ -1606,6 +1621,7 @@ pub fn scan_single_nfo_dir(
         sizes,
         known_files,
         connection,
+        false,
     ));
     // test if we have a single movie with NFO in this dir
 
@@ -1678,6 +1694,7 @@ pub fn scan_nfos_in_dir(
         sizes,
         known_files,
         connection,
+        false,
     ));
     ControlFlow::Continue(())
 }

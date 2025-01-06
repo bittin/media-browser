@@ -203,16 +203,41 @@ item-image-gps-longitude = GPS Längengrad: {$text}
 item-image-gps-altitude = GPS Höhe: {$text}
 
 ## Search
-search-context = Search
-mediatypes = Suche Medien Typen
-images = Images
-videos = Videos
-audios = Audio Dateien
-textentry = Text der gesucht werden soll
-text-from = Von / Minimum (Text)
-text-to = Bis / Maximum (Text)
-value-from = Von / Minimum (Zahl)
-value-to = Bis / Maximum (Zahl)
+search-context = Die Datenbank durchsuchen
+search-mediatypes = Suche Medien Typen
+search-images = Images
+search-videos = Videos
+search-audios = Audio Dateien
+search-ranges = Suchbereiche
+search-textentry = Text der gesucht werden soll
+search-text-from = Von / Minimum (Text)
+search-text-to = Bis / Maximum (Text)
+search-value-from = Von / Minimum (Zahl)
+search-value-to = Bis / Maximum (Zahl)
+search-tooltip-date = Zum Beispiel:
+    Datum im Format YYYY-MM-DDThh:mm:ss
+    Beispiel:       2003-01-14T20:15:00
+    Die Zeitangabe kann auch weggelassen werden: 2003-01-14
+search-tooltip-value = Zahlen
+search-filepath = Dateipfad
+search-title = Titel
+search-description = Beschreibung
+search-actor = DarstellerInnen
+search-director = RegiseurInnen
+search-artist = Künstlername
+search-album_artist = Album Künstler
+search-duration = Spieldauer
+search-creation_date = Erzeugungsdatum
+search-modification_date = Änderungsdatum
+search-release_date = Veröffentlichungsdatum
+search-lense_model = Linsenmodel
+search-focal_length = Brennweite
+search-exposure_time = Belichtungszeit
+search-fnumber = Cropfactor
+search-gps_latitude = GPS Breitengrad
+search-gps_longitude = GPS Längengrad
+search-gps_altitude = GPS Höhe
+search-commit = Suche beginnen
 
 ## Settings
 settings = Einstellungen

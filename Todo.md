@@ -30,6 +30,7 @@ Positions ended with a ? are *stretch goals*. If it is possible AND somebody doe
 
 #### Open Bugs
 
+- make Esc stop playback of audio and video
 - cosmic::iced::wgpu crashes when loading images larger than 2048 pixels
 - image_view zoom buttons do nothing as iced::widget::image:viewer is fully mouse driven
 
@@ -54,12 +55,13 @@ Positions ended with a ? are *stretch goals*. If it is possible AND somebody doe
 - Saved search management in the database
 - multiple file rename feature, using the sort order of the model (skip videos)
 - Add Detail information
+- Search panel with a separate result model/view
+  - (new tab per search result, derived from tab so ESC returns to the search and the search handles the previous/next)
 
 #### Open Features
 
 - get the bread-crumb navigation in the tab back
-- Search panel with a separate result model/view
-  - (new tab per search result, derived from tab? so ESC returns to the search and the search handles the previous/next)
+- manage previous searches in the search context menu
 - disable the sidebar by default
 - sort by release date / creation / modification time
 - display detail information of entry? (Free-Form Text field with all the available information)

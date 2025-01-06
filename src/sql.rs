@@ -9,14 +9,16 @@ use std::path::PathBuf;
 use std::collections::BTreeMap;
 use chrono::NaiveDate;
 
-#[derive(Clone, Debug, PartialEq, PartialOrd)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Hash)]
 pub struct SearchData {
     pub search_id: u32,
     pub search_string: String,
     pub from_string: String,
-    pub from_value: f32,
+    pub from_value_string: String,
+    pub from_value: u32,
     pub to_string: String,
-    pub to_value: f32,
+    pub to_value_string: String,
+    pub to_value: u32,
     pub image: bool,
     pub video: bool,
     pub audio: bool,
@@ -46,9 +48,11 @@ impl Default for SearchData {
             search_id: 0,
             search_string: String::new(),
             from_string: String::new(),
-            from_value: 0.0,
+            from_value_string: String::new(),
+            from_value: 0,
             to_string: String::new(),
-            to_value: 0.0,
+            to_value_string: String::new(),
+            to_value: 0,
             image: false,
             video: false,
             audio: false,
@@ -143,36 +147,36 @@ pub fn search_video(
         return (videos, files);
     }
     if search.title {
-        let query = format!("SELECT video_id FROM video_metadata WHERE title LIKE {}", search.search_string);
+        let query = format!("SELECT video_id FROM video_metadata WHERE title LIKE '%{}%'", search.search_string);
         let (newvideos, newfiles) = search_video_metadata(
             connection, 
             query, 
         );
-        for i in 0..files.len() {
-            if !used_files.contains(&files[i].filepath) {
-                used_files.insert(files[i].filepath.clone());
+        for i in 0..newfiles.len() {
+            if !used_files.contains(&newfiles[i].filepath) {
+                used_files.insert(newfiles[i].filepath.clone());
                 files.push(newfiles[i].clone());
                 videos.push(newvideos[i].clone());
             }
         }
     }
     if search.description {
-        let query = format!("SELECT video_id FROM video_metadata WHERE description LIKE {}", search.search_string);
+        let query = format!("SELECT video_id FROM video_metadata WHERE description LIKE '%{}%'", search.search_string);
         let (newvideos, newfiles) = search_video_metadata(
             connection, 
             query, 
         );
-        for i in 0..files.len() {
-            if !used_files.contains(&files[i].filepath) {
-                used_files.insert(files[i].filepath.clone());
+        for i in 0..newfiles.len() {
+            if !used_files.contains(&newfiles[i].filepath) {
+                used_files.insert(newfiles[i].filepath.clone());
                 files.push(newfiles[i].clone());
                 videos.push(newvideos[i].clone());
             }
         }
     }
-    if search.duration && search.from_value != 0.0 {
+    if search.duration && search.from_value != 0 {
         let query;
-        if search.to_value != 0.0 {
+        if search.to_value != 0 {
             query = format!("SELECT video_id FROM video_metadata WHERE duration > {} AND duration < {}", search.from_value as u32, search.to_value as u32);
         } else {
             query = format!("SELECT video_id FROM video_metadata WHERE duration > {}", search.from_value as u32);
@@ -181,43 +185,37 @@ pub fn search_video(
             connection, 
             query, 
         );
-        for i in 0..files.len() {
-            if !used_files.contains(&files[i].filepath) {
-                used_files.insert(files[i].filepath.clone());
+        for i in 0..newfiles.len() {
+            if !used_files.contains(&newfiles[i].filepath) {
+                used_files.insert(newfiles[i].filepath.clone());
                 files.push(newfiles[i].clone());
                 videos.push(newvideos[i].clone());
             }
         }
     }
     if search.actor {
-        let query = format!("SELECT video_id FROM actors 
-                        INNER JOIN people 
-                        ON people.person_id = actors.actor_id
-                        WHERE people.person_name LIKE {}", search.search_string);
+        let query = format!("SELECT video_id FROM actors INNER JOIN people ON people.person_id = actors.actor_id WHERE people.person_name LIKE '%{}%'", search.search_string);
         let (newvideos, newfiles) = search_video_metadata(
             connection, 
             query, 
         );
-        for i in 0..files.len() {
-            if !used_files.contains(&files[i].filepath) {
-                used_files.insert(files[i].filepath.clone());
+        for i in 0..newfiles.len() {
+            if !used_files.contains(&newfiles[i].filepath) {
+                used_files.insert(newfiles[i].filepath.clone());
                 files.push(newfiles[i].clone());
                 videos.push(newvideos[i].clone());
             }
         }
     }
     if search.director {
-        let query = format!("SELECT video_id FROM directors 
-                        INNER JOIN people 
-                        ON people.person_id = actors.director_id
-                        WHERE people.person_name LIKE {}", search.search_string);
+        let query = format!("SELECT video_id FROM directors INNER JOIN people ON people.person_id = directors.director_id WHERE people.person_name LIKE '%{}%'", search.search_string);
         let (newvideos, newfiles) = search_video_metadata(
             connection, 
             query, 
         );
-        for i in 0..files.len() {
-            if !used_files.contains(&files[i].filepath) {
-                used_files.insert(files[i].filepath.clone());
+        for i in 0..newfiles.len() {
+            if !used_files.contains(&newfiles[i].filepath) {
+                used_files.insert(newfiles[i].filepath.clone());
                 files.push(newfiles[i].clone());
                 videos.push(newvideos[i].clone());
             }
@@ -236,9 +234,9 @@ pub fn search_video(
             connection, 
             query, 
         );
-        for i in 0..files.len() {
-            if !used_files.contains(&files[i].filepath) {
-                used_files.insert(files[i].filepath.clone());
+        for i in 0..newfiles.len() {
+            if !used_files.contains(&newfiles[i].filepath) {
+                used_files.insert(newfiles[i].filepath.clone());
                 files.push(newfiles[i].clone());
                 videos.push(newvideos[i].clone());
             }
@@ -317,67 +315,61 @@ pub fn search_audio(
         return (audios, files);
     }
     if search.title {
-        let query = format!("SELECT audio_id FROM audio_metadata WHERE title LIKE {}", search.search_string);
+        let query = format!("SELECT audio_id FROM audio_metadata WHERE title LIKE '%{}%'", search.search_string);
         let (newvideos, newfiles) = search_audio_metadata(
             connection, 
             query, 
         );
-        for i in 0..files.len() {
-            if !used_files.contains(&files[i].filepath) {
-                used_files.insert(files[i].filepath.clone());
+        for i in 0..newfiles.len() {
+            if !used_files.contains(&newfiles[i].filepath) {
+                used_files.insert(newfiles[i].filepath.clone());
                 files.push(newfiles[i].clone());
                 audios.push(newvideos[i].clone());
             }
         }
     }
-    if search.duration && search.from_value != 0.0 {
+    if search.duration && search.from_value != 0 {
         let query;
-        if search.to_value != 0.0 {
-            query = format!("SELECT audio_id FROM audio_metadata WHERE duration > {} AND duration < {}", search.from_value as u32, search.to_value as u32);
+        if search.to_value != 0 {
+            query = format!("SELECT audio_id FROM audio_metadata WHERE duration > {} AND duration < {}", search.from_value / 1000000, search.to_value / 1000000);
         } else {
-            query = format!("SELECT audio_id FROM audio_metadata WHERE duration > {}", search.from_value as u32);
+            query = format!("SELECT audio_id FROM audio_metadata WHERE duration > {}", search.from_value  / 1000000);
         }
         let (newvideos, newfiles) = search_audio_metadata(
             connection, 
             query, 
         );
-        for i in 0..files.len() {
-            if !used_files.contains(&files[i].filepath) {
-                used_files.insert(files[i].filepath.clone());
+        for i in 0..newfiles.len() {
+            if !used_files.contains(&newfiles[i].filepath) {
+                used_files.insert(newfiles[i].filepath.clone());
                 files.push(newfiles[i].clone());
                 audios.push(newvideos[i].clone());
             }
         }
     }
     if search.artist {
-        let query = format!("SELECT audio_id FROM artist_audio_map 
-                        INNER JOIN artists 
-                        ON artists.artist_id  = artist_audio_map.artist_id
-                        WHERE artists.artist_name LIKE {}", search.search_string);
+        let query = format!("SELECT audio_id FROM artist_audio_map INNER JOIN artists ON artists.artist_id  = artist_audio_map.artist_id WHERE artists.artist_name LIKE '%{}%'", search.search_string);
         let (newvideos, newfiles) = search_audio_metadata(
             connection, 
             query, 
         );
-        for i in 0..files.len() {
-            if !used_files.contains(&files[i].filepath) {
-                used_files.insert(files[i].filepath.clone());
+        for i in 0..newfiles.len() {
+            if !used_files.contains(&newfiles[i].filepath) {
+                used_files.insert(newfiles[i].filepath.clone());
                 files.push(newfiles[i].clone());
                 audios.push(newvideos[i].clone());
             }
         }
     }
     if search.album_artist {
-        let query = format!("SELECT audio_id FROM albumartist_audio_map 
-                        INNER JOIN artists 
-                        ON artists.artist_id  = albumartist_audio_map.artist_id
-                        WHERE artists.artist_name LIKE {}", search.search_string);
+        let query = format!("SELECT audio_id FROM albumartist_audio_map INNER JOIN artists ON artists.artist_id  = albumartist_audio_map.artist_id WHERE artists.artist_name LIKE '%{}%'", search.search_string);
         let (newvideos, newfiles) = search_audio_metadata(
             connection, 
             query, 
         );
-        for i in 0..files.len() {
-            if !used_files.contains(&files[i].filepath) {
-                used_files.insert(files[i].filepath.clone());
+        for i in 0..newfiles.len() {
+            if !used_files.contains(&newfiles[i].filepath) {
+                used_files.insert(newfiles[i].filepath.clone());
                 files.push(newfiles[i].clone());
                 audios.push(newvideos[i].clone());
             }
@@ -396,9 +388,9 @@ pub fn search_audio(
             connection, 
             query, 
         );
-        for i in 0..files.len() {
-            if !used_files.contains(&files[i].filepath) {
-                used_files.insert(files[i].filepath.clone());
+        for i in 0..newfiles.len() {
+            if !used_files.contains(&newfiles[i].filepath) {
+                used_files.insert(newfiles[i].filepath.clone());
                 files.push(newfiles[i].clone());
                 audios.push(newvideos[i].clone());
             }
@@ -478,127 +470,127 @@ pub fn search_image(
         return (images, files);
     }
     if search.title {
-        let query = format!("SELECT image_id FROM image_metadata WHERE name LIKE {}", search.search_string);
+        let query = format!("SELECT image_id FROM image_metadata WHERE name LIKE '%{}%'", search.search_string);
         let (newvideos, newfiles) = search_image_metadata(
             connection, 
             query, 
         );
-        for i in 0..files.len() {
-            if !used_files.contains(&files[i].filepath) {
-                used_files.insert(files[i].filepath.clone());
+        for i in 0..newfiles.len() {
+            if !used_files.contains(&newfiles[i].filepath) {
+                used_files.insert(newfiles[i].filepath.clone());
                 files.push(newfiles[i].clone());
                 images.push(newvideos[i].clone());
             }
         }
     }
     if search.lense_model {
-        let query = format!("SELECT image_id FROM image_metadata WHERE LenseModel LIKE {}", search.search_string);
+        let query = format!("SELECT image_id FROM image_metadata WHERE LenseModel LIKE '%{}%'", search.search_string);
         let (newvideos, newfiles) = search_image_metadata(
             connection, 
             query, 
         );
-        for i in 0..files.len() {
-            if !used_files.contains(&files[i].filepath) {
-                used_files.insert(files[i].filepath.clone());
+        for i in 0..newfiles.len() {
+            if !used_files.contains(&newfiles[i].filepath) {
+                used_files.insert(newfiles[i].filepath.clone());
                 files.push(newfiles[i].clone());
                 images.push(newvideos[i].clone());
             }
         }
     }
     if search.focal_length {
-        let query = format!("SELECT image_id FROM image_metadata WHERE Focallength LIKE {}", search.search_string);
+        let query = format!("SELECT image_id FROM image_metadata WHERE Focallength LIKE '%{}%'", search.search_string);
         let (newvideos, newfiles) = search_image_metadata(
             connection, 
             query, 
         );
-        for i in 0..files.len() {
-            if !used_files.contains(&files[i].filepath) {
-                used_files.insert(files[i].filepath.clone());
+        for i in 0..newfiles.len() {
+            if !used_files.contains(&newfiles[i].filepath) {
+                used_files.insert(newfiles[i].filepath.clone());
                 files.push(newfiles[i].clone());
                 images.push(newvideos[i].clone());
             }
         }
     }
     if search.exposure_time {
-        let query = format!("SELECT image_id FROM image_metadata WHERE Exposuretime LIKE {}", search.search_string);
+        let query = format!("SELECT image_id FROM image_metadata WHERE Exposuretime LIKE '%{}%'", search.search_string);
         let (newvideos, newfiles) = search_image_metadata(
             connection, 
             query, 
         );
-        for i in 0..files.len() {
-            if !used_files.contains(&files[i].filepath) {
-                used_files.insert(files[i].filepath.clone());
+        for i in 0..newfiles.len() {
+            if !used_files.contains(&newfiles[i].filepath) {
+                used_files.insert(newfiles[i].filepath.clone());
                 files.push(newfiles[i].clone());
                 images.push(newvideos[i].clone());
             }
         }
     }
     if search.fnumber {
-        let query = format!("SELECT image_id FROM image_metadata WHERE FNumber LIKE {}", search.search_string);
+        let query = format!("SELECT image_id FROM image_metadata WHERE FNumber LIKE '%{}%'", search.search_string);
         let (newvideos, newfiles) = search_image_metadata(
             connection, 
             query, 
         );
-        for i in 0..files.len() {
-            if !used_files.contains(&files[i].filepath) {
-                used_files.insert(files[i].filepath.clone());
+        for i in 0..newfiles.len() {
+            if !used_files.contains(&newfiles[i].filepath) {
+                used_files.insert(newfiles[i].filepath.clone());
                 files.push(newfiles[i].clone());
                 images.push(newvideos[i].clone());
             }
         }
     }
-    if search.gps_latitude && search.from_value != 0.0 {
+    if search.gps_latitude && search.from_value != 0 {
         let query;
-        if search.to_value != 0.0 {
-            query = format!("SELECT image_id FROM image_metadata WHERE GPSLatitude > {} AND GPSLatitude < {}", search.from_value as u32, search.to_value as u32);
+        if search.to_value != 0 {
+            query = format!("SELECT image_id FROM image_metadata WHERE GPSLatitude > {} AND GPSLatitude < {}", search.from_value / 1000000, search.to_value / 1000000);
         } else {
-            query = format!("SELECT image_id FROM image_metadata WHERE GPSLatitude > {}", search.from_value as u32);
+            query = format!("SELECT image_id FROM image_metadata WHERE GPSLatitude > {}", search.from_value / 1000000);
         }
         let (newvideos, newfiles) = search_image_metadata(
             connection, 
             query, 
         );
-        for i in 0..files.len() {
-            if !used_files.contains(&files[i].filepath) {
-                used_files.insert(files[i].filepath.clone());
+        for i in 0..newfiles.len() {
+            if !used_files.contains(&newfiles[i].filepath) {
+                used_files.insert(newfiles[i].filepath.clone());
                 files.push(newfiles[i].clone());
                 images.push(newvideos[i].clone());
             }
         }
     }
-    if search.gps_longitude && search.from_value != 0.0 {
+    if search.gps_longitude && search.from_value != 0 {
         let query;
-        if search.to_value != 0.0 {
-            query = format!("SELECT image_id FROM image_metadata WHERE GPSLongitude > {} AND GPSLongitude < {}", search.from_value as u32, search.to_value as u32);
+        if search.to_value != 0 {
+            query = format!("SELECT image_id FROM image_metadata WHERE GPSLongitude > {} AND GPSLongitude < {}", search.from_value / 1000000, search.to_value / 1000000);
         } else {
-            query = format!("SELECT image_id FROM image_metadata WHERE GPSLongitude > {}", search.from_value as u32);
+            query = format!("SELECT image_id FROM image_metadata WHERE GPSLongitude > {}", search.from_value / 1000000);
         }
         let (newvideos, newfiles) = search_image_metadata(
             connection, 
             query, 
         );
-        for i in 0..files.len() {
-            if !used_files.contains(&files[i].filepath) {
-                used_files.insert(files[i].filepath.clone());
+        for i in 0..newfiles.len() {
+            if !used_files.contains(&newfiles[i].filepath) {
+                used_files.insert(newfiles[i].filepath.clone());
                 files.push(newfiles[i].clone());
                 images.push(newvideos[i].clone());
             }
         }
     }
-    if search.gps_altitude && search.from_value != 0.0 {
+    if search.gps_altitude && search.from_value != 0 {
         let query;
-        if search.to_value != 0.0 {
-            query = format!("SELECT image_id FROM image_metadata WHERE GPSAltitude > {} AND GPSAltitude < {}", search.from_value as u32, search.to_value as u32);
+        if search.to_value != 0 {
+            query = format!("SELECT image_id FROM image_metadata WHERE GPSAltitude > {} AND GPSAltitude < {}", search.from_value / 1000000, search.to_value / 1000000);
         } else {
-            query = format!("SELECT image_id FROM image_metadata WHERE GPSAltitude > {}", search.from_value as u32);
+            query = format!("SELECT image_id FROM image_metadata WHERE GPSAltitude > {}", search.from_value / 1000000);
         }
         let (newvideos, newfiles) = search_image_metadata(
             connection, 
             query, 
         );
-        for i in 0..files.len() {
-            if !used_files.contains(&files[i].filepath) {
-                used_files.insert(files[i].filepath.clone());
+        for i in 0..newfiles.len() {
+            if !used_files.contains(&newfiles[i].filepath) {
+                used_files.insert(newfiles[i].filepath.clone());
                 files.push(newfiles[i].clone());
                 images.push(newvideos[i].clone());
             }
@@ -617,9 +609,9 @@ pub fn search_image(
             connection, 
             query, 
         );
-        for i in 0..files.len() {
-            if !used_files.contains(&files[i].filepath) {
-                used_files.insert(files[i].filepath.clone());
+        for i in 0..newfiles.len() {
+            if !used_files.contains(&newfiles[i].filepath) {
+                used_files.insert(newfiles[i].filepath.clone());
                 files.push(newfiles[i].clone());
                 images.push(newvideos[i].clone());
             }
@@ -695,15 +687,16 @@ fn stuff_items(
         used_files.insert(file.filepath.clone());
         if file.file_type == 2 && search.video {
             let pathstr = crate::parsers::osstr_to_string(file.filepath.clone().into_os_string());
-            let video = video(connection, &pathstr, known_files);
+            let mut video = video(connection, &pathstr, known_files);
             if let Ok(metadata) = std::fs::metadata(file.filepath.clone()) {
-                let item = crate::parsers::item_from_video(
-                    file.filepath.clone(), 
-                    video.title.clone(), 
+                let item = crate::parsers::item_from_nfo(
+                    PathBuf::new(), 
+                    &mut video, 
                     &metadata, 
                     crate::config::IconSizes::default(), 
                     known_files, 
                     connection,
+                    true,
                 );
                 items.push(item);
             }    
@@ -719,6 +712,7 @@ fn stuff_items(
                     crate::config::IconSizes::default(), 
                     known_files, 
                     connection,
+                    true,
                 );
                 items.push(item);
             }    
@@ -735,6 +729,7 @@ fn stuff_items(
                     crate::config::IconSizes::default(), 
                     known_files, 
                     connection,
+                    true
                 );
                 items.push(item);
             }                
@@ -762,18 +757,19 @@ pub fn search_items(
     let mut used_files: std::collections::BTreeSet<PathBuf> = std::collections::BTreeSet::new();
     let mut known_files: std::collections::BTreeMap<PathBuf, FileMetadata> = std::collections::BTreeMap::new();
     if search.video {
-        let (newmetadata, newfiles) = search_video(connection, search);
+        let (mut newmetadata, newfiles) = search_video(connection, search);
         for i in 0..newfiles.len() {
             if !used_files.contains(&newfiles[i].filepath) {
                 used_files.insert(newfiles[i].filepath.clone());
                 if let Ok(metadata) = std::fs::metadata(newfiles[i].filepath.clone()) {
-                    let item = crate::parsers::item_from_video(
-                        newfiles[i].filepath.clone(), 
-                        newmetadata[i].title.clone(), 
+                    let item = crate::parsers::item_from_nfo(
+                        PathBuf::new(), 
+                        &mut newmetadata[i], 
                         &metadata, 
                         crate::config::IconSizes::default(), 
                         &mut known_files, 
                         connection,
+                        true,
                     );
                     items.push(item);
                 }
@@ -793,6 +789,7 @@ pub fn search_items(
                         crate::config::IconSizes::default(), 
                         &mut known_files, 
                         connection,
+                        true
                     );
                     items.push(item);
                 }
@@ -812,6 +809,7 @@ pub fn search_items(
                         crate::config::IconSizes::default(), 
                         &mut known_files, 
                         connection,
+                        true
                     );
                     items.push(item);
                 }
@@ -853,7 +851,7 @@ pub fn search_items(
         }
     }
     if search.filepath {
-        let query = format!("SELECT metadata_id FROM file_metadata WHERE filepath LIKE {}", search.search_string);
+        let query = format!("SELECT metadata_id FROM file_metadata WHERE filepath LIKE '%{}%'", search.search_string);
         let newfiles: Vec<FileMetadata> = search_file_metadata(
             connection, 
             query, 
@@ -862,7 +860,7 @@ pub fn search_items(
             stuff_items(connection, search, &mut known_files, &mut used_files, file, &mut items);
         }
     }
-    
+
     items
 }
 
@@ -3358,14 +3356,16 @@ pub fn insert_search(
     connection: &mut rusqlite::Connection, 
     s: SearchData,
 ) {
+    let fromvalue = (s.from_value / 1000000) as f32;
+    let tovalue = (s.to_value / 1000000) as f32;
     match connection.execute(
-        "INSERT INTO searches (search_string, from_string, from_value, to_string, to_value
+        "INSERT INTO searches (search_string, from_string, from_value, to_string, to_value,
                 image, video, audio, filepath, title, description, actor, director, artist, album_artist,
                 duration, creation_date, modification_date, release_date, 
                 lense_model, focal_length, exposure_time, fnumber,
                 gps_latitude, gps_longitude, gps_altitude) VALUES 
                 (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23, ?24, ?25, ?26)",
-        params![&s.search_string, &s.from_string, &s.from_value, &s.to_string, &s.to_value, 
+        params![&s.search_string, &s.from_string, &fromvalue, &s.to_string, &tovalue , 
                 &s.image, &s.video, &s.audio, &s.filepath, &s.title, &s.description, &s.actor, &s.director, &s.artist, &s.album_artist,
                 &s.duration, &s.creation_date, &s.modification_date, &s.release_date,
                 &s.lense_model, &s.focal_length, &s.exposure_time, &s.fnumber,
@@ -3435,7 +3435,10 @@ pub fn searches(
                                     }
                                 }
                                 match row.get(3) {
-                                    Ok(val) => v.from_value = val,
+                                    Ok(val) => {
+                                        let f: f32 = val;
+                                        v.from_value = (f * 1000000.0) as u32;
+                                    },
                                     Err(error) => {
                                         log::error!("Failed to read runtime for video: {}", error);
                                         continue;
@@ -3449,7 +3452,10 @@ pub fn searches(
                                     }
                                 }
                                 match row.get(5) {
-                                    Ok(val) => v.to_value = val,
+                                    Ok(val) => {
+                                        let f: f32 = val;
+                                        v.to_value = (f * 1000000.0) as u32;
+                                    },
                                     Err(error) => {
                                         log::error!("Failed to read runtime for video: {}", error);
                                         continue;
