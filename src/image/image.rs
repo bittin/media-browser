@@ -1,3 +1,10 @@
+// Copyright Iced staff [Iced](https://github.com/iced-rs/iced/tree/master)
+// SPDX-License-Identifier: MIT
+// [MIT](http://opensource.org/licenses/MIT)
+// 
+// Modifications:
+// Copyright 2024 Alexander Schwarzkopf
+
 //! Display images in your user interface.
 use cosmic::iced_runtime::core::widget::Id;
 

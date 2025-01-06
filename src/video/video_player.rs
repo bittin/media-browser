@@ -1,3 +1,10 @@
+// Copyright [iced-video-player]()
+// SPDX-License-Identifier: MIT 
+// [MIT](http://opensource.org/licenses/MIT)
+// 
+// Modifications:
+// Copyright 2024 Alexander Schwarzkopf
+
 use crate::video::{gst, gst_pbutils, video::Video};
 use cosmic::iced::{
     self,

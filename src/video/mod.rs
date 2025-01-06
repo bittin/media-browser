@@ -1,3 +1,10 @@
+// Copyright [iced-video-player]()
+// SPDX-License-Identifier: MIT 
+// [MIT](http://opensource.org/licenses/MIT)
+// 
+// Modifications:
+// Copyright 2024 Alexander Schwarzkopf
+
 pub mod video_view;
 pub mod pipeline;
 pub mod video_player;

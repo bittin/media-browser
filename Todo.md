@@ -52,11 +52,12 @@ Positions ended with a ? are *stretch goals*. If it is possible AND somebody doe
   - Write access to the database is blocked during runtime!
 - Search for filetype, actor, director, artist, albumartist, release date range, duration, chapters, ... in the database
 - Saved search management in the database
-- multiple file rename feature, using the sort order of the model (skip videos that are not in their own directory)
+- multiple file rename feature, using the sort order of the model (skip videos)
 - Add Detail information
 
 #### Open Features
 
+- get the bread-crumb navigation in the tab back
 - Search panel with a separate result model/view
   - (new tab per search result, derived from tab? so ESC returns to the search and the search handles the previous/next)
 - disable the sidebar by default

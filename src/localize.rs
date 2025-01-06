@@ -1,4 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
+// 
+// Modifications:
+// Copyright 2024 Alexander Schwarzkopf
 
 use std::str::FromStr;
 

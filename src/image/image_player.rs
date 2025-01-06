@@ -1,3 +1,11 @@
+// Copyright Iced staff [Iced](https://github.com/iced-rs/iced/tree/master)
+// SPDX-License-Identifier: MIT
+// [MIT](http://opensource.org/licenses/MIT)
+// 
+// Modifications:
+// Copyright 2024 Alexander Schwarzkopf
+
+
 //! Zoom and pan on an image.
 use cosmic::iced_core::event::{self, Event};
 use cosmic::iced_core::image;

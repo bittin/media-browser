@@ -1,3 +1,10 @@
+// Copyright [iced-video-player]()
+// SPDX-License-Identifier: MIT 
+// [MIT](http://opensource.org/licenses/MIT)
+// 
+// Modifications:
+// Copyright 2024 Alexander Schwarzkopf
+
 use super::{pipeline::VideoPrimitive, audio::Audio};
 use cosmic::iced::{
     advanced::{self, layout, widget, Widget},

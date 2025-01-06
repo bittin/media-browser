@@ -1,3 +1,8 @@
+// SPDX-License-Identifier: GPL-3.0-only
+// 
+// Modifications:
+// Copyright 2024 Alexander Schwarzkopf
+
 pub fn frame_from_image(posterpath: Option<String>) -> (Vec<u8>, u32, u32) {
     let mut v = Vec::new();
     let mut width= 0;

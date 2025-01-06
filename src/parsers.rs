@@ -1,3 +1,8 @@
+// SPDX-License-Identifier: GPL-3.0-only
+// 
+// Modifications:
+// Copyright 2024 Alexander Schwarzkopf
+
 use crate::config::IconSizes;
 use crate::mime_app::mime_apps;
 use crate::mime_icon::{mime_for_path, mime_icon};

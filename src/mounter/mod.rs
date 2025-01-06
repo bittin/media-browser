@@ -1,3 +1,9 @@
+// Copyright 2023 System76 <info@system76.com>
+// SPDX-License-Identifier: GPL-3.0-only
+// 
+// Modifications:
+// Copyright 2024 Alexander Schwarzkopf
+
 use cosmic::{iced::Subscription, widget, Task};
 use once_cell::sync::Lazy;
 use std::{collections::BTreeMap, fmt, path::PathBuf, sync::Arc};

@@ -1,3 +1,9 @@
+// Copyright 2023 System76 <info@system76.com>
+// SPDX-License-Identifier: GPL-3.0-only
+// 
+// Modifications:
+// Copyright 2024 Alexander Schwarzkopf
+
 use cosmic::{
     iced::keyboard::Key,
     iced_core::keyboard::key::Named,
@@ -32,8 +38,8 @@ pub fn key_binds(mode: &tab::Mode) -> HashMap<KeyBind, Action> {
     bind!([Shift], Key::Named(Named::ArrowLeft), ItemLeft);
     bind!([Shift], Key::Named(Named::ArrowRight), ItemRight);
     bind!([Shift], Key::Named(Named::ArrowUp), ItemUp);
-    bind!([], Key::Named(Named::PageUp), HistoryPrevious);
-    bind!([], Key::Named(Named::PageDown), HistoryNext);
+    bind!([], Key::Named(Named::PageUp), ItemLeft);
+    bind!([], Key::Named(Named::PageDown), ItemRight);
     bind!([], Key::Named(Named::Escape), OpenBrowser);
     bind!([Ctrl, Shift], Key::Character("n".into()), NewFolder);
     bind!([], Key::Named(Named::Enter), Open);
@@ -49,12 +55,9 @@ pub fn key_binds(mode: &tab::Mode) -> HashMap<KeyBind, Action> {
     if matches!(mode, tab::Mode::App) {
         bind!([Ctrl], Key::Character("d".into()), AddToSidebar);
         bind!([Ctrl], Key::Character(",".into()), Settings);
-        bind!([Ctrl], Key::Character("w".into()), TabClose);
-        bind!([Ctrl], Key::Character("t".into()), TabNew);
         bind!([Ctrl], Key::Named(Named::Tab), TabNext);
         bind!([Ctrl, Shift], Key::Named(Named::Tab), TabPrev);
         bind!([Ctrl], Key::Character("q".into()), WindowClose);
-        bind!([Ctrl], Key::Character("n".into()), WindowNew);
     }
 
     // App and desktop only keys
@@ -75,6 +78,14 @@ pub fn key_binds(mode: &tab::Mode) -> HashMap<KeyBind, Action> {
         bind!([], Key::Named(Named::Backspace), HistoryPrevious);
         bind!([Alt], Key::Named(Named::ArrowUp), LocationUp);
         bind!([Ctrl], Key::Character("f".into()), SearchActivate);
+    }
+
+    if matches!(mode, tab::Mode::Image ) {
+        bind!([Ctrl], Key::Character("l".into()), EditLocation);
+        bind!([], Key::Named(Named::ArrowRight), ItemRight);
+        bind!([], Key::Named(Named::ArrowLeft), ItemLeft);
+        bind!([], Key::Named(Named::Backspace), HistoryPrevious);
+        bind!([], Key::Named(Named::ArrowUp), LocationUp);
     }
 
     key_binds

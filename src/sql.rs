@@ -1,3 +1,9 @@
+// Copyright 2023 System76 <info@system76.com>
+// SPDX-License-Identifier: GPL-3.0-only
+// 
+// Modifications:
+// Copyright 2024 Alexander Schwarzkopf
+
 use rusqlite::{Connection, Result, params};
 use std::path::PathBuf;
 use std::collections::BTreeMap;

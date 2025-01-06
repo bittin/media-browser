@@ -1,3 +1,9 @@
+// Copyright 2023 System76 <info@system76.com>
+// SPDX-License-Identifier: GPL-3.0-only
+// 
+// Modifications:
+// Copyright 2024 Alexander Schwarzkopf
+
 #[cfg(feature = "wayland")]
 use cosmic::iced::{
     event::wayland::{Event as WaylandEvent, OutputEvent, OverlapNotifyEvent},
@@ -3451,6 +3457,9 @@ impl Application for App {
                             let mut selected = Vec::new();
                             for item in items.iter() {
                                 if item.selected {
+                                    if item.video_opt.is_some() {
+                                        continue;
+                                    }
                                     if let Some(Location::Path(path)) = &item.location_opt {
                                         selected.push(path.clone());
                                     }
@@ -3768,7 +3777,7 @@ impl Application for App {
                     Some(tab) => tab.location.clone(),
                     None => Location::Path(home_dir()),
                 };
-                self.open_tab_entity(location, true, None);
+                let _ = self.open_tab_entity(location, true, None);
             }
             Message::TabRescan(entity, location, parent_item_opt, items, selection_paths) => {
                 match self.tab_model.data_mut::<Tab>(entity) {
