@@ -31,7 +31,9 @@ Positions ended with a ? are *stretch goals*. If it is possible AND somebody doe
 #### Open Bugs
 
 - make Esc stop playback of audio and video
-- cosmic::iced::wgpu crashes when loading images larger than 2048 pixels
+- fix release date 1970-01-01
+- check creation date newer than modification date
+- cosmic::iced::wgpu crashes when loading images larger than 2048 pixels on Intel ARC A770 with 16 GB VRAM
 - image_view zoom buttons do nothing as iced::widget::image:viewer is fully mouse driven
 
 ### Features
@@ -54,23 +56,22 @@ Positions ended with a ? are *stretch goals*. If it is possible AND somebody doe
 - Search for filetype, actor, director, artist, albumartist, release date range, duration, chapters, ... in the database
 - Saved search management in the database
 - multiple file rename feature, using the sort order of the model (skip videos)
-- Add Detail information
+- display detail information of entry (Free-Form Text field with all the available information)
 - Search panel with a separate result model/view
   - (new tab per search result, derived from tab so ESC returns to the search and the search handles the previous/next)
 
 #### Open Features
 
 - get the bread-crumb navigation in the tab back
-- manage previous searches in the search context menu
 - disable the sidebar by default
+- manage previous searches in the search context menu
 - sort by release date / creation / modification time
-- display detail information of entry? (Free-Form Text field with all the available information)
+  - adjust the sort options when just one type is displayed and more details are available?
 - view files of only one type?
-- adjust the sort options when just one type is displayed and more details are available?
 - find similar images in background? (duplo-rs runs very long, better started on the command line!)
   - fill a new tab with the similar image pairs for comparison. (not necessary as they are in a new directory anyway)
 - find similar videos in background? (duplo-rs runs very long, better started on the command line!)
-  - fill a new tab with the similar image pairs for comparison.
+  - fill a new tab with the similar video pairs for comparison? (duplo-rs can be started again and will just continue. COSMIC media browser would have to run for months!)
 
 ## Image viewer
 
@@ -102,6 +103,8 @@ Positions ended with a ? are *stretch goals*. If it is possible AND somebody doe
 - use the iced_video_player / GStreamer to play videos
 - support Matroska container files.
 - use a consistent minimal Design - Thanks COSMIC Player!
+- add seek on mouse scroll
+- add seek buttons
 
 #### Video Open Features
 
@@ -109,9 +112,8 @@ Positions ended with a ? are *stretch goals*. If it is possible AND somebody doe
 - add a browse button to have the same navigation strip as in image view
 - add chapter navigation?
 - add playback speed control?
-- add seek buttons?
-- add seek on mouse scroll?
-  
+- add tooltips for the buttons
+
 ## Audio Player
 
 ### Audio Features
@@ -121,6 +123,8 @@ Positions ended with a ? are *stretch goals*. If it is possible AND somebody doe
 - modify a copy of the iced_video_player / GStreamer to play audio only files
 - use a consistent minimal design - Thanks COSMIC Player!
 - display coverart instead of a video if available in the embedded metadata
+- add seek on mouse scroll
+- add seek buttons
 
 #### Audio Open Features
 
@@ -128,5 +132,4 @@ Positions ended with a ? are *stretch goals*. If it is possible AND somebody doe
 - add a browse button to have the same navigation strip as in image view
 - add chapter navigation?
 - add playback speed control?
-- add seek buttons?
-- add seek on mouse scroll?
+- add tooltips for the buttons

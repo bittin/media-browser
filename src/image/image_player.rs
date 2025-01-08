@@ -1,4 +1,4 @@
-// Copyright Iced staff [Iced](https://github.com/iced-rs/iced/tree/master)
+// Copyright Iced Staff
 // SPDX-License-Identifier: MIT
 // [MIT](http://opensource.org/licenses/MIT)
 // 

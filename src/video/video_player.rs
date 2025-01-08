@@ -278,7 +278,7 @@ where
 
     fn on_event(
         &mut self,
-        _state: &mut widget::Tree,
+        _tree: &mut widget::Tree,
         event: iced::Event,
         _layout: advanced::Layout<'_>,
         _cursor: advanced::mouse::Cursor,
@@ -287,105 +287,121 @@ where
         shell: &mut advanced::Shell<'_, Message>,
         _viewport: &iced::Rectangle,
     ) -> Status {
-        let mut inner = self.video.write();
+        //let bounds = layout.bounds();
 
-        if let iced::Event::Window(iced::window::Event::RedrawRequested(_)) = event {
-            if inner.restart_stream || (!inner.is_eos && !inner.paused()) {
-                let mut restart_stream = false;
-                if inner.restart_stream {
-                    restart_stream = true;
-                    // Set flag to false to avoid potentially multiple seeks
-                    inner.restart_stream = false;
-                }
-                let mut eos_pause = false;
-
-                while let Some(msg) = inner
-                    .bus
-                    .pop_filtered(&[gst::MessageType::Error, gst::MessageType::Eos])
-                {
-                    match msg.view() {
-                        gst::MessageView::Error(err) => {
-                            error!("bus returned an error: {err}");
-                            if let Some(ref on_error) = self.on_error {
-                                shell.publish(on_error(err.error()))
-                            };
-                        }
-                        gst::MessageView::Element(element) => {
-                            if gst_pbutils::MissingPluginMessage::is(&element) {
-                                if let Some(ref on_missing_plugin) = self.on_missing_plugin {
-                                    shell.publish(on_missing_plugin(element.copy()));
+        match event {
+            iced::Event::Window(iced::window::Event::RedrawRequested(_)) => {
+                let mut inner = self.video.write();
+                if inner.restart_stream || (!inner.is_eos && !inner.paused()) {
+                    let mut restart_stream = false;
+                    if inner.restart_stream {
+                        restart_stream = true;
+                        // Set flag to false to avoid potentially multiple seeks
+                        inner.restart_stream = false;
+                    }
+                    let mut eos_pause = false;
+    
+                    while let Some(msg) = inner
+                        .bus
+                        .pop_filtered(&[gst::MessageType::Error, gst::MessageType::Eos])
+                    {
+                        match msg.view() {
+                            gst::MessageView::Error(err) => {
+                                error!("bus returned an error: {err}");
+                                if let Some(ref on_error) = self.on_error {
+                                    shell.publish(on_error(err.error()))
+                                };
+                            }
+                            gst::MessageView::Element(element) => {
+                                if gst_pbutils::MissingPluginMessage::is(&element) {
+                                    if let Some(ref on_missing_plugin) = self.on_missing_plugin {
+                                        shell.publish(on_missing_plugin(element.copy()));
+                                    }
                                 }
                             }
-                        }
-                        gst::MessageView::Eos(_eos) => {
-                            if let Some(on_end_of_stream) = self.on_end_of_stream.clone() {
-                                shell.publish(on_end_of_stream);
+                            gst::MessageView::Eos(_eos) => {
+                                if let Some(on_end_of_stream) = self.on_end_of_stream.clone() {
+                                    shell.publish(on_end_of_stream);
+                                }
+                                if inner.looping {
+                                    restart_stream = true;
+                                } else {
+                                    eos_pause = true;
+                                }
                             }
-                            if inner.looping {
-                                restart_stream = true;
-                            } else {
-                                eos_pause = true;
+                            gst::MessageView::Warning(warn) => {
+                                log::warn!("bus returned a warning: {warn}");
+                                if let Some(ref on_warning) = self.on_warning {
+                                    shell.publish(on_warning(warn.error()));
+                                }
+                            }
+                            _ => {}
+                        }
+                    }
+    
+                    // Don't run eos_pause if restart_stream is true; fixes "pausing" after restarting a stream
+                    if restart_stream {
+                        if let Err(err) = inner.restart_stream() {
+                            error!("cannot restart stream (can't seek): {err:#?}");
+                        }
+                    } else if eos_pause {
+                        inner.is_eos = true;
+                        inner.set_paused(true);
+                    }
+    
+                    if inner.upload_frame.load(Ordering::SeqCst) {
+                        if let Some(on_new_frame) = self.on_new_frame.clone() {
+                            shell.publish(on_new_frame);
+                        }
+                    }
+    
+                    if let Some(on_subtitle_text) = &self.on_subtitle_text {
+                        if inner.upload_text.swap(false, Ordering::SeqCst) {
+                            if let Ok(text) = inner.subtitle_text.try_lock() {
+                                shell.publish(on_subtitle_text(text.clone()));
                             }
                         }
-                        gst::MessageView::Warning(warn) => {
-                            log::warn!("bus returned a warning: {warn}");
-                            if let Some(ref on_warning) = self.on_warning {
-                                shell.publish(on_warning(warn.error()));
-                            }
-                        }
-                        _ => {}
                     }
+    
+                    shell.request_redraw(iced::window::RedrawRequest::NextFrame);
+                } else {
+                    shell.request_redraw(iced::window::RedrawRequest::At(
+                        Instant::now() + Duration::from_millis(32),
+                    ));
                 }
-
-                // Don't run eos_pause if restart_stream is true; fixes "pausing" after restarting a stream
-                if restart_stream {
-                    if let Err(err) = inner.restart_stream() {
-                        error!("cannot restart stream (can't seek): {err:#?}");
-                    }
-                } else if eos_pause {
-                    inner.is_eos = true;
-                    inner.set_paused(true);
-                }
-
-                if inner.upload_frame.load(Ordering::SeqCst) {
-                    if let Some(on_new_frame) = self.on_new_frame.clone() {
-                        shell.publish(on_new_frame);
-                    }
-                }
-
-                if let Some(on_subtitle_text) = &self.on_subtitle_text {
-                    if inner.upload_text.swap(false, Ordering::SeqCst) {
-                        if let Ok(text) = inner.subtitle_text.try_lock() {
-                            shell.publish(on_subtitle_text(text.clone()));
-                        }
-                    }
-                }
-
-                shell.request_redraw(iced::window::RedrawRequest::NextFrame);
-            } else {
-                shell.request_redraw(iced::window::RedrawRequest::At(
-                    Instant::now() + Duration::from_millis(32),
-                ));
+                Status::Captured
             }
-            Status::Captured
-        } else {
-            Status::Ignored
+            _ => Status::Ignored,
         }
+    
     }
 
     fn mouse_interaction(
         &self,
         _tree: &widget::Tree,
-        _layout: advanced::Layout<'_>,
-        _cursor_position: mouse::Cursor,
+        layout: advanced::Layout<'_>,
+        cursor_position: mouse::Cursor,
         _viewport: &iced::Rectangle,
         _renderer: &Renderer,
     ) -> mouse::Interaction {
+        // let state = tree.state.downcast_ref::<cosmic::iced_core::widget::tree::State>();
+        let bounds = layout.bounds();
+        let is_mouse_over = cursor_position.is_over(bounds);
+
+        if is_mouse_over {
+            mouse::Interaction::Grab
+        } else if self.mouse_hidden {
+            mouse::Interaction::Idle
+        } else {
+            mouse::Interaction::default()
+        }
+/*
         if self.mouse_hidden {
             mouse::Interaction::Idle
         } else {
             mouse::Interaction::default()
         }
+*/
     }
 }
 

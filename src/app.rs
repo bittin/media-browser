@@ -313,6 +313,7 @@ pub enum Message {
     MoveToTrash(Option<Entity>),
     MounterItems(MounterKey, MounterItems),
     MountResult(MounterKey, MounterItem, Result<bool, String>),
+    MouseScroll(cosmic::iced_core::mouse::ScrollDelta),
     NavBarClose(Entity),
     NavBarContext(Entity),
     NavMenuAction(NavMenuAction),
@@ -382,7 +383,10 @@ pub enum Message {
     SearchGpsLongitude(bool),
     SearchGpsAltitude(bool),
     SearchCommit,
+    SeekBackward,
+    SeekForward,
     SetShowDetails(bool),
+    SkipToPosition(f64),
     SystemThemeModeChange(cosmic_theme::ThemeMode),
     Size(Size),
     TabActivate(Entity),
@@ -1635,7 +1639,7 @@ impl App {
             format!("{:02}:{:02}:{:02}", hours, minutes, seconds)
         };
 
-        let Some(video) = self.video_view.video_opt.as_ref() else {
+        let Some(mut video) = self.video_view.video_opt.as_ref() else {
             //TODO: open button if no video?
             return widget::container(widget::text("No video open"))
                 .width(cosmic::iced::Length::Fill)
@@ -1647,7 +1651,7 @@ impl App {
         let muted = video.muted();
         let volume = video.volume();
         
-        let video_player = VideoPlayer::new(video)
+        let video_player = VideoPlayer::new(&mut video)
             .mouse_hidden(!self.video_view.controls)
             .on_end_of_stream(Message::EndOfStream)
             .on_missing_plugin(Message::MissingPlugin)
@@ -1657,6 +1661,7 @@ impl App {
 
         let mouse_area = widget::mouse_area(video_player)
             .on_press(Message::PlayPause) 
+            .on_scroll(|delta|Message::MouseScroll(delta))
             .on_double_press(Message::Fullscreen);
 
         let mut popover = widget::popover(mouse_area).position(widget::popover::Position::Bottom);
@@ -1793,6 +1798,18 @@ impl App {
                             )
                             .on_press(Message::VideoMessage(crate::video::video_view::Message::PlayPause)),
                         )
+                        .push(
+                            widget::button::icon(
+                                widget::icon::from_name("media-seek-backward-symbolic").size(16),
+                            )
+                            .on_press(Message::SeekBackward),
+                        )
+                        .push(
+                            widget::button::icon(
+                                widget::icon::from_name("media-seek-forward-symbolic").size(16),
+                            )
+                            .on_press(Message::SeekForward),
+                        )
                         .push(widget::text(format_time(self.video_view.position)).font(font::mono()))
                         .push(
                             Slider::new(0.0..=self.video_view.duration, self.video_view.position, Message::Seek)
@@ -1896,6 +1913,7 @@ impl App {
 
         let mouse_area = widget::mouse_area(audio_player)
             .on_press(Message::AudioMessage(crate::audio::audio_view::Message::PlayPause)) 
+            .on_scroll(|delta|Message::MouseScroll(delta))
             .on_double_press(Message::Fullscreen);
 
         let mut popover = widget::popover(mouse_area).position(widget::popover::Position::Bottom);
@@ -2030,6 +2048,18 @@ impl App {
                                 },
                             )
                             .on_press(Message::AudioMessage(crate::audio::audio_view::Message::PlayPause)),
+                        )
+                        .push(
+                            widget::button::icon(
+                                widget::icon::from_name("media-seek-backward-symbolic").size(16),
+                            )
+                            .on_press(Message::SeekBackward),
+                        )
+                        .push(
+                            widget::button::icon(
+                                widget::icon::from_name("media-seek-forward-symbolic").size(16),
+                            )
+                            .on_press(Message::SeekForward),
                         )
                         .push(widget::text(format_time(self.audio_view.position)).font(font::mono()))
                         .push(
@@ -2581,6 +2611,13 @@ impl Application for App {
                 }
             }
             Message::Browser => {
+                if self.active_view == Mode::Video {
+                    //if self.video_view.
+                    let _= self.update(Message::AudioMessage(crate::audio::audio_view::Message::PlayPause));
+                } else if self.active_view == Mode::Audio {
+                    let _= self.update(Message::AudioMessage(crate::audio::audio_view::Message::PlayPause));
+                }
+
                 self.active_view = Mode::Browser;
             }
             Message::Image(msg) => {
@@ -3281,6 +3318,23 @@ impl Application for App {
                     });
                 }
             },
+            Message::MouseScroll(delta) => {
+                let delta_y = match delta {
+                    cosmic::iced_core::mouse::ScrollDelta::Lines { y, .. } => y,
+                    cosmic::iced_core::mouse::ScrollDelta::Pixels { y, .. } => y,
+                };
+                if self.active_view == Mode::Video {
+                    let seconds = self.video_view.position + delta_y as f64 * 10.0;
+                    let _= self.update(Message::VideoMessage(crate::video::video_view::Message::Seek(seconds)));
+                    let _= self.update(Message::AudioMessage(crate::audio::audio_view::Message::PlayPause));
+                } else if self.active_view == Mode::Audio {
+                    let seconds = self.audio_view.position + delta_y as f64 * 10.0;
+                    let _= self.update(Message::AudioMessage(crate::audio::audio_view::Message::Seek(seconds)));
+                    let _= self.update(Message::AudioMessage(crate::audio::audio_view::Message::PlayPause));
+                }
+                       
+                return Task::none();
+            },
             Message::NetworkAuth(mounter_key, uri, auth, auth_tx) => {
                 self.dialog_pages.push_back(DialogPage::NetworkAuth {
                     mounter_key,
@@ -3924,6 +3978,63 @@ impl Application for App {
                     tab.set_items(items);
                 }
                 return command;
+            }
+            Message::SeekBackward => {
+                if self.active_view == Mode::Video {
+                    let position = self.video_view.position;
+                    let adjustment;
+                    if position < 10.0 {
+                        adjustment = 0.0;
+                    } else {
+                        adjustment = position - 10.0;
+                    }
+                    let _ = self.update(Message::VideoMessage(crate::video::video_view::Message::Seek(adjustment)));
+                    let _ = self.update(Message::VideoMessage(crate::video::video_view::Message::PlayPause));
+                } else if self.active_view == Mode::Audio {
+                    let position = self.audio_view.position;
+                    let adjustment;
+                    if position < 10.0 {
+                        adjustment = 0.0;
+                    } else {
+                        adjustment = position - 10.0;
+                    }
+                    let _ = self.update(Message::AudioMessage(crate::audio::audio_view::Message::Seek(adjustment)));
+                    let _ = self.update(Message::AudioMessage(crate::audio::audio_view::Message::PlayPause));
+                }
+            }
+            Message::SeekForward => {
+                if self.active_view == Mode::Video {
+                    let position = self.video_view.position;
+                    let adjustment;
+                    if position + 10.0 > self.video_view.duration {
+                        adjustment = 0.0;
+                    } else {
+                        adjustment = position + 10.0;
+                    }
+                    let _ = self.update(Message::VideoMessage(crate::video::video_view::Message::Seek(adjustment)));
+                    let _ = self.update(Message::VideoMessage(crate::video::video_view::Message::PlayPause));
+                } else if self.active_view == Mode::Audio {
+                    let position = self.audio_view.position;
+                    let adjustment;
+                    if position + 10.0 > self.video_view.duration {
+                        adjustment = 0.0;
+                    } else {
+                        adjustment = position + 10.0;
+                    }
+                    let _ = self.update(Message::AudioMessage(crate::audio::audio_view::Message::Seek(adjustment)));
+                    let _ = self.update(Message::AudioMessage(crate::audio::audio_view::Message::PlayPause));
+                }
+            }
+            Message::SkipToPosition(seconds) => {
+                if self.active_view == Mode::Video {
+                    let position = self.video_view.position;
+                    let adjustment = seconds - position;
+                    let _ = self.update(Message::VideoMessage(crate::video::video_view::Message::Seek(adjustment)));
+                } else if self.active_view == Mode::Audio {
+                    let position = self.audio_view.position;
+                    let adjustment = seconds - position;
+                    let _ = self.update(Message::AudioMessage(crate::audio::audio_view::Message::Seek(adjustment)));
+                }
             }
             Message::SetShowDetails(show_details) => {
                 config_set!(show_details, show_details);
