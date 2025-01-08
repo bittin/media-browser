@@ -526,6 +526,7 @@ pub fn scan_path(tab_path: &PathBuf, sizes: IconSizes, recursive: bool) -> Vec<I
             for audio in audios {
                 if let ControlFlow::Break(_) = crate::parsers::scan_audiotags(
                     audio,
+                    &all,
                     &mut special_files,
                     &mut items,
                     sizes,
@@ -1086,29 +1087,29 @@ pub enum ItemThumbnail {
 impl ItemThumbnail {
     pub fn new(item: Item) -> Self {
         if let Some(video) = item.video_opt.as_ref() {
-            if video.poster.len() == 0 {
+            if video.thumb.len() == 0 {
                 return ItemThumbnail::NotImage;
             }
             return ItemThumbnail::Image(
-                widget::image::Handle::from_path(PathBuf::from(&video.poster)),
+                widget::image::Handle::from_path(PathBuf::from(&video.thumb)),
                 Some((video.width, video.height)),
             );
         }
         if let Some(audio) = item.audio_opt.as_ref() {
-            if audio.poster.len() == 0 {
+            if audio.thumb.len() == 0 {
                 return ItemThumbnail::NotImage;
             }
             return ItemThumbnail::Image(
-                widget::image::Handle::from_path(PathBuf::from(&audio.poster)),
+                widget::image::Handle::from_path(PathBuf::from(&audio.thumb)),
                 Some((254, 254)),
             );
         }
         if let Some(image) = item.image_opt.as_ref() {
-            if image.poster.len() == 0 {
+            if image.thumb.len() == 0 {
                 return ItemThumbnail::NotImage;
             }
             return ItemThumbnail::Image(
-                widget::image::Handle::from_path(PathBuf::from(&image.poster)),
+                widget::image::Handle::from_path(PathBuf::from(&image.thumb)),
                 Some((image.width, image.height)),
             );
         }
@@ -1373,6 +1374,14 @@ impl Item {
                                 text = l.to_string()
                             )));
                         }
+                        for l in video.chapters.iter() {
+                            let start = crate::parsers::timecode_to_ffmpeg_time(l.start as u32);
+                            let end = crate::parsers::timecode_to_ffmpeg_time(l.end as u32);
+                            details = details.push(widget::text::body(fl!(
+                                "item-media-chapter",
+                                id = l.title.clone(), start = start, end = end
+                            )));
+                        }
                     } else if let Some(audio) = self.audio_opt.as_ref() {
                         let path = PathBuf::from(&audio.path);
                             
@@ -1395,6 +1404,14 @@ impl Item {
                             details = details.push(widget::text::body(fl!(
                                 "item-media-albumartist",
                                 text = l.to_string()
+                            )));
+                        }
+                        for l in audio.chapters.iter() {
+                            let start = crate::parsers::timecode_to_ffmpeg_time(l.start as u32);
+                            let end = crate::parsers::timecode_to_ffmpeg_time(l.end as u32);
+                            details = details.push(widget::text::body(fl!(
+                                "item-media-chapter",
+                                id = l.title.clone(), start = start, end = end
                             )));
                         }
                     } else if let Some(image) = self.image_opt.as_ref() {

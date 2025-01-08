@@ -201,6 +201,7 @@ item-image-fnumber = Cropfactor: {$text}
 item-image-gps-latitude = GPS Breitengrad: {$text}
 item-image-gps-longitude = GPS Längengrad: {$text}
 item-image-gps-altitude = GPS Höhe: {$text}
+item-media-chapter = Kapitel: {$id}, von {$start} bis {$end}
 
 ## Search
 search-context = Die Datenbank durchsuchen
@@ -341,6 +342,8 @@ description-zoom-plus = hinein Zoomen
 description-zoom-minus = heraus Zoomen
 description-zoom-fit = Bild in das Fenster einpassen
 description-seek = Aus anderen Dateien wählen
+description-seek-forward = Springe um 30 Sekunden zurück
+description-seek-backward = Springe um 30 Sekunden vorwärts
 
 # Player
 audio = Tonspur
