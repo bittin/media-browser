@@ -38,8 +38,8 @@ pub fn key_binds(mode: &tab::Mode) -> HashMap<KeyBind, Action> {
     bind!([Shift], Key::Named(Named::ArrowLeft), ItemLeft);
     bind!([Shift], Key::Named(Named::ArrowRight), ItemRight);
     bind!([Shift], Key::Named(Named::ArrowUp), ItemUp);
-    bind!([], Key::Named(Named::PageUp), ItemLeft);
-    bind!([], Key::Named(Named::PageDown), ItemRight);
+    bind!([], Key::Named(Named::PageUp), Previous);
+    bind!([], Key::Named(Named::PageDown), Next);
     bind!([], Key::Named(Named::Escape), OpenBrowser);
     bind!([Ctrl, Shift], Key::Character("n".into()), NewFolder);
     bind!([], Key::Named(Named::Enter), Open);

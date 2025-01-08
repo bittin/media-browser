@@ -134,11 +134,13 @@ pub enum Action {
     LocationUp,
     MoveToTrash,
     NewFolder,
+    Next,
     Open,
     OpenInNewWindow,
     OpenItemLocation,
     Paste,
     Preview,
+    Previous,
     RecursiveScanDirectories,
     Rename,
     RestoreFromTrash,
@@ -193,6 +195,7 @@ impl Action {
             Action::LocationUp => Message::TabMessage(entity_opt, tab::Message::LocationUp),
             Action::MoveToTrash => Message::MoveToTrash(entity_opt),
             Action::NewFolder => Message::NewItem(entity_opt, true),
+            Action::Next => Message::Next(entity_opt),
             Action::Open => {
                 Message::Open(entity_opt, dirs::home_dir().unwrap().display().to_string())
             }
@@ -200,6 +203,7 @@ impl Action {
             Action::OpenItemLocation => Message::OpenItemLocation(entity_opt),
             Action::Paste => Message::Paste(entity_opt),
             Action::Preview => Message::Preview(entity_opt),
+            Action::Previous => Message::Previous(entity_opt),
             Action::RecursiveScanDirectories => Message::RecursiveScanDirectories(entity_opt),
             Action::Rename => Message::Rename(entity_opt),
             Action::RestoreFromTrash => Message::RestoreFromTrash(entity_opt),
@@ -1765,50 +1769,73 @@ impl App {
                     widget::row::with_capacity(10)
                         .align_y(Alignment::Center)
                         .spacing(space_xxs)
-                        .push(
+                        .push(widget::tooltip(
                             widget::button::icon(
                                     widget::icon::from_name("go-up-symbolic")
                                         .size(16)
-                            ).on_press(Message::VideoMessage(
-                                        crate::video::video_view::Message::ToBrowser)),
+                                ).on_press(Message::VideoMessage(crate::video::video_view::Message::ToBrowser)),
+                                widget::text::body("descripttion-back".to_string()),
+                                widget::tooltip::Position::Top,
+                            )
                         )
-                        .push(
-                                    widget::button::icon(
+                        .push(widget::tooltip(
+                            widget::button::icon(
                                             widget::icon::from_name("go-previous-symbolic")
                                                 .size(16)
-                            ).on_press(Message::VideoMessage(
-                                        crate::video::video_view::Message::PreviousFile)),
+                                ).on_press(Message::VideoMessage(crate::video::video_view::Message::PreviousFile)),
+                                widget::text::body("descripttion-previous-element".to_string()),
+                                widget::tooltip::Position::Top,
+                            )
                         )
-                        .push(
+                        .push(widget::tooltip(
                             widget::button::icon(
                                     widget::icon::from_name("go-next-symbolic")
                                         .size(16)
-                            ).on_press(Message::VideoMessage(
-                                        crate::video::video_view::Message::NextFile))
-                        )
-                        .push(
-                            widget::button::icon(
-                                if self.video_view.video_opt.as_ref().map_or(true, |video| video.paused()) {
-                                    widget::icon::from_name("media-playback-start-symbolic")
-                                        .size(16)
-                                } else {
-                                    widget::icon::from_name("media-playback-pause-symbolic")
-                                        .size(16)
-                                },
+                                ).on_press(Message::VideoMessage(crate::video::video_view::Message::NextFile)),
+                                widget::text::body("descripttion-next-element".to_string()),
+                                widget::tooltip::Position::Top,
                             )
-                            .on_press(Message::VideoMessage(crate::video::video_view::Message::PlayPause)),
                         )
                         .push(
+                            if self.audio_view.audio_opt.as_ref().map_or(true, |video| video.paused()) {
+                                widget::tooltip(
+                                    widget::button::icon(
+                                         widget::icon::from_name("media-playback-start-symbolic")
+                                            .size(16)
+                                        )
+                                        .on_press(Message::VideoMessage(crate::video::video_view::Message::PlayPause)),
+                                        widget::text::body("descripttion-description-play".to_string()),
+                                        widget::tooltip::Position::Top,
+                                )
+                            } else {
+                                widget::tooltip(
+                                    widget::button::icon(
+                                         widget::icon::from_name("media-playback-pause-symbolic")
+                                            .size(16)
+                                        )
+                                        .on_press(Message::VideoMessage(crate::video::video_view::Message::PlayPause)),
+                                        widget::text::body("descripttion-description-pause".to_string()),
+                                        widget::tooltip::Position::Top,
+                                )
+                            },
+                        )
+                        .push(widget::tooltip(
                             widget::button::icon(
                                 widget::icon::from_name("media-seek-backward-symbolic").size(16),
-                            )
-                            .on_press(Message::SeekBackward),
+                                    )
+                                    .on_press(Message::SeekBackward),
+                                widget::text::body("description-seek-backward".to_string()),
+                                widget::tooltip::Position::Top,
+                            ),
                         )
-                        .push(
+                        .push(widget::tooltip(
                             widget::button::icon(
                                 widget::icon::from_name("media-seek-forward-symbolic").size(16),
-                            )
-                            .on_press(Message::SeekForward),
+                                )
+                                .on_press(Message::SeekForward),
+                                widget::text::body("description-seek-forward".to_string()),
+                                widget::tooltip::Position::Top,
+                            ),
                         )
                         .push(widget::text(format_time(self.video_view.position)).font(font::mono()))
                         .push(
@@ -2016,50 +2043,76 @@ impl App {
                     widget::row::with_capacity(7)
                         .align_y(Alignment::Center)
                         .spacing(space_xxs)
-                        .push(
+                        .push(widget::tooltip(
                             widget::button::icon(
                                     widget::icon::from_name("go-up-symbolic")
                                         .size(16)
-                            ).on_press(Message::AudioMessage(
+                                ).on_press(Message::AudioMessage(
                                         crate::audio::audio_view::Message::ToBrowser)),
+                                widget::text::body("descripttion-back".to_string()),
+                                widget::tooltip::Position::Top,
+                            )
                         )
-                        .push(
+                        .push(widget::tooltip(
                             widget::button::icon(
                                             widget::icon::from_name("go-previous-symbolic")
                                                 .size(16)
-                            ).on_press(Message::AudioMessage(
+                                ).on_press(Message::AudioMessage(
                                         crate::audio::audio_view::Message::PreviousFile)),
+                                widget::text::body("descripttion-previous-element".to_string()),
+                                widget::tooltip::Position::Top,
+                            )
                         )
-                        .push(
+                        .push(widget::tooltip(
                             widget::button::icon(
                                     widget::icon::from_name("go-next-symbolic")
                                         .size(16)
-                            ).on_press(Message::AudioMessage(
-                                        crate::audio::audio_view::Message::NextFile))
-                        )
-                        .push(
-                            widget::button::icon(
-                                if self.audio_view.audio_opt.as_ref().map_or(true, |video| video.paused()) {
-                                    widget::icon::from_name("media-playback-start-symbolic")
-                                        .size(16)
-                                } else {
-                                    widget::icon::from_name("media-playback-pause-symbolic")
-                                        .size(16)
-                                },
+                                ).on_press(Message::AudioMessage(
+                                        crate::audio::audio_view::Message::NextFile)),
+                                widget::text::body("descripttion-next-element".to_string()),
+                                widget::tooltip::Position::Top,
                             )
-                            .on_press(Message::AudioMessage(crate::audio::audio_view::Message::PlayPause)),
                         )
                         .push(
+                            if self.audio_view.audio_opt.as_ref().map_or(true, |video| video.paused()) {
+                                widget::tooltip(
+                                    widget::button::icon(
+                                         widget::icon::from_name("media-playback-start-symbolic")
+                                            .size(16)
+                                        )
+                                        .on_press(Message::AudioMessage(crate::audio::audio_view::Message::PlayPause)),
+                                        widget::text::body("descripttion-description-play".to_string()),
+                                        widget::tooltip::Position::Top,
+                                )
+                            } else {
+                                widget::tooltip(
+                                    widget::button::icon(
+                                         widget::icon::from_name("media-playback-pause-symbolic")
+                                            .size(16)
+                                        )
+                                        .on_press(Message::AudioMessage(crate::audio::audio_view::Message::PlayPause)),
+                                        widget::text::body("descripttion-description-pause".to_string()),
+                                        widget::tooltip::Position::Top,
+                                )
+                            },
+                        )
+                        .push(widget::tooltip(
                             widget::button::icon(
                                 widget::icon::from_name("media-seek-backward-symbolic").size(16),
-                            )
-                            .on_press(Message::SeekBackward),
+                                    )
+                                    .on_press(Message::SeekBackward),
+                                widget::text::body("description-seek-backward".to_string()),
+                                widget::tooltip::Position::Top,
+                            ),
                         )
-                        .push(
+                        .push(widget::tooltip(
                             widget::button::icon(
                                 widget::icon::from_name("media-seek-forward-symbolic").size(16),
-                            )
-                            .on_press(Message::SeekForward),
+                                )
+                                .on_press(Message::SeekForward),
+                                widget::text::body("description-seek-forward".to_string()),
+                                widget::tooltip::Position::Top,
+                            ),
                         )
                         .push(widget::text(format_time(self.audio_view.position)).font(font::mono()))
                         .push(
@@ -2612,10 +2665,19 @@ impl Application for App {
             }
             Message::Browser => {
                 if self.active_view == Mode::Video {
-                    //if self.video_view.
-                    let _= self.update(Message::AudioMessage(crate::audio::audio_view::Message::PlayPause));
+                    if let Some(video) = self.video_view.video_opt.as_ref() {
+                        if !video.paused() {
+                            let _= self.update(Message::VideoMessage(crate::video::video_view::Message::PlayPause));
+                        }
+                        let _= self.update(Message::VideoMessage(crate::video::video_view::Message::FileClose));
+                    }
                 } else if self.active_view == Mode::Audio {
-                    let _= self.update(Message::AudioMessage(crate::audio::audio_view::Message::PlayPause));
+                    if let Some(audio) = self.audio_view.audio_opt.as_ref() {
+                        if !audio.paused() {
+                            let _= self.update(Message::AudioMessage(crate::audio::audio_view::Message::PlayPause));
+                        }
+                    }
+                    let _= self.update(Message::AudioMessage(crate::audio::audio_view::Message::FileClose));
                 }
 
                 self.active_view = Mode::Browser;
@@ -3989,7 +4051,11 @@ impl Application for App {
                         adjustment = position - 10.0;
                     }
                     let _ = self.update(Message::VideoMessage(crate::video::video_view::Message::Seek(adjustment)));
-                    let _ = self.update(Message::VideoMessage(crate::video::video_view::Message::PlayPause));
+                    if let Some(video) = self.video_view.video_opt.as_ref() {
+                        if !video.paused() {
+                            let _= self.update(Message::VideoMessage(crate::video::video_view::Message::PlayPause));
+                        }
+                    }
                 } else if self.active_view == Mode::Audio {
                     let position = self.audio_view.position;
                     let adjustment;
@@ -3999,7 +4065,11 @@ impl Application for App {
                         adjustment = position - 10.0;
                     }
                     let _ = self.update(Message::AudioMessage(crate::audio::audio_view::Message::Seek(adjustment)));
-                    let _ = self.update(Message::AudioMessage(crate::audio::audio_view::Message::PlayPause));
+                    if let Some(audio) = self.audio_view.audio_opt.as_ref() {
+                        if !audio.paused() {
+                            let _= self.update(Message::AudioMessage(crate::audio::audio_view::Message::PlayPause));
+                        }
+                    }
                 }
             }
             Message::SeekForward => {
@@ -4012,17 +4082,25 @@ impl Application for App {
                         adjustment = position + 10.0;
                     }
                     let _ = self.update(Message::VideoMessage(crate::video::video_view::Message::Seek(adjustment)));
-                    let _ = self.update(Message::VideoMessage(crate::video::video_view::Message::PlayPause));
+                    if let Some(video) = self.video_view.video_opt.as_ref() {
+                        if !video.paused() {
+                            let _= self.update(Message::VideoMessage(crate::video::video_view::Message::PlayPause));
+                        }
+                    }
                 } else if self.active_view == Mode::Audio {
                     let position = self.audio_view.position;
                     let adjustment;
-                    if position + 10.0 > self.video_view.duration {
+                    if position + 10.0 > self.audio_view.duration {
                         adjustment = 0.0;
                     } else {
                         adjustment = position + 10.0;
                     }
                     let _ = self.update(Message::AudioMessage(crate::audio::audio_view::Message::Seek(adjustment)));
-                    let _ = self.update(Message::AudioMessage(crate::audio::audio_view::Message::PlayPause));
+                    if let Some(audio) = self.audio_view.audio_opt.as_ref() {
+                        if !audio.paused() {
+                            let _= self.update(Message::AudioMessage(crate::audio::audio_view::Message::PlayPause));
+                        }
+                    }
                 }
             }
             Message::SkipToPosition(seconds) => {
@@ -4030,10 +4108,20 @@ impl Application for App {
                     let position = self.video_view.position;
                     let adjustment = seconds - position;
                     let _ = self.update(Message::VideoMessage(crate::video::video_view::Message::Seek(adjustment)));
+                    if let Some(video) = self.video_view.video_opt.as_ref() {
+                        if !video.paused() {
+                            let _= self.update(Message::VideoMessage(crate::video::video_view::Message::PlayPause));
+                        }
+                    }
                 } else if self.active_view == Mode::Audio {
                     let position = self.audio_view.position;
                     let adjustment = seconds - position;
                     let _ = self.update(Message::AudioMessage(crate::audio::audio_view::Message::Seek(adjustment)));
+                    if let Some(audio) = self.audio_view.audio_opt.as_ref() {
+                        if !audio.paused() {
+                            let _= self.update(Message::AudioMessage(crate::audio::audio_view::Message::PlayPause));
+                        }
+                    }
                 }
             }
             Message::SetShowDetails(show_details) => {
@@ -4483,15 +4571,19 @@ impl Application for App {
                 }
             },
             Message::ZoomDefault(entity_opt) => {
-                let entity = entity_opt.unwrap_or_else(|| self.tab_model.active());
-                let mut config = self.config.tab;
-                if let Some(tab) = self.tab_model.data::<Tab>(entity) {
-                    match tab.config.view {
-                        tab::View::List => config.icon_sizes.list = 100.try_into().unwrap(),
-                        tab::View::Grid => config.icon_sizes.grid = 100.try_into().unwrap(),
+                if self.active_view == Mode::Browser || self.active_view == Mode::App {
+                    let entity = entity_opt.unwrap_or_else(|| self.tab_model.active());
+                    let mut config = self.config.tab;
+                    if let Some(tab) = self.tab_model.data::<Tab>(entity) {
+                        match tab.config.view {
+                            tab::View::List => config.icon_sizes.list = 100.try_into().unwrap(),
+                            tab::View::Grid => config.icon_sizes.grid = 100.try_into().unwrap(),
+                        }
                     }
+                    return self.update(Message::TabConfig(config));
+                } else if self.active_view == Mode::Image {
+                    
                 }
-                return self.update(Message::TabConfig(config));
             }
             Message::ZoomIn(entity_opt) => {
                 let entity = entity_opt.unwrap_or_else(|| self.tab_model.active());
