@@ -145,7 +145,7 @@ pub fn create_thumbnail_downscale_if_necessary(
 ) -> (String, String) {
     let mut thumbstring = String::new();
     let thumbpath = thumbnail_path(path);
-    let mut imagestring = crate::parsers::osstr_to_string(path.clone().into_os_string());
+    let mut imagestring = String::new();
     if thumbpath.exists() {
         thumbstring = crate::parsers::osstr_to_string(thumbpath.clone().into_os_string());
         return (imagestring, thumbstring);
@@ -157,7 +157,7 @@ pub fn create_thumbnail_downscale_if_necessary(
                     if image.width() > max_pixel_count || image.height() > max_pixel_count {
                         let newimage = downscale_image(
                             path, 
-                            max_pixel_count, 
+                            2000, 
                             image.width() as usize, 
                             image.height() as usize);
                         imagestring = crate::parsers::osstr_to_string(newimage.clone().into_os_string());

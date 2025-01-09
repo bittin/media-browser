@@ -704,9 +704,11 @@ fn stuff_items(
         if file.file_type == 3 && search.audio {
             let pathstr = crate::parsers::osstr_to_string(file.filepath.clone().into_os_string());
             let mut audio = audio(connection, &pathstr, known_files);
+            let mut special_files = std::collections::BTreeSet::new();
             if let Ok(metadata) = std::fs::metadata(file.filepath.clone()) {
                 let item = crate::parsers::item_from_audiotags(
-                    file.filepath.clone(), 
+                    file.filepath.clone(),
+                    &mut special_files,
                     &mut audio, 
                     &metadata, 
                     crate::config::IconSizes::default(), 
@@ -781,9 +783,11 @@ pub fn search_items(
         for i in 0..newfiles.len() {
             if !used_files.contains(&newfiles[i].filepath) {
                 used_files.insert(newfiles[i].filepath.clone());
+                let mut special_files = std::collections::BTreeSet::new();
                 if let Ok(metadata) = std::fs::metadata(newfiles[i].filepath.clone()) {
                     let item = crate::parsers::item_from_audiotags(
-                        newfiles[i].filepath.clone(), 
+                        newfiles[i].filepath.clone(),
+                        &mut special_files,
                         &mut newmetadata[i], 
                         &metadata, 
                         crate::config::IconSizes::default(), 
@@ -878,6 +882,7 @@ pub struct VideoMetadata {
     pub date: NaiveDate,
     pub path: String,
     pub poster: String,
+    pub thumb: String,
     pub subtitles: Vec<String>,
     pub audiolangs: Vec<String>,
     pub sublangs: Vec<String>,
@@ -899,6 +904,7 @@ impl Default for VideoMetadata {
             date: NaiveDate::from_ymd_opt(1970, 1,1).unwrap(),
             path: String::new(),
             poster: String::new(),
+            thumb: String::new(),
             subtitles: Vec::new(),
             audiolangs: Vec::new(),
             sublangs: Vec::new(),
@@ -922,8 +928,8 @@ pub fn insert_video(
     known_files: &mut std::collections::BTreeMap<PathBuf, crate::sql::FileMetadata>,
 ) {
     match connection.execute(
-        "INSERT INTO video_metadata (name, title, released, poster, duration, width, height, framerate, description) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
-        params![&metadata.name, &metadata.title, &metadata.date, &metadata.poster, &metadata.duration, &metadata.width, &metadata.height, &metadata.framerate, &metadata.description],
+        "INSERT INTO video_metadata (name, title, released, poster, thumb, duration, width, height, framerate, description) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
+        params![&metadata.name, &metadata.title, &metadata.date, &metadata.poster, &metadata.thumb, &metadata.duration, &metadata.width, &metadata.height, &metadata.framerate, &metadata.description],
     ) {
         Ok(_retval) => {}, //log::warn!("Inserted {} video with ID {} and location {} into candidates.", video.id, video.index, candidate_id),
         Err(error) => {
@@ -1216,7 +1222,7 @@ pub fn video_by_id(
 ) -> VideoMetadata {
     let mut v = VideoMetadata {..Default::default()};
     v.path = filepath.to_string();
-    let query = "SELECT name, title, released, poster, duration, width, height, framerate, description FROM video_metadata WHERE video_id = ?1";
+    let query = "SELECT name, title, released, poster, duration, width, height, framerate, description, thumb FROM video_metadata WHERE video_id = ?1";
     match connection.prepare(query) {
         Ok(mut statement) => {
             match statement.query(params![&video_id]) {
@@ -1282,6 +1288,13 @@ pub fn video_by_id(
                                 }
                                 match row.get(8) {
                                     Ok(val) => v.description = val,
+                                    Err(error) => {
+                                        log::error!("Failed to read runtime for video: {}", error);
+                                        continue;
+                                    }
+                                }
+                                match row.get(9) {
+                                    Ok(val) => v.thumb = val,
                                     Err(error) => {
                                         log::error!("Failed to read runtime for video: {}", error);
                                         continue;
@@ -1510,7 +1523,7 @@ pub fn video(
     v.path = filepath.to_string();
     let filedata = file(connection, filepath);
     let video_id = filedata.metadata_id;
-    let query = "SELECT name, title, released, poster, duration, width, height, framerate, description FROM video_metadata WHERE video_id = ?1";
+    let query = "SELECT name, title, released, poster, duration, width, height, framerate, description, thumb FROM video_metadata WHERE video_id = ?1";
     match connection.prepare(query) {
         Ok(mut statement) => {
             match statement.query(params![&video_id]) {
@@ -1576,6 +1589,13 @@ pub fn video(
                                 }
                                 match row.get(8) {
                                     Ok(val) => v.description = val,
+                                    Err(error) => {
+                                        log::error!("Failed to read runtime for video: {}", error);
+                                        continue;
+                                    }
+                                }
+                                match row.get(9) {
+                                    Ok(val) => v.thumb = val,
                                     Err(error) => {
                                         log::error!("Failed to read runtime for video: {}", error);
                                         continue;
@@ -1816,7 +1836,7 @@ pub fn video(
                         match rows.next() {
                             Ok(Some(row)) => {
                                 match row.get::<usize, String>(0) {
-                                    Ok(val) => v.subtitles.push(val),
+                                    Ok(val) => v.actors.push(val),
                                     Err(error) => {
                                         log::error!("Failed to read actors for video: {}", error);
                                         continue;
@@ -1857,12 +1877,14 @@ pub struct AudioMetadata {
     pub date: NaiveDate,
     pub path: String,
     pub poster: String,
+    pub thumb: String,
     pub duration: u32,
     pub bitrate: f32,
     pub album: String,
     pub artist: Vec<String>,
     pub albumartist: Vec<String>,
     pub chapters: Vec<Chapter>,
+    pub lyrics: Vec<String>,
 }
 
 impl Default for AudioMetadata {
@@ -1873,12 +1895,14 @@ impl Default for AudioMetadata {
             date: NaiveDate::from_ymd_opt(1970, 1, 1).unwrap(),
             path: String::new(),
             poster: String::new(),
+            thumb: String::new(),
             duration: 0,
             bitrate: 0.0,
             album: String::new(),
             artist: Vec::new(),
             albumartist: Vec::new(),
             chapters: Vec::new(),
+            lyrics: Vec::new(),
         }
     }
 }
@@ -1890,8 +1914,8 @@ pub fn insert_audio(
     known_files: &mut std::collections::BTreeMap<PathBuf, crate::sql::FileMetadata>,
 ) {
     match connection.execute(
-        "INSERT INTO audio_metadata (name, title, released, poster, duration, bitrate) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
-        params![&metadata.name, &metadata.title, &metadata.date, &metadata.poster, &metadata.duration, &metadata.bitrate],
+        "INSERT INTO audio_metadata (name, title, released, poster, thumb, duration, bitrate) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+        params![&metadata.name, &metadata.title, &metadata.date, &metadata.poster, &metadata.thumb, &metadata.duration, &metadata.bitrate],
     ) {
         Ok(_retval) => {}, //log::warn!("Inserted {} video with ID {} and location {} into candidates.", video.id, video.index, candidate_id),
         Err(error) => {
@@ -1906,7 +1930,7 @@ pub fn insert_audio(
             match statement.query(params![]) {
                 Ok(mut rows) => {
                     while let Ok(Some(row)) = rows.next() {
-                        let s_opt = row.get(1);
+                        let s_opt = row.get(0);
                         if s_opt.is_ok() {
                             audio_id = s_opt.unwrap();
                         }
@@ -1955,6 +1979,30 @@ pub fn insert_audio(
             Ok(_retval) => {}, //log::warn!("Inserted {} video with ID {} and location {} into candidates.", video.id, video.index, candidate_id),
             Err(error) => {
                 log::error!("Failed to insert actor into  database: {}", error);
+                return;
+            }
+        }
+    }
+    for i in 0..metadata.chapters.len() {
+        match connection.execute(
+            "INSERT INTO indexes (audio_id, title, start, end) VALUES (?1, ?2, ?3, ?4)",
+            params![&audio_id, &metadata.chapters[i].title, &metadata.chapters[i].start, &metadata.chapters[i].end],
+        ) {
+            Ok(_retval) => {}, //log::warn!("Inserted {} video with ID {} and location {} into candidates.", video.id, video.index, candidate_id),
+            Err(error) => {
+                log::error!("Failed to insert video into  database: {}", error);
+                return;
+            }
+        }
+    }
+    for i in 0..metadata.lyrics.len() {
+        match connection.execute(
+            "INSERT INTO lyrics (audio_id, lyricsfile) VALUES (?1, ?2)",
+            params![&audio_id, &metadata.lyrics[i]],
+        ) {
+            Ok(_retval) => {}, //log::warn!("Inserted {} video with ID {} and location {} into candidates.", video.id, video.index, candidate_id),
+            Err(error) => {
+                log::error!("Failed to insert video into  database: {}", error);
                 return;
             }
         }
@@ -2200,8 +2248,7 @@ pub fn audio_by_id(
     let mut v = AudioMetadata {..Default::default()};
     v.path = filepath.to_string();
     // fill v from all tables
-    let query = "SELECT name, title, released, poster, duration, bitrate 
-                        FROM audio_metadata WHERE audio_id = ?1";
+    let query = "SELECT name, title, released, poster, thumb, duration FROM audio_metadata WHERE audio_id = ?1";
     match connection.prepare(query) {
         Ok(mut statement) => {
             match statement.query(params![&audio_id]) {
@@ -2238,16 +2285,16 @@ pub fn audio_by_id(
                                     }
                                 }
                                 match row.get(4) {
-                                    Ok(val) => v.duration = val,
+                                    Ok(val) => v.thumb = val,
                                     Err(error) => {
-                                        log::error!("Failed to read duration for audio: {}", error);
+                                        log::error!("Failed to read bitrate for audio: {}", error);
                                         continue;
                                     }
                                 }
-                                match row.get(4) {
-                                    Ok(val) => v.bitrate = val,
+                                match row.get(5) {
+                                    Ok(val) => v.duration = val,
                                     Err(error) => {
-                                        log::error!("Failed to read bitrate for audio: {}", error);
+                                        log::error!("Failed to read duration for audio: {}", error);
                                         continue;
                                     }
                                 }
@@ -2385,6 +2432,97 @@ pub fn audio_by_id(
                 },
                 Err(err) => {
                     log::error!("could not read line from album_artists database: {}", err);
+                }
+            }
+        },
+        Err(err) => {
+            log::error!("could not prepare SQL statement: {}", err);
+        }
+    }
+    let query = "SELECT title, start, end FROM indexes WHERE audio_id = ?1 ORDER BY start, end ASC";
+    match connection.prepare(query) {
+        Ok(mut statement) => {
+            match statement.query(params![&audio_id]) {
+                Ok(mut rows) => {
+                    loop {
+                        match rows.next() {
+                            Ok(Some(row)) => {
+                                let mut c = Chapter {..Default::default()};
+                                match row.get::<usize, String>(0) {
+                                    Ok(val) => c.title = val.clone(),
+                                    Err(error) => {
+                                        log::error!("Failed to read chapter title for video: {}", error);
+                                        continue;
+                                    }
+                                }
+                                match row.get::<usize, f32>(1) {
+                                    Ok(val) => c.start = val,
+                                    Err(error) => {
+                                        log::error!("Failed to read chapter start for video: {}", error);
+                                        continue;
+                                    }
+                                }
+                                match row.get::<usize, f32>(2) {
+                                    Ok(val) => c.end = val,
+                                    Err(error) => {
+                                        log::error!("Failed to read chapter end for video: {}", error);
+                                        continue;
+                                    }
+                                }
+                                v.chapters.push(c);
+                            }
+                            Ok(None) => {
+                                //log::warn!("No data read from sublangs.");
+                                break;
+                            },
+                            Err(error) => {
+                                log::error!("Failed to read a row from sublangs: {}", error);
+                                break;
+                            }
+                        }
+                    }
+                },
+                Err(err) => {
+                    log::error!("could not read line from videostore_indices database: {}", err);
+                }
+            }
+        },
+        Err(err) => {
+            log::error!("could not prepare SQL statement: {}", err);
+        }
+    }
+    let query = "SELECT lyricsfile FROM lyrics WHERE audio_id = ?1";
+    match connection.prepare(query) {
+        Ok(mut statement) => {
+            match statement.query(params![&audio_id]) {
+                Ok(mut rows) => {
+                    loop {
+                        match rows.next() {
+                            Ok(Some(row)) => {
+                                match row.get::<usize, String>(0) {
+                                    Ok(val) => {
+                                        let s = val.clone();
+                                        v.lyrics.push(s);
+                                    }
+                                    Err(error) => {
+                                        log::error!("Failed to read chapter title for video: {}", error);
+                                        continue;
+                                    }
+                                }
+                            }
+                            Ok(None) => {
+                                //log::warn!("No data read from sublangs.");
+                                break;
+                            },
+                            Err(error) => {
+                                log::error!("Failed to read a row from sublangs: {}", error);
+                                break;
+                            }
+                        }
+                    }
+                },
+                Err(err) => {
+                    log::error!("could not read line from videostore_indices database: {}", err);
                 }
             }
         },
@@ -2405,8 +2543,7 @@ pub fn audio(
     v.path = filepath.to_string();
     let filedata = file(connection, filepath);
     let audio_id = filedata.metadata_id;
-    let query = "SELECT name, title, released, poster, duration, bitrate 
-                        FROM audio_metadata WHERE audio_id = ?1";
+    let query = "SELECT name, title, released, poster, thumb, duration FROM audio_metadata WHERE audio_id = ?1";
     match connection.prepare(query) {
         Ok(mut statement) => {
             match statement.query(params![&audio_id]) {
@@ -2443,16 +2580,16 @@ pub fn audio(
                                     }
                                 }
                                 match row.get(4) {
-                                    Ok(val) => v.duration = val,
+                                    Ok(val) => v.thumb = val,
                                     Err(error) => {
-                                        log::error!("Failed to read duration for audio: {}", error);
+                                        log::error!("Failed to read bitrate for audio: {}", error);
                                         continue;
                                     }
                                 }
-                                match row.get(4) {
-                                    Ok(val) => v.bitrate = val,
+                                match row.get(5) {
+                                    Ok(val) => v.duration = val,
                                     Err(error) => {
-                                        log::error!("Failed to read bitrate for audio: {}", error);
+                                        log::error!("Failed to read duration for audio: {}", error);
                                         continue;
                                     }
                                 }
@@ -2597,6 +2734,97 @@ pub fn audio(
             log::error!("could not prepare SQL statement: {}", err);
         }
     }
+    let query = "SELECT title, start, end FROM indexes WHERE audio_id = ?1 ORDER BY start, end ASC";
+    match connection.prepare(query) {
+        Ok(mut statement) => {
+            match statement.query(params![&audio_id]) {
+                Ok(mut rows) => {
+                    loop {
+                        match rows.next() {
+                            Ok(Some(row)) => {
+                                let mut c = Chapter {..Default::default()};
+                                match row.get::<usize, String>(0) {
+                                    Ok(val) => c.title = val.clone(),
+                                    Err(error) => {
+                                        log::error!("Failed to read chapter title for video: {}", error);
+                                        continue;
+                                    }
+                                }
+                                match row.get::<usize, f32>(1) {
+                                    Ok(val) => c.start = val,
+                                    Err(error) => {
+                                        log::error!("Failed to read chapter start for video: {}", error);
+                                        continue;
+                                    }
+                                }
+                                match row.get::<usize, f32>(2) {
+                                    Ok(val) => c.end = val,
+                                    Err(error) => {
+                                        log::error!("Failed to read chapter end for video: {}", error);
+                                        continue;
+                                    }
+                                }
+                                v.chapters.push(c);
+                            }
+                            Ok(None) => {
+                                //log::warn!("No data read from sublangs.");
+                                break;
+                            },
+                            Err(error) => {
+                                log::error!("Failed to read a row from sublangs: {}", error);
+                                break;
+                            }
+                        }
+                    }
+                },
+                Err(err) => {
+                    log::error!("could not read line from videostore_indices database: {}", err);
+                }
+            }
+        },
+        Err(err) => {
+            log::error!("could not prepare SQL statement: {}", err);
+        }
+    }
+    let query = "SELECT lyricsfile FROM lyrics WHERE audio_id = ?1";
+    match connection.prepare(query) {
+        Ok(mut statement) => {
+            match statement.query(params![&audio_id]) {
+                Ok(mut rows) => {
+                    loop {
+                        match rows.next() {
+                            Ok(Some(row)) => {
+                                match row.get::<usize, String>(0) {
+                                    Ok(val) => {
+                                        let s = val.clone();
+                                        v.lyrics.push(s);
+                                    }
+                                    Err(error) => {
+                                        log::error!("Failed to read chapter title for video: {}", error);
+                                        continue;
+                                    }
+                                }
+                            }
+                            Ok(None) => {
+                                //log::warn!("No data read from sublangs.");
+                                break;
+                            },
+                            Err(error) => {
+                                log::error!("Failed to read a row from sublangs: {}", error);
+                                break;
+                            }
+                        }
+                    }
+                },
+                Err(err) => {
+                    log::error!("could not read line from videostore_indices database: {}", err);
+                }
+            }
+        },
+        Err(err) => {
+            log::error!("could not prepare SQL statement: {}", err);
+        }
+    }
     if !known_files.contains_key(&PathBuf::from(&v.path)) {
         known_files.insert(PathBuf::from(&v.path), filedata.clone());
     }
@@ -2609,7 +2837,8 @@ pub struct ImageMetadata {
     pub title: String,
     pub date: NaiveDate,
     pub path: String,
-    pub poster: String,
+    pub resized: String,
+    pub thumb: String,
     pub width: u32,
     pub height: u32,
     pub photographer: String,
@@ -2630,7 +2859,8 @@ impl Default for ImageMetadata {
             title: String::new(),
             date: NaiveDate::from_ymd_opt(1970, 1, 1).unwrap(),
             path: String::new(),
-            poster: String::new(),
+            resized: String::new(),
+            thumb: String::new(),
             width: 0,
             height: 0,
             photographer: String::new(),
@@ -2653,8 +2883,8 @@ pub fn insert_image(
     known_files: &mut std::collections::BTreeMap<PathBuf, crate::sql::FileMetadata>,
 ) {
     match connection.execute(
-        "INSERT INTO image_metadata (name, path, created, poster, width, height, photographer, LenseModel, Focallength, Exposuretime, FNumber, gpsstring, gpslatitude, gpslongitude, gpsaltitude) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15)",
-        params![&metadata.name, &metadata.path, &metadata.date, &metadata.poster, &metadata.width, &metadata.height, &metadata.photographer, &metadata.lense_model, &metadata.focal_length, &metadata.exposure_time, &metadata.fnumber, &metadata.gps_string, &metadata.gps_latitude, &metadata.gps_longitude, &metadata.gps_altitude],
+        "INSERT INTO image_metadata (name, path, created, resized, thumb, width, height, photographer, LenseModel, Focallength, Exposuretime, FNumber, gpsstring, gpslatitude, gpslongitude, gpsaltitude) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16)",
+        params![&metadata.name, &metadata.path, &metadata.date, &metadata.resized, &metadata.thumb, &metadata.width, &metadata.height, &metadata.photographer, &metadata.lense_model, &metadata.focal_length, &metadata.exposure_time, &metadata.fnumber, &metadata.gps_string, &metadata.gps_latitude, &metadata.gps_longitude, &metadata.gps_altitude],
     ) {
         Ok(_retval) => {}, //log::warn!("Inserted {} image with ID {} and location {} into candidates.", video.id, video.index, candidate_id),
         Err(error) => {
@@ -2669,7 +2899,7 @@ pub fn insert_image(
             match statement.query(params![]) {
                 Ok(mut rows) => {
                     while let Ok(Some(row)) = rows.next() {
-                        let s_opt = row.get(1);
+                        let s_opt = row.get(0);
                         if s_opt.is_ok() {
                             image_id = s_opt.unwrap();
                         }
@@ -2750,10 +2980,7 @@ pub fn image_by_id(
     let mut v = ImageMetadata {..Default::default()};
     v.path = filepath.to_string();
     // fill v from all tables
-    let query = "SELECT name, path, created, poster, width, height, created, Photographer, 
-                        LenseModel, Focallength, Exposuretime, FNumber, 
-                        GPSString, GPSLatitude, GPSLongitude, GPSAltitude
-                        FROM image_metadata WHERE image_id = ?1";
+    let query = "SELECT name, path, created, resized, thumb, width, height, Photographer, LenseModel, Focallength, Exposuretime, FNumber, GPSLatitude, GPSLongitude, GPSAltitude FROM image_metadata WHERE image_id = ?1";
     match connection.prepare(query) {
         Ok(mut statement) => {
             match statement.query(params![&image_id]) {
@@ -2764,105 +2991,105 @@ pub fn image_by_id(
                                 match row.get(0) {
                                     Ok(val) => v.name = val,
                                     Err(error) => {
-                                        log::error!("Failed to read name for audio: {}", error);
+                                        log::error!("Failed to read name for image: {}", error);
                                         continue;
                                     }
                                 }
                                 match row.get(1) {
                                     Ok(val) => v.path = val,
                                     Err(error) => {
-                                        log::error!("Failed to read title for audio: {}", error);
+                                        log::error!("Failed to read title for image: {}", error);
                                         continue;
                                     }
                                 }
                                 match row.get(2) {
                                     Ok(val) => v.date = val,
                                     Err(error) => {
-                                        log::error!("Failed to read date for audio: {}", error);
+                                        log::error!("Failed to read date for image: {}", error);
                                         continue;
                                     }
                                 }
                                 match row.get(3) {
-                                    Ok(val) => v.poster = val,
+                                    Ok(val) => v.resized = val,
                                     Err(error) => {
-                                        log::error!("Failed to read poster for audio: {}", error);
+                                        log::error!("Failed to read resized for image: {}", error);
                                         continue;
                                     }
                                 }
                                 match row.get(4) {
-                                    Ok(val) => v.width = val,
+                                    Ok(val) => v.thumb = val,
                                     Err(error) => {
-                                        log::error!("Failed to read poster for audio: {}", error);
+                                        log::error!("Failed to read thumb for image: {}", error);
                                         continue;
                                     }
                                 }
                                 match row.get(5) {
-                                    Ok(val) => v.height = val,
+                                    Ok(val) => v.width = val,
                                     Err(error) => {
-                                        log::error!("Failed to read poster for audio: {}", error);
+                                        log::error!("Failed to read width for image: {}", error);
                                         continue;
                                     }
                                 }
                                 match row.get(6) {
-                                    Ok(val) => v.photographer = val,
+                                    Ok(val) => v.height = val,
                                     Err(error) => {
-                                        log::error!("Failed to read duration for audio: {}", error);
+                                        log::error!("Failed to read height for image: {}", error);
                                         continue;
                                     }
                                 }
                                 match row.get(7) {
-                                    Ok(val) => v.lense_model = val,
+                                    Ok(val) => v.photographer = val,
                                     Err(error) => {
-                                        log::error!("Failed to read bitrate for audio: {}", error);
+                                        log::error!("Failed to read photographer for image: {}", error);
                                         continue;
                                     }
                                 }
                                 match row.get(8) {
-                                    Ok(val) => v.focal_length = val,
+                                    Ok(val) => v.lense_model = val,
                                     Err(error) => {
-                                        log::error!("Failed to read bitrate for audio: {}", error);
+                                        log::error!("Failed to read lense_model for image: {}", error);
                                         continue;
                                     }
                                 }
                                 match row.get(9) {
-                                    Ok(val) => v.exposure_time = val,
+                                    Ok(val) => v.focal_length = val,
                                     Err(error) => {
-                                        log::error!("Failed to read bitrate for audio: {}", error);
+                                        log::error!("Failed to read focal_length for image: {}", error);
                                         continue;
                                     }
                                 }
                                 match row.get(10) {
-                                    Ok(val) => v.fnumber = val,
+                                    Ok(val) => v.exposure_time = val,
                                     Err(error) => {
-                                        log::error!("Failed to read bitrate for audio: {}", error);
+                                        log::error!("Failed to read exposure_time for image: {}", error);
                                         continue;
                                     }
                                 }
                                 match row.get(11) {
-                                    Ok(val) => v.gps_string = val,
+                                    Ok(val) => v.fnumber = val,
                                     Err(error) => {
-                                        log::error!("Failed to read bitrate for audio: {}", error);
+                                        log::error!("Failed to read fnumber for image: {}", error);
                                         continue;
                                     }
                                 }
                                 match row.get(12) {
                                     Ok(val) => v.gps_latitude = val,
                                     Err(error) => {
-                                        log::error!("Failed to read bitrate for audio: {}", error);
+                                        log::error!("Failed to read gps_latitude for image: {}", error);
                                         continue;
                                     }
                                 }
                                 match row.get(13) {
                                     Ok(val) => v.gps_longitude = val,
                                     Err(error) => {
-                                        log::error!("Failed to read bitrate for audio: {}", error);
+                                        log::error!("Failed to read gps_longitude for image: {}", error);
                                         continue;
                                     }
                                 }
                                 match row.get(14) {
                                     Ok(val) => v.gps_altitude = val,
                                     Err(error) => {
-                                        log::error!("Failed to read bitrate for audio: {}", error);
+                                        log::error!("Failed to read gps_altitude for image: {}", error);
                                         continue;
                                     }
                                 }
@@ -2900,10 +3127,7 @@ pub fn image(
     v.path = filepath.to_string();
     let filedata = file(connection, filepath);
     let image_id = filedata.metadata_id;
-    let query = "SELECT name, path, created, poster, created, Photographer, 
-                        LenseModel, Focallength, Exposuretime, FNumber, 
-                        GPSString, GPSLatitude, GPSLongitude, GPSAltitude
-                        FROM image_metadata WHERE image_id = ?1";
+    let query = "SELECT name, path, created, resized, thumb, width, height, Photographer, LenseModel, Focallength, Exposuretime, FNumber, GPSLatitude, GPSLongitude, GPSAltitude FROM image_metadata WHERE image_id = ?1";
     match connection.prepare(query) {
         Ok(mut statement) => {
             match statement.query(params![&image_id]) {
@@ -2914,91 +3138,105 @@ pub fn image(
                                 match row.get(0) {
                                     Ok(val) => v.name = val,
                                     Err(error) => {
-                                        log::error!("Failed to read name for audio: {}", error);
+                                        log::error!("Failed to read name for image: {}", error);
                                         continue;
                                     }
                                 }
                                 match row.get(1) {
                                     Ok(val) => v.path = val,
                                     Err(error) => {
-                                        log::error!("Failed to read title for audio: {}", error);
+                                        log::error!("Failed to read title for image: {}", error);
                                         continue;
                                     }
                                 }
                                 match row.get(2) {
                                     Ok(val) => v.date = val,
                                     Err(error) => {
-                                        log::error!("Failed to read date for audio: {}", error);
+                                        log::error!("Failed to read date for image: {}", error);
                                         continue;
                                     }
                                 }
                                 match row.get(3) {
-                                    Ok(val) => v.poster = val,
+                                    Ok(val) => v.resized = val,
                                     Err(error) => {
-                                        log::error!("Failed to read poster for audio: {}", error);
+                                        log::error!("Failed to read resized for image: {}", error);
                                         continue;
                                     }
                                 }
                                 match row.get(4) {
-                                    Ok(val) => v.photographer = val,
+                                    Ok(val) => v.thumb = val,
                                     Err(error) => {
-                                        log::error!("Failed to read duration for audio: {}", error);
+                                        log::error!("Failed to read thumb for image: {}", error);
                                         continue;
                                     }
                                 }
                                 match row.get(5) {
-                                    Ok(val) => v.lense_model = val,
+                                    Ok(val) => v.width = val,
                                     Err(error) => {
-                                        log::error!("Failed to read bitrate for audio: {}", error);
+                                        log::error!("Failed to read width for image: {}", error);
                                         continue;
                                     }
                                 }
                                 match row.get(6) {
-                                    Ok(val) => v.focal_length = val,
+                                    Ok(val) => v.height = val,
                                     Err(error) => {
-                                        log::error!("Failed to read bitrate for audio: {}", error);
+                                        log::error!("Failed to read height for image: {}", error);
                                         continue;
                                     }
                                 }
                                 match row.get(7) {
-                                    Ok(val) => v.exposure_time = val,
+                                    Ok(val) => v.photographer = val,
                                     Err(error) => {
-                                        log::error!("Failed to read bitrate for audio: {}", error);
+                                        log::error!("Failed to read photographer for image: {}", error);
                                         continue;
                                     }
                                 }
                                 match row.get(8) {
-                                    Ok(val) => v.fnumber = val,
+                                    Ok(val) => v.lense_model = val,
                                     Err(error) => {
-                                        log::error!("Failed to read bitrate for audio: {}", error);
+                                        log::error!("Failed to read lense_model for image: {}", error);
                                         continue;
                                     }
                                 }
                                 match row.get(9) {
-                                    Ok(val) => v.gps_string = val,
+                                    Ok(val) => v.focal_length = val,
                                     Err(error) => {
-                                        log::error!("Failed to read bitrate for audio: {}", error);
+                                        log::error!("Failed to read focal_length for image: {}", error);
                                         continue;
                                     }
                                 }
                                 match row.get(10) {
-                                    Ok(val) => v.gps_latitude = val,
+                                    Ok(val) => v.exposure_time = val,
                                     Err(error) => {
-                                        log::error!("Failed to read bitrate for audio: {}", error);
+                                        log::error!("Failed to read exposure_time for image: {}", error);
                                         continue;
                                     }
                                 }
                                 match row.get(11) {
-                                    Ok(val) => v.gps_longitude = val,
+                                    Ok(val) => v.fnumber = val,
                                     Err(error) => {
-                                        log::error!("Failed to read bitrate for audio: {}", error);
+                                        log::error!("Failed to read fnumber for image: {}", error);
                                         continue;
                                     }
                                 }
                                 match row.get(12) {
+                                    Ok(val) => v.gps_latitude = val,
+                                    Err(error) => {
+                                        log::error!("Failed to read gps_latitude for image: {}", error);
+                                        continue;
+                                    }
+                                }
+                                match row.get(13) {
+                                    Ok(val) => v.gps_longitude = val,
+                                    Err(error) => {
+                                        log::error!("Failed to read gps_longitude for image: {}", error);
+                                        continue;
+                                    }
+                                }
+                                match row.get(14) {
                                     Ok(val) => v.gps_altitude = val,
                                     Err(error) => {
-                                        log::error!("Failed to read bitrate for audio: {}", error);
+                                        log::error!("Failed to read gps_altitude for image: {}", error);
                                         continue;
                                     }
                                 }
@@ -3204,16 +3442,16 @@ pub fn file(
 
 
 pub fn files(connection: &mut rusqlite::Connection) -> std::collections::BTreeMap<PathBuf, FileMetadata> {
-    let mut v = BTreeMap::new();
+    let mut known_files = BTreeMap::new();
     let query = "SELECT * FROM file_metadata";
     match connection.prepare(query) {
         Ok(mut statement) => {
             match statement.query(params![]) {
                 Ok(mut rows) => {
                     loop {
-                        let mut s = FileMetadata {..Default::default()};
                         match rows.next() {
                             Ok(Some(row)) => {
+                                let mut s = FileMetadata {..Default::default()};
                                 match row.get(0) {
                                     Ok(val) => {
                                         let st: String = val;
@@ -3252,8 +3490,29 @@ pub fn files(connection: &mut rusqlite::Connection) -> std::collections::BTreeMa
                                         continue;
                                     }
                                 }
-                                v.insert(s.filepath.clone(), s);
-                            },
+                                known_files.insert(s.filepath.clone(), s.clone());
+                                if s.file_type == 3 {
+                                    let mut thumbstring = crate::parsers::osstr_to_string(s.filepath.clone().into_os_string());
+                                    thumbstring.extend(".png".to_string().chars());
+                                    let thumbpath = PathBuf::from(&thumbstring);
+                                    if !known_files.contains_key(&thumbpath) {
+                                        known_files.insert(thumbpath, s.clone());
+                                    }
+                                    let mut lyricstring = crate::parsers::osstr_to_string(s.filepath.clone().into_os_string());
+                                    lyricstring.extend(".lrc".to_string().chars());
+                                    let lyricpath = PathBuf::from(&lyricstring);
+                                    if !known_files.contains_key(&lyricpath) {
+                                        known_files.insert(lyricpath, s);
+                                    }
+                                } else if s.file_type == 2 {
+                                    let mut thumbstring = crate::parsers::osstr_to_string(s.filepath.clone().into_os_string());
+                                    thumbstring.extend("_001.jpeg".to_string().chars());
+                                    let thumbpath = PathBuf::from(&thumbstring);
+                                    if !known_files.contains_key(&thumbpath) {
+                                        known_files.insert(thumbpath, s);
+                                    }
+                                }
+                                                        },
                             Ok(None) => {
                                 //log::warn!("No data read from indices.");
                                 break;
@@ -3275,7 +3534,7 @@ pub fn files(connection: &mut rusqlite::Connection) -> std::collections::BTreeMa
         }
     }
 
-    v
+    known_files
 }
 
 pub fn insert_file(
@@ -3307,7 +3566,7 @@ pub fn insert_file(
     ) {
         Ok(_retval) => {}, //log::warn!("Inserted {} video with ID {} and location {} into candidates.", video.id, video.index, candidate_id),
         Err(error) => {
-            log::error!("Failed to insert video into  database: {}", error);
+            log::error!("Failed to insert file into  database: {}", error);
             return;
         }
     }
@@ -3322,8 +3581,25 @@ pub fn insert_file(
     known_files.insert(meta.filepath.clone(), meta.clone());
 
     if file_type == 3 {
-        let thumbpath = PathBuf::from(&path);
-        known_files.insert(thumbpath.join(".png"), meta);
+        let mut thumbstring = path.to_string();
+        thumbstring.extend(".png".to_string().chars());
+        let thumbpath = PathBuf::from(&thumbstring);
+        if !known_files.contains_key(&thumbpath) {
+            known_files.insert(thumbpath, meta.clone());
+        }
+        let mut lyricstring = path.to_string();
+        lyricstring.extend(".lrc".to_string().chars());
+        let lyricpath = PathBuf::from(&lyricstring);
+        if !known_files.contains_key(&lyricpath) {
+            known_files.insert(lyricpath, meta);
+        }
+    } else if file_type == 2 {
+        let mut thumbstring = path.to_string();
+        thumbstring.extend("_001.jpeg".to_string().chars());
+        let thumbpath = PathBuf::from(&thumbstring);
+        if !known_files.contains_key(&thumbpath) {
+            known_files.insert(thumbpath, meta);
+        }
     }
 }
 
@@ -3689,6 +3965,7 @@ pub fn connect() -> Result<rusqlite::Connection, rusqlite::Error> {
                 title  TEXT NOT NULL, 
                 released UNSIGNED BIG INT NOT NULL, 
                 poster  TEXT, 
+                thumb   TEXT,
                 subtitles BIG INT,
                 duration INT,
                 width INT,
@@ -3883,6 +4160,7 @@ pub fn connect() -> Result<rusqlite::Connection, rusqlite::Error> {
                 title  TEXT NOT NULL, 
                 released UNSIGNED BIG INT NOT NULL, 
                 poster  TEXT, 
+                thumb   TEXT,
                 duration INT,
                 bitrate FLOAT,
                 PRIMARY KEY(audio_id AUTOINCREMENT)
@@ -4010,19 +4288,69 @@ pub fn connect() -> Result<rusqlite::Connection, rusqlite::Error> {
             }
         }
         match connection.execute("
+            CREATE TABLE indexes (
+                index_id INTEGER, 
+                audio_id INTEGER, 
+                title TEXT, 
+                start DOUBLE,
+                end DOUBLE,
+                PRIMARY KEY(index_id AUTOINCREMENT)
+            )", [],
+        ) {
+            Ok(_ret) => {},
+            Err(error) => {
+                log::error!("Failed to create table parameters: {}", error);
+                return Err(error);
+            }
+        }
+        match connection.execute(
+            "CREATE INDEX index_indexes_audio_id ON indexes (audio_id)", (),
+        ) {
+            Ok(_ret) => {},
+            Err(error) => {
+                log::error!("Failed to create index on artist_audio_map: {}", error);
+                return Err(error);
+            }
+        }
+        match connection.execute("
+            CREATE TABLE lyrics (
+                lyrics_id INTEGER, 
+                audio_id INTEGER, 
+                lyricsfile TEXT, 
+                PRIMARY KEY(lyrics_id AUTOINCREMENT)
+            )", [],
+        ) {
+            Ok(_ret) => {},
+            Err(error) => {
+                log::error!("Failed to create table parameters: {}", error);
+                return Err(error);
+            }
+        }
+        match connection.execute(
+            "CREATE INDEX index_lyrics_audio_id ON lyrics (audio_id)", (),
+        ) {
+            Ok(_ret) => {},
+            Err(error) => {
+                log::error!("Failed to create index on lyrics: {}", error);
+                return Err(error);
+            }
+        }
+
+        match connection.execute("
             CREATE TABLE image_metadata (
                 image_id INTEGER,
-                name  TEXT NOT NULL, 
-                path  TEXT NOT NULL, 
-                created UNSIGNED BIG INT NOT NULL, 
-                poster  TEXT, 
-                width INTEGER,
-                height INTEGER,
+                name     TEXT NOT NULL, 
+                path     TEXT NOT NULL, 
+                created  UNSIGNED BIG INT NOT NULL, 
+                resized  TEXT, 
+                thumb    TEXT,
+                width    INTEGER,
+                height   INTEGER,
                 Photographer TEXT,
                 LenseModel TEXT,
                 Focallength TEXT,
                 Exposuretime TEXT,
-                FNumber TEXT,
+                FNumber  TEXT,
                 GPSString  TEXT,
                 GPSLatitude DOUBLE,
                 GPSLongitude DOUBLE,

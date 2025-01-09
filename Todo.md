@@ -10,7 +10,7 @@ The audio player is also derived from it but heavily modified.
 
 The Image viewer is currently the image_viewer widget from the iced project. There is currently no time to learn how to do it more like I would like it to work.
 
-## Content meaning
+## Content
 
 This is the history of the project as well as the bug-tracker and the list of implemented and planned features.
 
@@ -27,13 +27,16 @@ Positions ended with a ? are *stretch goals*. If it is possible AND somebody doe
 - fix the About and settings panel
 - migrate to Alpha4 of libcosmic
 - fix bug that single Movie directories are not parsed correctly
+- fix Previous/Next navigation by PageUp/PageDown
+- make Esc stop playback of audio and video and kill the gstreamer pipeline
+- Audio files do not open properly from database
+- Image files do not open properly from database
 
 #### Open Bugs
 
-- make Esc stop playback of audio and video
 - fix release date 1970-01-01
 - check creation date newer than modification date
-- cosmic::iced::wgpu crashes when loading images larger than 2048 pixels on Intel ARC A770 with 16 GB VRAM
+- cosmic::iced::wgpu crashes when loading images too large on Intel ARC A770 with 16 GB VRAM
 - image_view zoom buttons do nothing as iced::widget::image:viewer is fully mouse driven
 
 ### Features
@@ -105,6 +108,7 @@ Positions ended with a ? are *stretch goals*. If it is possible AND somebody doe
 - use a consistent minimal Design - Thanks COSMIC Player!
 - add seek on mouse scroll
 - add seek buttons
+- add tooltips for the buttons
 
 #### Video Open Features
 
@@ -112,7 +116,6 @@ Positions ended with a ? are *stretch goals*. If it is possible AND somebody doe
 - add a browse button to have the same navigation strip as in image view
 - add chapter navigation?
 - add playback speed control?
-- add tooltips for the buttons
 
 ## Audio Player
 
@@ -125,6 +128,7 @@ Positions ended with a ? are *stretch goals*. If it is possible AND somebody doe
 - display coverart instead of a video if available in the embedded metadata
 - add seek on mouse scroll
 - add seek buttons
+- add tooltips for the buttons
 
 #### Audio Open Features
 
@@ -132,4 +136,3 @@ Positions ended with a ? are *stretch goals*. If it is possible AND somebody doe
 - add a browse button to have the same navigation strip as in image view
 - add chapter navigation?
 - add playback speed control?
-- add tooltips for the buttons

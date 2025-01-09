@@ -419,7 +419,18 @@ pub fn parse_desktop_file(path: &Path) -> (Option<String>, Option<String>) {
 }
 
 pub fn scan_path_recursive(tab_path: PathBuf) {
-    let _ = scan_path(&tab_path, IconSizes::default(), true);
+    let mut items = Vec::new();
+    let mut connection;
+    match crate::sql::connect() {
+        Ok(ok) => connection = ok,
+        Err(error) => {
+            log::error!("Could not open SQLite DB connection: {}", error);
+            return;
+        }
+    }
+    let mut known_files: std::collections::BTreeMap<PathBuf, crate::sql::FileMetadata> = crate::sql::files(&mut connection);
+    let mut special_files = std::collections::BTreeSet::new();
+    let _ = scan_path_runner(&mut connection, &tab_path, IconSizes::default(), true, &mut known_files, &mut special_files, &mut items);
 }
 
 pub fn scan_path(tab_path: &PathBuf, sizes: IconSizes, recursive: bool) -> Vec<Item> {
@@ -433,6 +444,21 @@ pub fn scan_path(tab_path: &PathBuf, sizes: IconSizes, recursive: bool) -> Vec<I
         }
     }
     let mut known_files = crate::sql::files(&mut connection);
+    let mut special_files = std::collections::BTreeSet::new();
+    items = scan_path_runner(&mut connection, &tab_path, sizes, recursive, &mut known_files, &mut special_files, &mut items);
+
+    items
+}
+
+pub fn scan_path_runner(
+    connection: &mut rusqlite::Connection, 
+    tab_path: &PathBuf, 
+    sizes: IconSizes, 
+    recursive: bool,
+    known_files: &mut std::collections::BTreeMap<PathBuf, crate::sql::FileMetadata>,
+    special_files: &mut std::collections::BTreeSet<PathBuf>,
+    items: &mut Vec<Item>,
+) -> Vec<Item> {
     if recursive {
         log::warn!("Scanning directory {}", tab_path.display());
     }
@@ -445,7 +471,6 @@ pub fn scan_path(tab_path: &PathBuf, sizes: IconSizes, recursive: bool) -> Vec<I
             let mut images = Vec::new();
             let mut dirs = Vec::new();
             let mut justdirs = Vec::new();
-            let mut special_files = std::collections::BTreeSet::new();
             for entry_res in entries {
                 let entry = match entry_res {
                     Ok(ok) => ok,
@@ -485,11 +510,11 @@ pub fn scan_path(tab_path: &PathBuf, sizes: IconSizes, recursive: bool) -> Vec<I
                 if let ControlFlow::Break(_) = crate::parsers::scan_nfos_in_dir(
                     video,
                     &all,
-                    &mut special_files,
-                    &mut items,
+                    special_files,
+                    items,
                     sizes,
-                    &mut known_files,
-                    &mut connection,
+                    known_files,
+                    connection,
                 ) {
                     continue;
                 }
@@ -497,12 +522,12 @@ pub fn scan_path(tab_path: &PathBuf, sizes: IconSizes, recursive: bool) -> Vec<I
 
             for video in videos {
                 if let ControlFlow::Break(_) = crate::parsers::scan_videos(
-                    &mut special_files, 
+                    special_files, 
                     video,
-                    &mut items, 
+                    items, 
                     sizes, 
-                    &mut known_files,
-                    &mut connection,
+                    known_files,
+                    connection,
                 ) {
                     continue;
                 }
@@ -512,12 +537,12 @@ pub fn scan_path(tab_path: &PathBuf, sizes: IconSizes, recursive: bool) -> Vec<I
                 if let ControlFlow::Break(_) = crate::parsers::scan_single_nfo_dir(
                     dp,
                     tab_path,
-                    &mut special_files,
+                    special_files,
                     &mut justdirs,
-                    &mut items,
+                    items,
                     sizes,
-                    &mut known_files,
-                    &mut connection,
+                    known_files,
+                    connection,
                 ) {
                     continue;
                 }
@@ -526,12 +551,11 @@ pub fn scan_path(tab_path: &PathBuf, sizes: IconSizes, recursive: bool) -> Vec<I
             for audio in audios {
                 if let ControlFlow::Break(_) = crate::parsers::scan_audiotags(
                     audio,
-                    &all,
-                    &mut special_files,
-                    &mut items,
+                    special_files,
+                    items,
                     sizes,
-                    &mut known_files,
-                    &mut connection,
+                    known_files,
+                    connection,
                 ) {
                     continue;
                 }
@@ -540,11 +564,11 @@ pub fn scan_path(tab_path: &PathBuf, sizes: IconSizes, recursive: bool) -> Vec<I
             for path in images {
                 if let ControlFlow::Break(_) = crate::parsers::scan_exif(
                     path,
-                    &mut special_files,
-                    &mut items,
+                    special_files,
+                    items,
                     sizes,
-                    &mut known_files,
-                    &mut connection,
+                    known_files,
+                    connection,
                 ) {
                     continue;
                 }
@@ -552,10 +576,15 @@ pub fn scan_path(tab_path: &PathBuf, sizes: IconSizes, recursive: bool) -> Vec<I
 
             for path in justdirs {
                 if recursive {
-                    scan_path(&path, sizes, recursive);
+                    if let Some(dirname) = path.file_stem() {
+                        if crate::parsers::osstr_to_string(dirname.to_os_string()).starts_with(".") {
+                            continue; // skip hidden directories when recursively scanning
+                        }
+                    }
+                    scan_path_runner(connection, &path, sizes, recursive, known_files, special_files, items);
                 } else {
                     if let ControlFlow::Break(_) =
-                        crate::parsers::scan_directories(&mut special_files, path, &mut items, sizes)
+                        crate::parsers::scan_directories(special_files, path, items, sizes)
                     {
                         continue;
                     }
@@ -564,7 +593,7 @@ pub fn scan_path(tab_path: &PathBuf, sizes: IconSizes, recursive: bool) -> Vec<I
 
             for path in all {
                 if let ControlFlow::Break(_) =
-                    crate::parsers::scan_files(&mut special_files, path, &mut items, sizes)
+                    crate::parsers::scan_files(special_files, path, items, sizes)
                 {
                     continue;
                 }
@@ -580,7 +609,7 @@ pub fn scan_path(tab_path: &PathBuf, sizes: IconSizes, recursive: bool) -> Vec<I
             (false, true) => Ordering::Greater,
             _ => LANGUAGE_SORTER.compare(&a.display_name, &b.display_name),
         });
-        return items;
+        return items.clone();
     } else {
         return Vec::new();
     }

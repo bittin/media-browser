@@ -177,8 +177,14 @@ fn parse_audiotags(file: &PathBuf, metadata: &mut crate::sql::AudioMetadata) {
 
     // using `default()` or `new()` alone so that the metadata format is
     // guessed (from the file extension) (in this case, Id3v2 tag is read)
-    let tag = Tag::new().read_from_path(file).unwrap();
-
+    let tag;
+    match Tag::new().read_from_path(file) {
+        Ok(ok) => tag = ok,
+        Err(error) => {
+            log::error!("Failed to open audio file {} for reading metadata: {}", file.display(), error);
+            return;
+        }
+    }
     match tag.title() {
         Some(value) => metadata.title = value.to_string(),
         None => {}
@@ -637,7 +643,7 @@ pub fn string_to_float(mystring: &str) -> f32 {
     f
 }
 
-fn timecode_to_ffmpeg_time(timecode: u32) -> String {
+pub fn timecode_to_ffmpeg_time(timecode: u32) -> String {
     let hours = timecode / 3600;
     let minutes = (timecode - hours * 3600) / 60;
     let seconds = timecode - hours * 3600 - minutes * 60;
@@ -692,22 +698,18 @@ fn create_screenshots(meta: &mut crate::sql::VideoMetadata) {
 
 pub fn item_from_video(
     path: PathBuf,
-    name: String,
-    metadata: &std::fs::Metadata,
+    videometadata: &mut crate::sql::VideoMetadata,
+    statdata: &std::fs::Metadata,
     sizes: IconSizes,
     known_files: &mut std::collections::BTreeMap<PathBuf, crate::sql::FileMetadata>,
     connection: &mut rusqlite::Connection,
     from_db: bool,
 ) -> Item {
-    let mut videometadata = crate::sql::VideoMetadata {..Default::default()};
-    
-    videometadata.name = name.clone();
-    videometadata.path = osstr_to_string(path.clone().into_os_string());
     let mut refresh = false;
     let filepath = osstr_to_string(path.clone().into_os_string());
     if !from_db {
         if known_files.contains_key(&path) {
-            if let Ok(modified) = metadata.modified() {
+            if let Ok(modified) = statdata.modified() {
                 if let Ok(new_date) = modified.duration_since(UNIX_EPOCH) {
                     let filedata = &known_files[&path];
                     let new_seconds_since_epoch = new_date.as_secs();
@@ -717,24 +719,25 @@ pub fn item_from_video(
                 }
                 if refresh {
                     // file is newer
-                    create_screenshots(&mut videometadata);
-                    crate::sql::insert_video(connection, &mut videometadata, metadata, known_files);
-                    crate::sql::update_video(connection, &mut videometadata, metadata, known_files);
+                    create_screenshots(videometadata);
+                    videometadata.thumb = crate::thumbnails::create_thumbnail(&PathBuf::from(&videometadata.poster), 254);
+                    crate::sql::update_video(connection, videometadata, statdata, known_files);
                 } else {
-                    videometadata = crate::sql::video(connection, &filepath, known_files);
+                    *videometadata = crate::sql::video(connection, &filepath, known_files);
                 }
             }
         } else {
-            create_screenshots(&mut videometadata);
-            crate::sql::insert_video(connection, &mut videometadata, metadata, known_files);
+            create_screenshots(videometadata);
+            videometadata.thumb = crate::thumbnails::create_thumbnail(&PathBuf::from(&videometadata.poster), 254);
+            crate::sql::insert_video(connection, videometadata, statdata, known_files);
         }
     }
 
-    let mut display_name = Item::display_name(&name);
+    let mut display_name = Item::display_name(&videometadata.name);
 
-    let hidden = name.starts_with(".") || hidden_attribute(&metadata);
+    let hidden = videometadata.name.starts_with(".") || hidden_attribute(&statdata);
 
-    let (mime, icon_handle_grid, icon_handle_list, icon_handle_list_condensed) = if metadata
+    let (mime, icon_handle_grid, icon_handle_list, icon_handle_list_condensed) = if statdata
         .is_dir()
     {
         (
@@ -749,8 +752,8 @@ pub fn item_from_video(
             //let thumbpath = PathBuf::from(&videometadata.poster);
             //let thumbmime = mime_for_path(thumbpath.clone());
             let filemime = mime_for_path(filepath.clone());
-            if videometadata.poster.len() > 0 {
-                let thumbpath = PathBuf::from(&videometadata.poster);
+            if videometadata.thumb.len() > 0 {
+                let thumbpath = PathBuf::from(&videometadata.thumb);
                 (
                     filemime.clone(),
                     widget::icon::from_path(thumbpath.clone()),
@@ -803,7 +806,7 @@ pub fn item_from_video(
 
     let open_with = mime_apps(&mime);
 
-    let children = if metadata.is_dir() {
+    let children = if statdata.is_dir() {
         //TODO: calculate children in the background (and make it cancellable?)
         match std::fs::read_dir(&path) {
             Ok(entries) => entries.count(),
@@ -816,16 +819,16 @@ pub fn item_from_video(
         0
     };
 
-    let dir_size = if metadata.is_dir() {
+    let dir_size = if statdata.is_dir() {
         DirSize::Calculating(crate::operation::controller::Controller::new())
     } else {
         DirSize::NotDirectory
     };
 
     let mut item = Item {
-        name,
+        name: videometadata.name.to_string(),
         display_name,
-        metadata: ItemMetadata::Path { metadata: metadata.clone(), children },
+        metadata: ItemMetadata::Path { metadata: statdata.clone(), children },
         hidden,
         location_opt: Some(Location::Path(path)),
         mime,
@@ -842,7 +845,7 @@ pub fn item_from_video(
         overlaps_drag_rect: false,
         dir_size,
         image_opt: None,
-        video_opt: None,
+        video_opt: Some(videometadata.to_owned()),
         audio_opt: None,
     };
     item.thumbnail_opt = Some(crate::tab::ItemThumbnail::new(item.clone()));
@@ -884,6 +887,7 @@ pub fn item_from_nfo(
                     // file is newer
                     video_metadata(metadata);
                     parse_nfo(&nfo_file, metadata);
+                    metadata.thumb = crate::thumbnails::create_thumbnail(&PathBuf::from(&metadata.poster), 254);
                     metadata.name = basename.clone();
                     crate::sql::update_video(connection, metadata, statdata, known_files);
                 } else {
@@ -893,6 +897,7 @@ pub fn item_from_nfo(
         } else {
             video_metadata( metadata);
             parse_nfo(&nfo_file, metadata);
+            metadata.thumb = crate::thumbnails::create_thumbnail(&PathBuf::from(&metadata.poster), 254);
             metadata.name = basename.clone();
             crate::sql::insert_video(connection, metadata, statdata, known_files);
         }
@@ -910,10 +915,10 @@ pub fn item_from_nfo(
     let hidden = name.starts_with(".") || hidden_attribute(&statdata);
 
      let (mime, icon_handle_grid, icon_handle_list, icon_handle_list_condensed) = {
-        let thumbpath = PathBuf::from(&metadata.poster);
+        let thumbpath = PathBuf::from(&metadata.thumb);
         let thumbmime = mime_for_path(thumbpath.clone());
         let filemime = mime_for_path(filepath.clone());
-        if metadata.poster.len() > 0 {
+        if metadata.thumb.len() > 0 {
             (
                 filemime.clone(),
                 widget::icon::from_path(thumbpath.clone()),
@@ -982,8 +987,67 @@ pub fn item_from_nfo(
     item
 }
 
+fn audio_metadata(
+    audio: PathBuf,
+    special_files: &mut std::collections::BTreeSet<PathBuf>,
+    meta_data: &mut crate::sql::AudioMetadata,
+) {
+    // read chapter data from ffmpeg
+    let mut temp = crate::sql::VideoMetadata {
+        ..Default::default()
+    };
+    if meta_data.chapters.len() == 0 {
+        temp.path = meta_data.path.clone();
+        video_metadata(&mut temp);
+        if temp.chapters.len() > 0 {
+            meta_data.chapters.extend(temp.chapters);
+        }
+        if temp.duration > 0 && meta_data.duration == 0 {
+            meta_data.duration = temp.duration
+        }
+    }
+    // find external lyrics files
+    if let Some(path) = audio.parent() {
+        if let Some(base) = audio.file_stem() {
+            let base = path.join(base);
+            let lyrics: String = osstr_to_string(base.into_os_string());
+            let mut lyrics_1 = lyrics.clone();
+            lyrics_1.extend(".lrc".to_string().chars());
+            let mut lyrics_2 = lyrics.clone();
+            lyrics_2.extend(".srt".to_string().chars());
+            if PathBuf::from(lyrics_1.clone()).is_file() {
+                meta_data.lyrics.push(lyrics_1.clone());
+                special_files.insert(PathBuf::from(lyrics_1.clone()));
+            }
+            if PathBuf::from(lyrics_1.clone()).is_file() {
+                meta_data.lyrics.push(lyrics_2.clone());
+                special_files.insert(PathBuf::from(lyrics_2.clone()));
+            }
+        }
+    }
+    let mut poster = osstr_to_string(audio.clone().into_os_string());
+    poster.extend(".png".to_string().chars());
+    let posterpath = PathBuf::from(poster.clone());
+    if posterpath.is_file() {
+        meta_data.poster = poster.clone();
+        special_files.insert(posterpath.clone());
+    }
+    if meta_data.thumb.len() == 0 {
+        if posterpath.exists() {
+            special_files.insert(posterpath.clone());
+            let thumb = crate::thumbnails::create_thumbnail(&posterpath, 256);
+            if thumb.len() > 0 {
+                meta_data.thumb = thumb.clone();
+            }
+        }
+    } else {
+        special_files.insert(PathBuf::from(meta_data.thumb.clone()));
+    }
+}
+
 pub fn item_from_audiotags(
-    nfo_file: PathBuf,
+    audio: PathBuf,
+    special_files: &mut std::collections::BTreeSet<PathBuf>,
     metadata: &mut crate::sql::AudioMetadata,
     statdata: &std::fs::Metadata,
     sizes: IconSizes,
@@ -1002,7 +1066,10 @@ pub fn item_from_audiotags(
             basename = osstr_to_string(filepath.clone().into_os_string());
         }
     }
-    if !from_db {
+    if from_db {
+        // fill the program data structures to work properly
+        audio_metadata(audio, special_files, metadata);
+    } else {
         if known_files.contains_key(&filepath) {
             let mut refresh = false;
             if let Ok(modified) = statdata.modified() {
@@ -1015,16 +1082,17 @@ pub fn item_from_audiotags(
                 }
                 if refresh {
                     // file is newer
-                    parse_audiotags(&nfo_file, metadata);
-                    metadata.name = basename.clone();
+                    parse_audiotags(&audio, metadata);
+                    audio_metadata(audio, special_files, metadata);
                     crate::sql::update_audio(connection, metadata, statdata, known_files);
                 } else {
                     *metadata = crate::sql::audio(connection, &metadata.path, known_files);
+                    audio_metadata(audio, special_files, metadata);
                 }
             }
         } else {
-            parse_audiotags(&nfo_file, metadata);
-            metadata.name = basename.clone();
+            parse_audiotags(&audio, metadata);
+            audio_metadata(audio, special_files, metadata);
             crate::sql::insert_audio(connection, metadata, statdata, known_files);
         }
     }
@@ -1041,9 +1109,9 @@ pub fn item_from_audiotags(
     let hidden = name.starts_with(".") || hidden_attribute(&statdata);
 
     let thumbpath;
-    if metadata.poster.len() == 0 {
+    if metadata.thumb.len() == 0 {
         // generate thumbnail
-        thumbpath = PathBuf::from(&metadata.path);
+        thumbpath = PathBuf::from(&metadata.thumb);
     } else {
         thumbpath = PathBuf::from(&metadata.poster);
     }
@@ -1063,8 +1131,7 @@ pub fn item_from_audiotags(
             None
         };
 
-        if metadata.poster.len() > 0 {
-            let thumbpath = PathBuf::from(&metadata.poster);
+        if metadata.thumb.len() > 0 {
             (
                 audiomime.clone(),
                 widget::icon::from_path(thumbpath.clone()),
@@ -1166,6 +1233,13 @@ pub fn item_from_exif(
                 if refresh {
                     // file is newer
                     parse_exif(&image_file, metadata);
+                    if metadata.thumb.len() == 0 {
+                        if metadata.resized.len() > 0 {
+                            metadata.thumb = crate::thumbnails::create_thumbnail(&PathBuf::from(&metadata.resized), 254);
+                        } else {
+                            metadata.thumb = crate::thumbnails::create_thumbnail(&PathBuf::from(&metadata.path), 254);
+                        }
+                    }
                     metadata.name = basename.clone();
                     crate::sql::update_image(connection, metadata, statdata, known_files);
                 } else {
@@ -1174,6 +1248,13 @@ pub fn item_from_exif(
             }
         } else {
             parse_exif(&image_file, metadata);
+            if metadata.thumb.len() == 0 {
+                if metadata.resized.len() > 0 {
+                    metadata.thumb = crate::thumbnails::create_thumbnail(&PathBuf::from(&metadata.resized), 254);
+                } else {
+                    metadata.thumb = crate::thumbnails::create_thumbnail(&PathBuf::from(&metadata.path), 254);
+                }
+            }
             metadata.name = basename.clone();
             crate::sql::insert_image(connection, metadata, statdata, known_files);
         }
@@ -1191,11 +1272,11 @@ pub fn item_from_exif(
     let hidden = name.starts_with(".") || hidden_attribute(&statdata);
 
     let thumbpath;
-    if metadata.poster.len() == 0 {
+    if metadata.thumb.len() == 0 {
         // generate thumbnail
-        thumbpath = PathBuf::from(&metadata.path);
+        thumbpath = PathBuf::from(&metadata.thumb);
     } else {
-        thumbpath = PathBuf::from(&metadata.poster);
+        thumbpath = PathBuf::from(&metadata.path);
     }
 
     let thumbmime = mime_for_path(thumbpath.clone());
@@ -1213,8 +1294,7 @@ pub fn item_from_exif(
             None
         };
 
-        if metadata.poster.len() > 0 {
-            let thumbpath = PathBuf::from(&metadata.poster);
+        if metadata.thumb.len() > 0 {
             (
                 imagemime.clone(),
                 widget::icon::from_path(thumbpath.clone()),
@@ -1356,13 +1436,22 @@ pub fn scan_videos(
     if special_files.contains(&path.clone()) {
         return ControlFlow::Break(());
     }
+    let mut meta_data = crate::sql::VideoMetadata {
+        ..Default::default()
+    };
+    meta_data.path = osstr_to_string(path.clone().into_os_string());
+    if meta_data.path.len() == 0 {
+        return ControlFlow::Break(());
+    }
     let name;
     if let Some(bn) = path.file_name() {
         name = crate::parsers::osstr_to_string(bn.to_os_string());
     } else {
         name = crate::parsers::osstr_to_string(path.clone().into_os_string());
     }
-    let metadata = match std::fs::metadata(&path) {
+    meta_data.name = name.clone();
+    meta_data.title = name.clone();
+    let statdata = match std::fs::metadata(&path) {
         Ok(ok) => ok,
         Err(err) => {
             log::warn!("failed to read metadata for entry at {:?}: {}", path, err);
@@ -1370,10 +1459,11 @@ pub fn scan_videos(
         }
     };
     special_files.insert(path.clone());
-    let mut thumb = osstr_to_string(path.clone().into_os_string());
-    thumb.push_str("_001.jpeg");
-    special_files.insert(PathBuf::from(&thumb));
-    items.push(crate::parsers::item_from_video(path, name, &metadata, sizes, known_files, connection, false));
+    let mut poster = osstr_to_string(path.clone().into_os_string());
+    poster.push_str("_001.jpeg");
+    meta_data.poster = poster.clone();
+    special_files.insert(PathBuf::from(&poster));
+    items.push(crate::parsers::item_from_video(path, &mut meta_data, &statdata, sizes, known_files, connection, false));
 
     ControlFlow::Continue(())
 }
@@ -1408,19 +1498,11 @@ pub fn scan_audiotags(
         }
     };
     special_files.insert(audio.clone());
-    let mut thumbstr = osstr_to_string(audio.clone().into_os_string());
-    thumbstr.push_str(".png");
-    let thumb = PathBuf::from(&thumbstr);
-    if thumb.exists() {
-        special_files.insert(thumb.clone());
-        let poster = crate::thumbnails::create_thumbnail(&thumb, 256);
-        if poster.len() > 0 {
-            meta_data.poster = poster.clone();
-        }
-    }
+    // find external cover art 
 
     items.push(crate::parsers::item_from_audiotags(
         audio,
+        special_files,
         &mut meta_data,
         &statdata,
         sizes,
@@ -1463,9 +1545,11 @@ pub fn scan_exif(
     };
     special_files.insert(path.clone());
     let (imagestr, thumbstr) = crate::thumbnails::create_thumbnail_downscale_if_necessary(
-            &path, 254, 2000);
-    meta_data.poster = thumbstr.clone();
-    meta_data.path = imagestr.clone();
+        &path, 254, 2000);
+    meta_data.thumb = thumbstr.clone();
+    if imagestr.len() > 0 {
+        meta_data.resized = imagestr.clone();
+    }
     items.push(crate::parsers::item_from_exif(
         path,
         &mut meta_data,
@@ -1595,11 +1679,11 @@ pub fn scan_single_nfo_dir(
     for path in contents.iter() {
         special_files.insert(path.clone());
     }
-    let thumb = PathBuf::from(&meta_data.poster);
-    if thumb.exists() {
-        let poster = crate::thumbnails::create_thumbnail(&thumb, 256);
-        if poster.len() > 0 {
-            meta_data.poster = poster.clone();
+    let thumbpath = PathBuf::from(&meta_data.poster);
+    if thumbpath.exists() {
+        let thumb = crate::thumbnails::create_thumbnail(&thumbpath, 256);
+        if thumb.len() > 0 {
+            meta_data.thumb = thumb.clone();
         }
     }
 
@@ -1668,11 +1752,11 @@ pub fn scan_nfos_in_dir(
     }
     
     if meta_data.poster.len() > 0 {
-        let thumb = PathBuf::from(&meta_data.poster);
-        if thumb.exists() {
-            let poster = crate::thumbnails::create_thumbnail(&thumb, 256);
-            if poster.len() > 0 {
-                meta_data.poster = poster.clone();
+        let poster = PathBuf::from(&meta_data.poster);
+        if poster.exists() {
+            let thumb = crate::thumbnails::create_thumbnail(&poster, 256);
+            if thumb.len() > 0 {
+                meta_data.thumb = thumb.clone();
             }
         }
     }
