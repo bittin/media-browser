@@ -1774,7 +1774,7 @@ impl App {
                                     widget::icon::from_name("go-up-symbolic")
                                         .size(16)
                                 ).on_press(Message::VideoMessage(crate::video::video_view::Message::ToBrowser)),
-                                widget::text::body("descripttion-back".to_string()),
+                                widget::text::body(fl!("descripttion-back")),
                                 widget::tooltip::Position::Top,
                             )
                         )
@@ -1783,7 +1783,7 @@ impl App {
                                             widget::icon::from_name("go-previous-symbolic")
                                                 .size(16)
                                 ).on_press(Message::VideoMessage(crate::video::video_view::Message::PreviousFile)),
-                                widget::text::body("descripttion-previous-element".to_string()),
+                                widget::text::body(fl!("description-previous-element")),
                                 widget::tooltip::Position::Top,
                             )
                         )
@@ -1792,7 +1792,7 @@ impl App {
                                     widget::icon::from_name("go-next-symbolic")
                                         .size(16)
                                 ).on_press(Message::VideoMessage(crate::video::video_view::Message::NextFile)),
-                                widget::text::body("descripttion-next-element".to_string()),
+                                widget::text::body(fl!("description-next-element")),
                                 widget::tooltip::Position::Top,
                             )
                         )
@@ -1804,7 +1804,7 @@ impl App {
                                             .size(16)
                                         )
                                         .on_press(Message::VideoMessage(crate::video::video_view::Message::PlayPause)),
-                                        widget::text::body("descripttion-description-play".to_string()),
+                                        widget::text::body(fl!("description-play")),
                                         widget::tooltip::Position::Top,
                                 )
                             } else {
@@ -1814,7 +1814,7 @@ impl App {
                                             .size(16)
                                         )
                                         .on_press(Message::VideoMessage(crate::video::video_view::Message::PlayPause)),
-                                        widget::text::body("descripttion-description-pause".to_string()),
+                                        widget::text::body(fl!("description-pause")),
                                         widget::tooltip::Position::Top,
                                 )
                             },
@@ -1824,7 +1824,7 @@ impl App {
                                 widget::icon::from_name("media-seek-backward-symbolic").size(16),
                                     )
                                     .on_press(Message::SeekBackward),
-                                widget::text::body("description-seek-backward".to_string()),
+                                widget::text::body(fl!("description-seek-backward")),
                                 widget::tooltip::Position::Top,
                             ),
                         )
@@ -1833,7 +1833,7 @@ impl App {
                                 widget::icon::from_name("media-seek-forward-symbolic").size(16),
                                 )
                                 .on_press(Message::SeekForward),
-                                widget::text::body("description-seek-forward".to_string()),
+                                widget::text::body(fl!("description-seek-forward")),
                                 widget::tooltip::Position::Top,
                             ),
                         )
@@ -2049,7 +2049,7 @@ impl App {
                                         .size(16)
                                 ).on_press(Message::AudioMessage(
                                         crate::audio::audio_view::Message::ToBrowser)),
-                                widget::text::body("descripttion-back".to_string()),
+                                widget::text::body(fl!("descripttion-back")),
                                 widget::tooltip::Position::Top,
                             )
                         )
@@ -2059,7 +2059,7 @@ impl App {
                                                 .size(16)
                                 ).on_press(Message::AudioMessage(
                                         crate::audio::audio_view::Message::PreviousFile)),
-                                widget::text::body("descripttion-previous-element".to_string()),
+                                widget::text::body(fl!("description-previous-element")),
                                 widget::tooltip::Position::Top,
                             )
                         )
@@ -2069,7 +2069,7 @@ impl App {
                                         .size(16)
                                 ).on_press(Message::AudioMessage(
                                         crate::audio::audio_view::Message::NextFile)),
-                                widget::text::body("descripttion-next-element".to_string()),
+                                widget::text::body(fl!("description-next-element")),
                                 widget::tooltip::Position::Top,
                             )
                         )
@@ -2081,7 +2081,7 @@ impl App {
                                             .size(16)
                                         )
                                         .on_press(Message::AudioMessage(crate::audio::audio_view::Message::PlayPause)),
-                                        widget::text::body("descripttion-description-play".to_string()),
+                                        widget::text::body(fl!("description-play")),
                                         widget::tooltip::Position::Top,
                                 )
                             } else {
@@ -2091,7 +2091,7 @@ impl App {
                                             .size(16)
                                         )
                                         .on_press(Message::AudioMessage(crate::audio::audio_view::Message::PlayPause)),
-                                        widget::text::body("descripttion-description-pause".to_string()),
+                                        widget::text::body(fl!("description-pause")),
                                         widget::tooltip::Position::Top,
                                 )
                             },
@@ -2101,7 +2101,7 @@ impl App {
                                 widget::icon::from_name("media-seek-backward-symbolic").size(16),
                                     )
                                     .on_press(Message::SeekBackward),
-                                widget::text::body("description-seek-backward".to_string()),
+                                widget::text::body(fl!("description-seek-backward")),
                                 widget::tooltip::Position::Top,
                             ),
                         )
@@ -2110,7 +2110,7 @@ impl App {
                                 widget::icon::from_name("media-seek-forward-symbolic").size(16),
                                 )
                                 .on_press(Message::SeekForward),
-                                widget::text::body("description-seek-forward".to_string()),
+                                widget::text::body(fl!("description-seek-forward")),
                                 widget::tooltip::Position::Top,
                             ),
                         )

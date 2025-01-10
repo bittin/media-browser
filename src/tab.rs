@@ -1200,6 +1200,33 @@ impl Item {
         {
             ItemThumbnail::NotImage => icon,
             ItemThumbnail::Image(handle, _) => {
+                if let Some(image) = self.image_opt.as_ref() {
+                    if image.thumb.len() > 0 {
+                        let path = PathBuf::from(&image.thumb);
+                        return widget::image(widget::image::Handle::from_path(path)).into();
+                    } else if image.resized.len() > 0 {
+                        let path = PathBuf::from(&image.resized);
+                        return widget::image(widget::image::Handle::from_path(path)).into();
+                    } else {
+                        return icon;
+                    }
+                }
+                if let Some(video) = self.video_opt.as_ref() {
+                    if video.thumb.len() > 0 {
+                        let path = PathBuf::from(&video.thumb);
+                        return widget::image(widget::image::Handle::from_path(path)).into();
+                    } else {
+                        return icon;
+                    }
+                }
+                if let Some(audio) = self.audio_opt.as_ref() {
+                    if audio.thumb.len() > 0 {
+                        let path = PathBuf::from(&audio.thumb);
+                        return widget::image(widget::image::Handle::from_path(path)).into();
+                    } else {
+                        return icon;
+                    }
+                }
                 if let Some(path) = self.path_opt() {
                     if self.mime.type_() == mime::IMAGE {
                         return widget::image(widget::image::Handle::from_path(path)).into();

@@ -36,7 +36,7 @@ Positions ended with a ? are *stretch goals*. If it is possible AND somebody doe
 
 - fix release date 1970-01-01
 - check creation date newer than modification date
-- cosmic::iced::wgpu crashes when loading images too large on Intel ARC A770 with 16 GB VRAM
+- cosmic::iced::wgpu crashes when loading images too large on Intel ARC A770 with 16 GB VRAM if preview is open even with 2000xYYYY images
 - image_view zoom buttons do nothing as iced::widget::image:viewer is fully mouse driven
 
 ### Features

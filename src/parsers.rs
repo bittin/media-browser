@@ -1274,9 +1274,14 @@ pub fn item_from_exif(
     let thumbpath;
     if metadata.thumb.len() == 0 {
         // generate thumbnail
+        if metadata.resized.len() > 0 {
+            metadata.thumb = crate::thumbnails::create_thumbnail(&PathBuf::from(&metadata.resized), 254);
+        } else {
+            metadata.thumb = crate::thumbnails::create_thumbnail(&PathBuf::from(&metadata.path), 254);
+        }
         thumbpath = PathBuf::from(&metadata.thumb);
     } else {
-        thumbpath = PathBuf::from(&metadata.path);
+        thumbpath = PathBuf::from(&metadata.thumb);
     }
 
     let thumbmime = mime_for_path(thumbpath.clone());
@@ -1502,7 +1507,7 @@ pub fn scan_audiotags(
 
     items.push(crate::parsers::item_from_audiotags(
         audio,
-        special_files,
+        special_files, 
         &mut meta_data,
         &statdata,
         sizes,
@@ -1545,7 +1550,7 @@ pub fn scan_exif(
     };
     special_files.insert(path.clone());
     let (imagestr, thumbstr) = crate::thumbnails::create_thumbnail_downscale_if_necessary(
-        &path, 254, 2000);
+            &path, 254, 2000);
     meta_data.thumb = thumbstr.clone();
     if imagestr.len() > 0 {
         meta_data.resized = imagestr.clone();
