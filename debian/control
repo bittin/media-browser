@@ -1,7 +1,7 @@
-Source: cosmic-media-browser
+Source: media-browser
 Section: admin
 Priority: optional
-Maintainer: Alexander Schwarzkopf <schwarzkopf.alexander@web.de>
+Maintainer: Alexander Schwarzkopf <progs@fangornsrealm.eu>
 Build-Depends:
     debhelper-compat (=13),
     git,
@@ -11,7 +11,7 @@ Build-Depends:
     pkg-config,
     rust-all,
 Standards-Version: 4.6.2
-Homepage: https://github.com/pop-os/cosmic-media-browser
+Homepage: https://github.com/fangornsrealm/media-browser
 
 Package: cosmic-media-browser
 Architecture: amd64 arm64

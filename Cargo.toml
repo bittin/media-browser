@@ -1,7 +1,7 @@
 [package]
-name = "cosmic-media-browser"
+name = "media-browser"
 version = "0.1.0"
-authors = ["Alexander Schwarzkopf <schwarzkopf.alexander@web.de>"]
+authors = ["Alexander Schwarzkopf <progs@fangornsrealm.eu>"]
 edition = "2021"
 license = "GPL-3.0-only"
 rust-version = "1.71"
