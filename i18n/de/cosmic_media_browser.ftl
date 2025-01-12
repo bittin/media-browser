@@ -239,6 +239,10 @@ search-gps_latitude = GPS Breitengrad
 search-gps_longitude = GPS Längengrad
 search-gps_altitude = GPS Höhe
 search-commit = Suche beginnen
+search-previous = Vorherige Suchen
+search-previous-list = Eine vorherige Suche wählen
+search-previous-use = Auswahl benutzen
+search-previous-delete = Auswahl löschen
 
 ## Settings
 settings = Einstellungen

@@ -7,6 +7,7 @@
 
 use super::Error;
 use gstreamer as gst;
+use gst::glib::FlagsClass;
 use gstreamer_app as gst_app;
 use gstreamer_app::prelude::*;
 use cosmic::iced::widget::image as img;
@@ -207,10 +208,14 @@ impl Drop for Video {
 impl Video {
     /// Create a new video player from a given video which loads from `uri`.
     /// Note that live sources will report the duration to be zero.
-    pub fn new(uri: &url::Url) -> Result<Self, Error> {
+    pub fn new(uri: &url::Url, suburi: Option<url::Url>) -> Result<Self, Error> {
         gst::init()?;
 
-        let pipeline = format!("playbin uri=\"{}\" text-sink=\"appsink name=iced_text sync=true caps=text/x-raw\" video-sink=\"videoscale ! videoconvert ! appsink name=iced_video drop=true caps=video/x-raw,format=NV12,pixel-aspect-ratio=1/1\"", uri.as_str());
+        let mut subtitle_pipe = String::new();
+        if let Some(lyrics) = suburi {
+            subtitle_pipe = format!("suburi=\"{}\" subtitle-font-desc Sans, 18 text-sink=\"appsink name=iced_text sync=true caps=text/x-raw\"", lyrics);
+        }
+        let pipeline = format!("playbin uri=\"{}\" {} video-sink=\"videoscale ! videoconvert ! appsink name=iced_video drop=true caps=video/x-raw,format=NV12,pixel-aspect-ratio=1/1\"", uri.as_str(), subtitle_pipe.as_str());
         let pipeline = gst::parse::launch(pipeline.as_ref())?
             .downcast::<gst::Pipeline>()
             .map_err(|_| Error::Cast)?;
@@ -225,12 +230,15 @@ impl Video {
             .unwrap();
         let video_sink = bin.by_name("iced_video").unwrap();
         let video_sink = video_sink.downcast::<gst_app::AppSink>().unwrap();
+        if subtitle_pipe.len() > 0 {
+            let text_sink: gst::Element = pipeline.property("text-sink");
+            //let pad = text_sink.pads().get(0).cloned().unwrap();
+            let text_sink = text_sink.downcast::<gst_app::AppSink>().unwrap();
 
-        let text_sink: gst::Element = pipeline.property("text-sink");
-        //let pad = text_sink.pads().get(0).cloned().unwrap();
-        let text_sink = text_sink.downcast::<gst_app::AppSink>().unwrap();
-
-        Self::from_gst_pipeline(pipeline, video_sink, Some(text_sink))
+            Self::from_gst_pipeline(pipeline, video_sink, Some(text_sink))
+        } else {
+            Self::from_gst_pipeline(pipeline, video_sink, None)
+        }
     }
 
     /// Creates a new video based on an existing GStreamer pipeline and appsink.

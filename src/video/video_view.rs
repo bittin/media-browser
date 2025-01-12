@@ -182,16 +182,29 @@ impl VideoView {
     
     pub fn load(&mut self) {
         let videopath;
+        let mut subtitlepath = None;
         if let Some(videopathstr) = &self.videopath_opt {
-            videopath = videopathstr.to_string();
+            videopath = videopathstr.to_owned();
         } else {
             return;
         }
         self.close();
         log::info!("Loading {}", videopath);
-
+        if let Some(v) = self.video_opt.as_ref() {
+            if let Some(subpathstr) = v.subtitle_url() {
+                subtitlepath = Some(subpathstr);
+            }
+        }
         //TODO: this code came from iced_video_player::Video::new and has been modified to stop the pipeline on error
         //TODO: remove unwraps and enable playback of files with only audio.
+        let video = match super::video::Video::new(&videopath, subtitlepath) {
+            Ok(ok) => ok,
+            Err(error) => {
+                log::error!("Failed to open Video file {}: {}", videopath, error);
+                return;
+            }
+        };
+        /*
         let video = {
             gst::init().unwrap();
 
@@ -225,6 +238,7 @@ impl VideoView {
                 }
             }
         };
+        */
 
         self.duration = video.duration().as_secs_f64();
         let pipeline = video.pipeline();

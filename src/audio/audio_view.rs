@@ -196,13 +196,17 @@ impl AudioView {
         log::info!("Loading {}", audiopath);
         //TODO: this code came from iced_video_player::audio::new and has been modified to stop the pipeline on error
         //TODO: remove unwraps and enable playback of files with only audio.
+        //if let Ok(audio_url) = url::Url::from_file_path(std::path::PathBuf::from(&audiopath)) {
         let audio = match crate::audio::audio::Audio::new(&audiopath, self.posterpath_opt.clone()) {
-            Ok(ok) => ok,
-            Err(error) => {
-                log::error!("Failed to open audio file {}: {}", audiopath, error);
-                return;
-            }
+                Ok(ok) => ok,
+                Err(error) => {
+                    log::error!("Failed to open audio file {}: {}", audiopath, error);
+                    return;
+                }
         };
+        //} else {
+        //    return;
+        //}
 
         self.duration = audio.duration().as_secs_f64();
         let pipeline = audio.pipeline();
