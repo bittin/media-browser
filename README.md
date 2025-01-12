@@ -2,6 +2,14 @@
 
 Media browser with database backend for the COSMIC desktop environment
 
+The GUI of the file manager part is a clone of COSMIC files with a few modifications.
+
+The GUI of the video / audio player is a clone of COSMIC player. The player itself is a modification of iced-video-player.
+
+The Image viewer GUI is inspired by gthumb.
+
+The backend is a genuine creation. And making all the above work together was quite a lot of work.
+
 This project is developed and tested on Linux using Wayland and Pipewire.
 
 > [!NOTE]
