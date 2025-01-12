@@ -1550,7 +1550,7 @@ pub fn scan_exif(
     };
     special_files.insert(path.clone());
     let (imagestr, thumbstr) = crate::thumbnails::create_thumbnail_downscale_if_necessary(
-            &path, 254, 2000);
+            &path, 254, 9000);
     meta_data.thumb = thumbstr.clone();
     if imagestr.len() > 0 {
         meta_data.resized = imagestr.clone();
@@ -1737,9 +1737,11 @@ pub fn scan_nfos_in_dir(
             // part of a local video or metadata
             if f.contains("poster.") {
                 meta_data.poster = f.clone();
-            } else if f.contains(".srt") {
+            } else if f.contains("thumb.") && meta_data.poster.len() == 0 {
+                meta_data.poster = f.clone();
+            } else if f.ends_with(".srt") {
                 meta_data.subtitles.push(f.clone());
-            } else if f.contains(".nfo") {
+            } else if f.ends_with(".nfo") {
                 if !nfo_file.exists() {
                     nfo_file = fp.clone();
                 }

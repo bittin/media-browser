@@ -31,13 +31,15 @@ Positions ended with a ? are *stretch goals*. If it is possible AND somebody doe
 - make Esc stop playback of audio and video and kill the gstreamer pipeline
 - Audio files do not open properly from database
 - Image files do not open properly from database
+- cosmic::iced::wgpu crashes when loading images too large on Intel ARC A770 with 16 GB VRAM if preview is open even with 2000xYYYY images when preview is open
+- browsing images fills memory in seconds
+- search results don't preview actors and chapters
+- PageUp and PageDown do no longer navigate the Presious / Next
 
 #### Open Bugs
 
 - fix release date 1970-01-01
 - check creation date newer than modification date
-- cosmic::iced::wgpu crashes when loading images too large on Intel ARC A770 with 16 GB VRAM if preview is open even with 2000xYYYY images
-- image_view zoom buttons do nothing as iced::widget::image:viewer is fully mouse driven
 
 ### Features
 
@@ -86,7 +88,7 @@ Positions ended with a ? are *stretch goals*. If it is possible AND somebody doe
 - On click show a navigation bar
 - add a popup selection strip of the files/images in the same directory
 - store image metadata in the database
-- workaround cosmic::iced::wgpu crash when loading images larger than 2048 pixels in any direction by scaling them down
+- images larger than 9000 pixels in any direction are scaled down to thumbnail directory and used from there.
 
 #### Image Open Features
 
@@ -94,8 +96,6 @@ Positions ended with a ? are *stretch goals*. If it is possible AND somebody doe
 - make the popup strip disappear once the mouse is no longer hovering over it?
   - mouse_area is whole image_viewer, not just the pop_over
 - adjust the size and shape away from the original aspect ratio of the image viewer on zoom-in if there is room to grow in the window?
-- allow images larger than 2000x2000 pixels to be displayed without scaling it down?
-  (cosmic::iced_WGPU crashes currently if files over 2048 are attempted to load into the buffer).
 
 ## Video viewer
 

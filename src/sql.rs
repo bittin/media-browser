@@ -78,6 +78,38 @@ impl Default for SearchData {
     }
 }
 
+impl std::fmt::Display for SearchData {
+    // This trait requires `fmt` with this exact signature.
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        let _ = write!(f, "{}", self.search_id);
+        if self.image {
+            let _ = write!(f, " Image");
+        } 
+        if self.video {
+            let _ = write!(f, " Video");
+        }
+        if self.audio {
+            let _ = write!(f, " Audio");
+        }
+        if self.search_string.len() > 0 {
+            let _ = write!(f, " {}", self.search_string);
+        }
+        if self.from_string.len() > 0 {
+            let _ = write!(f, " from {}", self.from_string);
+        }
+        if self.to_string.len() > 0 {
+            let _ = write!(f, " to {}", self.to_string);
+        }
+        if self.from_value > 0 {
+            let _ = write!(f, " from {}", self.from_value);
+        }
+        if self.to_value > 0 {
+            let _ = write!(f, " to {}", self.to_value);
+        }
+        write!(f, " ")
+    }
+}
+
 fn search_video_metadata(
     connection: &mut rusqlite::Connection, 
     query: String,
@@ -1483,7 +1515,7 @@ pub fn video_by_id(
                         match rows.next() {
                             Ok(Some(row)) => {
                                 match row.get::<usize, String>(0) {
-                                    Ok(val) => v.subtitles.push(val),
+                                    Ok(val) => v.actors.push(val),
                                     Err(error) => {
                                         log::error!("Failed to read actors for video: {}", error);
                                         continue;
@@ -3675,13 +3707,12 @@ pub fn update_search(
 
 pub fn searches(
     connection: &mut rusqlite::Connection, 
-    filepath: &str,
 ) -> Vec<SearchData> {
     let mut searches = Vec::new();
     let query = "SELECT * FROM searches";
     match connection.prepare(query) {
         Ok(mut statement) => {
-            match statement.query(params![filepath]) {
+            match statement.query(params![]) {
                 Ok(mut rows) => {
                     loop {
                         match rows.next() {

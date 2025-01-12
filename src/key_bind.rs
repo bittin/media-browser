@@ -86,6 +86,9 @@ pub fn key_binds(mode: &tab::Mode) -> HashMap<KeyBind, Action> {
         bind!([], Key::Named(Named::ArrowLeft), ItemLeft);
         bind!([], Key::Named(Named::Backspace), HistoryPrevious);
         bind!([], Key::Named(Named::ArrowUp), LocationUp);
+        bind!([], Key::Named(Named::PageUp), Previous);
+        bind!([], Key::Named(Named::PageDown), Next);
+        bind!([], Key::Named(Named::Escape), OpenBrowser);
     }
 
     key_binds
