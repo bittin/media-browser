@@ -1,4 +1,4 @@
-# cosmic-media-browser
+# media-browser
 
 Media browser with database backend for the COSMIC desktop environment
 
