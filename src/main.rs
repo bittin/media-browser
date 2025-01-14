@@ -5,5 +5,5 @@
 // Copyright 2024 Alexander Schwarzkopf
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    cosmic_media_browser::main()
+    media_browser::main()
 }
