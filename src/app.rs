@@ -1736,6 +1736,46 @@ impl App {
                 column = column.push(widget::container(item).padding([space_xxs, space_m]));
             }
 
+            let mut browser = None;
+            let entity = self.tab_model.active();
+            match self.tab_model.data::<Tab>(entity) {
+                Some(tab) => {
+                    let tab_view = tab
+                        .view(&self.key_binds)
+                        .map(move |message| Message::TabMessage(Some(entity), message));
+                    browser = Some(tab_view);
+                }
+                None => {
+                    //TODO
+                }
+            }    
+            if let Some(view) = browser {
+                popup_items.push(
+                    widget::container(view)
+                    .padding(1)
+                    //TODO: move style to libcosmic
+                    .class(theme::Container::custom(|theme| {
+                            let cosmic = theme.cosmic();
+                            let component = &cosmic.background.component;
+                            widget::container::Style {
+                                icon_color: Some(component.on.into()),
+                                text_color: Some(component.on.into()),
+                                background: Some(cosmic::iced::Background::Color(component.base.into())),
+                                border: cosmic::iced::Border {
+                                    radius: 8.0.into(),
+                                    width: 1.0,
+                                    color: component.divider.into(),
+                                },
+                                ..Default::default()
+                            }
+                        }))
+                    .height(Length::Fixed(250.0))
+                    .width(Length::Fill)
+                    .align_x(Alignment::Start)
+                    .into(),
+                );
+            }
+ 
             popup_items.push(
                 widget::row::with_children(vec![
                     widget::horizontal_space().into(),
@@ -1764,6 +1804,9 @@ impl App {
             );
         }
         if self.video_view.controls {
+            /*
+            */
+
             popup_items.push(
                 widget::container(
                     widget::row::with_capacity(10)
@@ -1898,10 +1941,6 @@ impl App {
             .into()
     }
 
-    fn audio_subscription(&self) -> Subscription<Message> {
-        cosmic::iced::time::every(cosmic::iced::time::Duration::from_millis(1000)).map(|_time| -> Message {return Message::NewFrame;})
-    }
-
     fn view_audio_view(&self) -> Element<<App as cosmic::Application>::Message> {
         let cosmic_theme::Spacing {
             space_xxs,
@@ -2010,6 +2049,45 @@ impl App {
                 column = column.push(widget::container(item).padding([space_xxs, space_m]));
             }
 
+            let mut browser = None;
+            let entity = self.tab_model.active();
+            match self.tab_model.data::<Tab>(entity) {
+                Some(tab) => {
+                    let tab_view = tab
+                        .view(&self.key_binds)
+                        .map(move |message| Message::TabMessage(Some(entity), message));
+                    browser = Some(tab_view);
+                }
+                None => {
+                    //TODO
+                }
+            }    
+            if let Some(view) = browser {
+                popup_items.push(
+                    widget::container(view)
+                    .padding(1)
+                    //TODO: move style to libcosmic
+                    .class(theme::Container::custom(|theme| {
+                            let cosmic = theme.cosmic();
+                            let component = &cosmic.background.component;
+                            widget::container::Style {
+                                icon_color: Some(component.on.into()),
+                                text_color: Some(component.on.into()),
+                                background: Some(cosmic::iced::Background::Color(component.base.into())),
+                                border: cosmic::iced::Border {
+                                    radius: 8.0.into(),
+                                    width: 1.0,
+                                    color: component.divider.into(),
+                                },
+                                ..Default::default()
+                            }
+                        }))
+                    .height(Length::Fixed(250.0))
+                    .width(Length::Fill)
+                    .align_x(Alignment::Start)
+                    .into(),
+                );
+            }
             popup_items.push(
                 widget::row::with_children(vec![
                     widget::horizontal_space().into(),
@@ -2038,6 +2116,8 @@ impl App {
             );
         }
         if self.audio_view.controls {
+            /*
+ */
             popup_items.push(
                 widget::container(
                     widget::row::with_capacity(7)
@@ -2228,6 +2308,21 @@ impl App {
     }
 
     fn open_path(&mut self, path: PathBuf) -> Option<Task<crate::app::Message>> {
+        if self.active_view == Mode::Audio {
+            if let Some(audio) = self.audio_view.audio_opt.as_mut() {
+                if !audio.paused() {
+                    audio.set_paused(true);
+                }
+            }
+        }
+        if self.active_view == Mode::Video {
+            if let Some(video) = self.video_view.video_opt.as_mut() {
+                if !video.paused() {
+                    video.set_paused(true);
+                }
+            }
+        }
+      
         if path.is_dir() {
             // change directory
             if let Some(location_ref) =
@@ -2664,22 +2759,21 @@ impl Application for App {
                 }
             }
             Message::Browser => {
-                if self.active_view == Mode::Video {
-                    if let Some(video) = self.video_view.video_opt.as_ref() {
-                        if !video.paused() {
-                            let _= self.update(Message::VideoMessage(crate::video::video_view::Message::PlayPause));
-                        }
-                        let _= self.update(Message::VideoMessage(crate::video::video_view::Message::FileClose));
-                    }
-                } else if self.active_view == Mode::Audio {
-                    if let Some(audio) = self.audio_view.audio_opt.as_ref() {
+                if self.active_view == Mode::Audio {
+                    if let Some(audio) = self.audio_view.audio_opt.as_mut() {
                         if !audio.paused() {
-                            let _= self.update(Message::AudioMessage(crate::audio::audio_view::Message::PlayPause));
+                            audio.set_paused(true);
                         }
                     }
-                    let _= self.update(Message::AudioMessage(crate::audio::audio_view::Message::FileClose));
                 }
-
+                if self.active_view == Mode::Video {
+                    if let Some(video) = self.video_view.video_opt.as_mut() {
+                        if !video.paused() {
+                            video.set_paused(true);
+                        }
+                    }
+                }
+        
                 self.active_view = Mode::Browser;
             }
             Message::Image(msg) => {
@@ -6018,6 +6112,10 @@ impl Application for App {
                 );
             }
         }
+        subscriptions.push(
+            cosmic::iced::time::every(cosmic::iced::time::Duration::from_millis(1000))
+                .map(|_time| -> Message {return Message::NewFrame;})
+        );
 
         Subscription::batch(subscriptions)
     }

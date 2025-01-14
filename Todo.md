@@ -40,6 +40,7 @@ Positions ended with a ? are *stretch goals*. If it is possible AND somebody doe
 
 - fix release date 1970-01-01
 - check creation date newer than modification date
+- Automatically close Popup GUI after 5 Seconds of no activity
 
 ### Features
 
@@ -109,11 +110,13 @@ Positions ended with a ? are *stretch goals*. If it is possible AND somebody doe
 - add seek on mouse scroll
 - add seek buttons
 - add tooltips for the buttons
+- add a browse button to have the same navigation strip as in image view
+- stop playback when opening new file
+- stop playback when switching to Browser view
 
 #### Video Open Features
 
 - make the player zoom a video that is smaller than the display area
-- add a browse button to have the same navigation strip as in image view
 - add chapter navigation?
 - add playback speed control?
 
@@ -129,10 +132,12 @@ Positions ended with a ? are *stretch goals*. If it is possible AND somebody doe
 - add seek on mouse scroll
 - add seek buttons
 - add tooltips for the buttons
+- add a browse button to have the same navigation strip as in image view
+- update the playback positon in the number and slider
+- stop playback when opening new file
+- stop playback when switching to Browser view
 
 #### Audio Open Features
 
-- update the playback positon in the number and slider
-- add a browse button to have the same navigation strip as in image view
 - add chapter navigation?
 - add playback speed control?
