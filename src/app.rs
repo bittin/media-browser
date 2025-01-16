@@ -2912,8 +2912,18 @@ impl Application for App {
             Message::Seek(val) => {
                 if self.active_view == Mode::Video {
                     let _ = self.update(Message::VideoMessage(crate::video::video_view::Message::Seek(val)));
+                    if let Some(video) = self.video_view.video_opt.as_mut() {
+                        if video.paused() {
+                            video.set_paused(false);
+                        }
+                    }
                 } else if self.active_view == Mode::Audio {
                     let _ = self.update(Message::AudioMessage(crate::audio::audio_view::Message::Seek(val)));
+                    if let Some(audio) = self.audio_view.audio_opt.as_mut() {
+                        if audio.paused() {
+                            audio.set_paused(false);
+                        }
+                    }
                 } else {
                     // no audio active
                 }
@@ -2921,8 +2931,18 @@ impl Application for App {
             Message::SeekRelative(val) => {
                 if self.active_view == Mode::Video {
                     let _ = self.update(Message::VideoMessage(crate::video::video_view::Message::SeekRelative(val)));
+                    if let Some(video) = self.video_view.video_opt.as_mut() {
+                        if video.paused() {
+                            video.set_paused(false);
+                        }
+                    }
                 } else if self.active_view == Mode::Audio {
                     let _ = self.update(Message::AudioMessage(crate::audio::audio_view::Message::SeekRelative(val)));
+                    if let Some(audio) = self.audio_view.audio_opt.as_mut() {
+                        if audio.paused() {
+                            audio.set_paused(false);
+                        }
+                    }
                 } else {
                     // no audio active
                 }
@@ -3482,11 +3502,19 @@ impl Application for App {
                 if self.active_view == Mode::Video {
                     let seconds = self.video_view.position + delta_y as f64 * 10.0;
                     let _= self.update(Message::VideoMessage(crate::video::video_view::Message::Seek(seconds)));
-                    let _= self.update(Message::AudioMessage(crate::audio::audio_view::Message::PlayPause));
+                    if let Some(video) = self.video_view.video_opt.as_mut() {
+                        if video.paused() {
+                            video.set_paused(false);
+                        }
+                    }
                 } else if self.active_view == Mode::Audio {
                     let seconds = self.audio_view.position + delta_y as f64 * 10.0;
                     let _= self.update(Message::AudioMessage(crate::audio::audio_view::Message::Seek(seconds)));
-                    let _= self.update(Message::AudioMessage(crate::audio::audio_view::Message::PlayPause));
+                    if let Some(audio) = self.audio_view.audio_opt.as_mut() {
+                        if audio.paused() {
+                            audio.set_paused(false);
+                        }
+                    }
                 }
                        
                 return Task::none();
