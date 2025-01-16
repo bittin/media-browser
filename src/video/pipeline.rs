@@ -198,7 +198,7 @@ impl VideoPipeline {
             });
 
             let view_uv = texture_uv.create_view(&wgpu::TextureViewDescriptor {
-                label: Some("cosmic-media-browser texture view"),
+                label: Some("media-browser texture view"),
                 format: None,
                 dimension: None,
                 aspect: wgpu::TextureAspect::All,

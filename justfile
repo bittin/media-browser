@@ -1,5 +1,5 @@
-name := 'cosmic-media-browser'
-export APPID := 'com.system76.CosmicMediaBrowser'
+name := 'media-browser'
+export APPID := 'com.fangornsrealm.MediaBrowser'
 
 rootdir := ''
 prefix := '/usr'

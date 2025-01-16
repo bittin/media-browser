@@ -940,8 +940,8 @@ impl App {
 
     fn update_title(&mut self) -> Task<Message> {
         let window_title = match self.tab_model.text(self.tab_model.active()) {
-            Some(tab_title) => format!("{tab_title} — {}", fl!("cosmic-media-browser")),
-            None => fl!("cosmic-media-browser"),
+            Some(tab_title) => format!("{tab_title} — {}", fl!("media-browser")),
+            None => fl!("media-browser"),
         };
         if let Some(window_id) = &self.window_id_opt {
             self.set_window_title(window_title, *window_id)
@@ -1002,7 +1002,7 @@ impl App {
 
     fn about(&self) -> Element<Message> {
         let cosmic_theme::Spacing { space_xxs, .. } = theme::active().cosmic().spacing;
-        let repository = "https://github.com/pop-os/cosmic-media-browser";
+        let repository = "https://github.com/pop-os/media-browser";
         let hash = env!("VERGEN_GIT_SHA");
         let short_hash: String = hash.chars().take(7).collect();
         let date = env!("VERGEN_GIT_COMMIT_DATE");
@@ -1013,7 +1013,7 @@ impl App {
                 )[..],
             ))
             .into(),
-            widget::text::title3(fl!("cosmic-media-browser")).into(),
+            widget::text::title3(fl!("media-browser")).into(),
             widget::button::link(repository)
                 .on_press(Message::LaunchUrl(repository.to_string()))
                 .padding(0)

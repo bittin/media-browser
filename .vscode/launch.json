@@ -13,7 +13,7 @@
                     "test",
                     "--no-run",
                     "--lib",
-                    "--package=cosmic-media-browser"
+                    "--package=media-browser"
                 ],
                 "filter": {
                     "name": "cosmic_media_browser",
@@ -26,15 +26,15 @@
         {
             "type": "lldb",
             "request": "launch",
-            "name": "Debug executable 'cosmic-media-browser'",
+            "name": "Debug executable 'media-browser'",
             "cargo": {
                 "args": [
                     "build",
-                    "--bin=cosmic-media-browser",
-                    "--package=cosmic-media-browser"
+                    "--bin=media-browser",
+                    "--package=media-browser"
                 ],
                 "filter": {
-                    "name": "cosmic-media-browser",
+                    "name": "media-browser",
                     "kind": "bin"
                 }
             },
@@ -44,16 +44,16 @@
         {
             "type": "lldb",
             "request": "launch",
-            "name": "Debug unit tests in executable 'cosmic-media-browser'",
+            "name": "Debug unit tests in executable 'media-browser'",
             "cargo": {
                 "args": [
                     "test",
                     "--no-run",
-                    "--bin=cosmic-media-browser",
-                    "--package=cosmic-media-browser"
+                    "--bin=media-browser",
+                    "--package=media-browser"
                 ],
                 "filter": {
-                    "name": "cosmic-media-browser",
+                    "name": "media-browser",
                     "kind": "bin"
                 }
             },
@@ -68,7 +68,7 @@
                 "args": [
                     "build",
                     "--example=dialog",
-                    "--package=cosmic-media-browser"
+                    "--package=media-browser"
                 ],
                 "filter": {
                     "name": "dialog",
@@ -87,7 +87,7 @@
                     "test",
                     "--no-run",
                     "--example=dialog",
-                    "--package=cosmic-media-browser"
+                    "--package=media-browser"
                 ],
                 "filter": {
                     "name": "dialog",

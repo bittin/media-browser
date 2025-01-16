@@ -21,7 +21,7 @@ pub fn thumbnail_path(path: &std::path::PathBuf) -> std::path::PathBuf {
     let filename = format!("{:016x}_{}.png", hashvalue, basename);
     match dirs::data_local_dir() {
         Some(pb) => {
-            let mut dir = pb.join("cosmic-media-browser").join("thumbs");
+            let mut dir = pb.join("media-browser").join("thumbs");
             if !dir.exists() {
                 let ret = std::fs::create_dir_all(dir.clone());
                 if ret.is_err() {
@@ -49,7 +49,7 @@ pub fn downscale_path(path: &std::path::PathBuf) -> std::path::PathBuf {
     let filename = format!("{:016x}_{}_downscale.png", hashvalue, basename);
     match dirs::data_local_dir() {
         Some(pb) => {
-            let mut dir = pb.join("cosmic-media-browser").join("thumbs");
+            let mut dir = pb.join("media-browser").join("thumbs");
             if !dir.exists() {
                 let ret = std::fs::create_dir_all(dir.clone());
                 if ret.is_err() {

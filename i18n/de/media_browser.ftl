@@ -1,4 +1,4 @@
-cosmic-media-browser = COSMIC Medien Betrachter
+media-browser = COSMIC Medien Betrachter
 empty-folder = Leerer Ordner
 empty-folder-hidden = Leerer Ordner (mit versteckten Dateien)
 no-results = No results found

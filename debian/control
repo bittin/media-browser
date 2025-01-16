@@ -3,17 +3,20 @@ Section: admin
 Priority: optional
 Maintainer: Alexander Schwarzkopf <progs@fangornsrealm.eu>
 Build-Depends:
+    clang,
     debhelper-compat (=13),
-    git,
     just (>= 1.13.0),
-    libglib2.0-dev,
+    libgstreamer1.0-dev,
+    libgstreamer-plugins-base1.0-dev,
     libxkbcommon-dev,
     pkg-config,
     rust-all,
 Standards-Version: 4.6.2
 Homepage: https://github.com/fangornsrealm/media-browser
 
-Package: cosmic-media-browser
+Package: media-browser
 Architecture: amd64 arm64
-Depends: ${misc:Depends}, ${shlibs:Depends}, xdg-utils
-Description: Cosmic File Manager
+Depends: ${misc:Depends}, ${shlibs:Depends},
+      gstreamer1.0-plugins-base,
+      gstreamer1.0-plugins-good,
+Description: Media Browser with Database backend

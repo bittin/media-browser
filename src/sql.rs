@@ -3946,7 +3946,7 @@ pub fn connect() -> Result<rusqlite::Connection, rusqlite::Error> {
     let connection;
     match dirs::data_local_dir() {
         Some(pb) => {
-            let mut dir = pb.join("cosmic-media-browser");
+            let mut dir = pb.join("media-browser");
             if !dir.exists() {
                 let ret = std::fs::create_dir_all(dir.clone());
                 if ret.is_err() {
