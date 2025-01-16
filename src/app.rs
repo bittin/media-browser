@@ -2510,7 +2510,7 @@ impl Application for App {
         };
         app.tab_model_id = app.tab_model.active();
         let mut commands = vec![app.update_config()];
-
+        
         for location in flags.locations {
             commands.push(app.open_tab(location, true, None));
         }
@@ -4173,11 +4173,6 @@ impl Application for App {
                         adjustment = position - 10.0;
                     }
                     let _ = self.update(Message::VideoMessage(crate::video::video_view::Message::Seek(adjustment)));
-                    if let Some(video) = self.video_view.video_opt.as_ref() {
-                        if !video.paused() {
-                            let _= self.update(Message::VideoMessage(crate::video::video_view::Message::PlayPause));
-                        }
-                    }
                 } else if self.active_view == Mode::Audio {
                     let position = self.audio_view.position;
                     let adjustment;
@@ -4187,11 +4182,6 @@ impl Application for App {
                         adjustment = position - 10.0;
                     }
                     let _ = self.update(Message::AudioMessage(crate::audio::audio_view::Message::Seek(adjustment)));
-                    if let Some(audio) = self.audio_view.audio_opt.as_ref() {
-                        if !audio.paused() {
-                            let _= self.update(Message::AudioMessage(crate::audio::audio_view::Message::PlayPause));
-                        }
-                    }
                 }
             }
             Message::SeekForward => {
@@ -4204,11 +4194,6 @@ impl Application for App {
                         adjustment = position + 10.0;
                     }
                     let _ = self.update(Message::VideoMessage(crate::video::video_view::Message::Seek(adjustment)));
-                    if let Some(video) = self.video_view.video_opt.as_ref() {
-                        if !video.paused() {
-                            let _= self.update(Message::VideoMessage(crate::video::video_view::Message::PlayPause));
-                        }
-                    }
                 } else if self.active_view == Mode::Audio {
                     let position = self.audio_view.position;
                     let adjustment;
@@ -4218,11 +4203,6 @@ impl Application for App {
                         adjustment = position + 10.0;
                     }
                     let _ = self.update(Message::AudioMessage(crate::audio::audio_view::Message::Seek(adjustment)));
-                    if let Some(audio) = self.audio_view.audio_opt.as_ref() {
-                        if !audio.paused() {
-                            let _= self.update(Message::AudioMessage(crate::audio::audio_view::Message::PlayPause));
-                        }
-                    }
                 }
             }
             Message::SkipToPosition(seconds) => {
@@ -4230,20 +4210,10 @@ impl Application for App {
                     let position = self.video_view.position;
                     let adjustment = seconds - position;
                     let _ = self.update(Message::VideoMessage(crate::video::video_view::Message::Seek(adjustment)));
-                    if let Some(video) = self.video_view.video_opt.as_ref() {
-                        if !video.paused() {
-                            let _= self.update(Message::VideoMessage(crate::video::video_view::Message::PlayPause));
-                        }
-                    }
                 } else if self.active_view == Mode::Audio {
                     let position = self.audio_view.position;
                     let adjustment = seconds - position;
                     let _ = self.update(Message::AudioMessage(crate::audio::audio_view::Message::Seek(adjustment)));
-                    if let Some(audio) = self.audio_view.audio_opt.as_ref() {
-                        if !audio.paused() {
-                            let _= self.update(Message::AudioMessage(crate::audio::audio_view::Message::PlayPause));
-                        }
-                    }
                 }
             }
             Message::SetShowDetails(show_details) => {
