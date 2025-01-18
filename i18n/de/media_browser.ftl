@@ -348,7 +348,11 @@ description-zoom-fit = Bild in das Fenster einpassen
 description-seek = Aus anderen Dateien wählen
 description-seek-forward = Springe um 30 Sekunden zurück
 description-seek-backward = Springe um 30 Sekunden vorwärts
+description-chapters = Wähle zu spielendes Kapitel
+description-streams = Wähle zu spielende Sprachen
+description-browser = Wähle anderes Medium
 
 # Player
 audio = Tonspur
 subtitles = Untertitel
+chapters = Kapitelmarken

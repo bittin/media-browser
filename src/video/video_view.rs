@@ -86,6 +86,8 @@ pub struct Flags {
 pub enum DropdownKind {
     Audio,
     Subtitle,
+    Browser,
+    Chapter,
 }
 
 /// Messages that are used specifically by our [`App`].
@@ -138,6 +140,9 @@ pub struct VideoView {
     pub current_audio: i32,
     pub text_codes: Vec<String>,
     pub current_text: i32,
+    pub chapters: Vec<crate::sql::Chapter>,
+    pub chapters_str: Vec<String>,
+    pub current_chapter: usize,
 }
 
 impl VideoView {
@@ -158,6 +163,9 @@ impl VideoView {
             current_audio: -1,
             text_codes: Vec::new(),
             current_text: -1,
+            chapters: Vec::new(),
+            chapters_str: Vec::new(),
+            current_chapter: 0,
         };
         video_view
     }
@@ -259,6 +267,7 @@ impl VideoView {
                     format!("Audio #{i}")
                 });
         }
+
         self.current_audio = pipeline.property::<i32>("current-audio");
 
         let n_text = pipeline.property::<i32>("n-text");

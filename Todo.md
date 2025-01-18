@@ -113,11 +113,11 @@ Positions ended with a ? are *stretch goals*. If it is possible AND somebody doe
 - add a browse button to have the same navigation strip as in image view
 - stop playback when opening new file
 - stop playback when switching to Browser view
+- add chapter navigation
 
 #### Video Open Features
 
 - make the player zoom a video that is smaller than the display area
-- add chapter navigation?
 - add playback speed control?
 
 ## Audio Player
@@ -136,8 +136,8 @@ Positions ended with a ? are *stretch goals*. If it is possible AND somebody doe
 - update the playback positon in the number and slider
 - stop playback when opening new file
 - stop playback when switching to Browser view
+- add chapter navigation
 
 #### Audio Open Features
 
-- add chapter navigation?
 - add playback speed control?

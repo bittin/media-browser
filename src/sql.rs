@@ -907,6 +907,35 @@ pub struct Chapter {
     pub end: f32,
 }
 
+impl std::fmt::Display for Chapter {
+    // This trait requires `fmt` with this exact signature.
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "{} -- {}", self.title, self.start)
+    }
+}
+
+pub fn fill_chapters(chapters: Vec<crate::sql::Chapter>, duration: u32) -> (Vec<crate::sql::Chapter>, Vec<String>) {
+    let mut v = Vec::new();
+    let mut s = Vec::new();
+    if chapters.len() > 0 {
+        v.extend(chapters.clone());
+    } else {
+        let numstep = duration / 5 / 60;
+        let mut i = 0;
+        while i < numstep {
+            s.push(format!("Chapter{:02}", i));
+            i += 1;
+        }
+    }
+    for i in 0..v.len() {
+        let title = format!("{:02} {}", i + 1, v[i].title);
+        s.push(title);
+    }
+
+    (v, s)
+}
+
+
 #[derive(Clone, Debug, PartialEq, PartialOrd)]
 pub struct VideoMetadata {
     pub name: String,

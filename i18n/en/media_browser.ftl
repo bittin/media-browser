@@ -348,7 +348,11 @@ description-zoom-fit = Fit View of image to the window size
 description-seek = Pick from neighbor images
 description-seek-forward = Jump 30 Seconds ahead
 description-seek-backward = Jump 30 Seconds back
+description-chapters = Pick Chapter to play
+description-streams = Pick Streams to play
+description-browser = Pick other media to use
 
 # Player
 audio = Audio stream
 subtitles = Subtitle stream
+chapters = Chapter marks

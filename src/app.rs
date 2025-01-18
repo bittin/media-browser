@@ -1,6 +1,6 @@
 // Copyright 2023 System76 <info@system76.com>
 // SPDX-License-Identifier: GPL-3.0-only
-// 
+//
 // Modifications:
 // Copyright 2024 Alexander Schwarzkopf
 
@@ -19,7 +19,7 @@ use cosmic::iced::{
 use cosmic::iced_winit::commands::overlap_notify::overlap_notify;
 use cosmic::{
     app::{self, context_drawer, message, Core, Task},
-    cosmic_config, cosmic_theme, executor,font,
+    cosmic_config, cosmic_theme, executor, font,
     iced::{
         clipboard::dnd::DndAction,
         event,
@@ -32,12 +32,12 @@ use cosmic::{
     iced_runtime::clipboard,
     style, theme,
     widget::{
-        self, Container, Slider,
+        self,
         dnd_destination::DragId,
         horizontal_space,
         menu::{action::MenuAction, key_bind::KeyBind},
         segmented_button::{self, Entity},
-        vertical_space,
+        vertical_space, Container, Slider,
     },
     Application, ApplicationExt, Element,
 };
@@ -63,14 +63,14 @@ use iced_video_player::{
     gst_app, gst_pbutils, Video, VideoPlayer,
 };
 */
-pub use gstreamer as gst;
-pub use gstreamer_app as gst_app;
-pub use gstreamer_pbutils as gst_pbutils;
-use gstreamer::prelude::*;
-pub use crate::video::video::Video;
-pub use crate::video::video_player::VideoPlayer;
 pub use crate::audio::audio::Audio;
 pub use crate::audio::audio_player::AudioPlayer;
+pub use crate::video::video::Video;
+pub use crate::video::video_player::VideoPlayer;
+pub use gstreamer as gst;
+use gstreamer::prelude::*;
+pub use gstreamer_app as gst_app;
+pub use gstreamer_pbutils as gst_pbutils;
 
 use tokio::sync::mpsc;
 use trash::TrashItem;
@@ -299,6 +299,7 @@ pub enum Message {
     EndOfStream,
     NewFrame,
     PlayPause,
+    Chapter(usize),
     CloseToast(widget::ToastId),
     Config(Config),
     Copy(Option<Entity>),
@@ -1228,34 +1229,30 @@ impl App {
     }
 
     fn search_database(&self) -> Element<Message> {
-        let cosmic_theme::Spacing {
-            space_m,
-            ..
-        } = theme::active().cosmic().spacing;
+        let cosmic_theme::Spacing { space_m, .. } = theme::active().cosmic().spacing;
 
         let mut column = widget::column().spacing(space_m);
 
         column = column.push(widget::text::heading(fl!("search-mediatypes")));
         column = column.push(widget::row::with_children(vec![
             widget::checkbox(fl!("search-images"), self.search.image)
-            .on_toggle(|b| Message::SearchImages(b))
-            .into(),
+                .on_toggle(|b| Message::SearchImages(b))
+                .into(),
             widget::horizontal_space().into(),
             widget::checkbox(fl!("search-videos"), self.search.video)
-            .on_toggle(|b| Message::SearchVideos(b))
-            .into(),
+                .on_toggle(|b| Message::SearchVideos(b))
+                .into(),
             widget::horizontal_space().into(),
             widget::checkbox(fl!("search-audios"), self.search.audio)
-            .on_toggle(|b| Message::SearchAudios(b))
-            .into(),
+                .on_toggle(|b| Message::SearchAudios(b))
+                .into(),
         ]));
         column = column.push(widget::text::heading(fl!("search-textentry")));
         column = column.push(
             widget::text_input("".to_string(), self.search.search_string.as_str())
-            .id(self.search_string.clone())
-            .on_input(Message::SearchSearchString)
-            .on_submit(Message::SearchSearchStringSubmit),
-
+                .id(self.search_string.clone())
+                .on_input(Message::SearchSearchString)
+                .on_submit(Message::SearchSearchStringSubmit),
         );
         column = column.push(widget::text::heading(fl!("search-ranges")));
         column = column.push(widget::row::with_children(vec![
@@ -1266,20 +1263,22 @@ impl App {
         column = column.push(widget::row::with_children(vec![
             widget::tooltip(
                 widget::text_input("".to_string(), self.search.from_string.as_str())
-                .id(self.search_from_string.clone())
-                .on_input(Message::SearchSearchFromString)
-                .on_submit(Message::SearchSearchFromStringSubmit),
+                    .id(self.search_from_string.clone())
+                    .on_input(Message::SearchSearchFromString)
+                    .on_submit(Message::SearchSearchFromStringSubmit),
                 widget::text::body(fl!("search-tooltip-date")),
                 widget::tooltip::Position::Top,
-            ).into(),
+            )
+            .into(),
             widget::tooltip(
                 widget::text_input("".to_string(), self.search.to_string.as_str())
-                .id(self.search_to_string.clone())
-                .on_input(Message::SearchSearchToString)
-                .on_submit(Message::SearchSearchToStringSubmit),
+                    .id(self.search_to_string.clone())
+                    .on_input(Message::SearchSearchToString)
+                    .on_submit(Message::SearchSearchToStringSubmit),
                 widget::text::body(fl!("search-tooltip-date")),
                 widget::tooltip::Position::Top,
-            ).into(),
+            )
+            .into(),
         ]));
         column = column.push(widget::row::with_children(vec![
             widget::text::heading(fl!("search-value-from")).into(),
@@ -1289,146 +1288,111 @@ impl App {
         column = column.push(widget::row::with_children(vec![
             widget::tooltip(
                 widget::text_input("".to_string(), self.search.from_value_string.as_str())
-                .id(self.search_from_value.clone())
-                .on_input(Message::SearchSearchFromValue)
-                .on_submit(Message::SearchSearchFromValueSubmit),
+                    .id(self.search_from_value.clone())
+                    .on_input(Message::SearchSearchFromValue)
+                    .on_submit(Message::SearchSearchFromValueSubmit),
                 widget::text::body(fl!("search-tooltip-value")),
                 widget::tooltip::Position::Top,
-            ).into(),
+            )
+            .into(),
             widget::tooltip(
                 widget::text_input("".to_string(), self.search.to_value_string.as_str())
-                .id(self.search_to_value.clone())
-                .on_input(Message::SearchSearchToValue)
-                .on_submit(Message::SearchSearchToValueSubmit),
+                    .id(self.search_to_value.clone())
+                    .on_input(Message::SearchSearchToValue)
+                    .on_submit(Message::SearchSearchToValueSubmit),
                 widget::text::body(fl!("search-tooltip-value")),
                 widget::tooltip::Position::Top,
-            ).into(),
+            )
+            .into(),
         ]));
         column = column.push(widget::row::with_children(vec![
             widget::checkbox(fl!("search-filepath"), self.search.filepath)
-            .on_toggle(move |value| {
-                Message::SearchFilepath(value)
-            })
-            .into(),
+                .on_toggle(move |value| Message::SearchFilepath(value))
+                .into(),
             widget::horizontal_space().into(),
             widget::checkbox(fl!("search-title"), self.search.title)
-            .on_toggle(move |value| {
-                Message::SearchTitle(value)
-            })
-            .into(),
+                .on_toggle(move |value| Message::SearchTitle(value))
+                .into(),
         ]));
         column = column.push(widget::row::with_children(vec![
             widget::checkbox(fl!("search-description"), self.search.description)
-            .on_toggle(move |value| {
-                Message::SearchDescription(value)
-            })
-            .into(),
+                .on_toggle(move |value| Message::SearchDescription(value))
+                .into(),
             widget::horizontal_space().into(),
             widget::checkbox(fl!("search-actor"), self.search.actor)
-            .on_toggle(move |value| {
-                Message::SearchActor(value)
-            })
-            .into(),
+                .on_toggle(move |value| Message::SearchActor(value))
+                .into(),
             widget::horizontal_space().into(),
             widget::checkbox(fl!("search-director"), self.search.director)
-            .on_toggle(move |value| {
-                Message::SearchDirector(value)
-            })
-            .into(),
+                .on_toggle(move |value| Message::SearchDirector(value))
+                .into(),
         ]));
         column = column.push(widget::row::with_children(vec![
             widget::checkbox(fl!("search-artist"), self.search.artist)
-            .on_toggle(move |value| {
-                Message::SearchArtist(value)
-            })
-            .into(),
+                .on_toggle(move |value| Message::SearchArtist(value))
+                .into(),
             widget::horizontal_space().into(),
             widget::checkbox(fl!("search-album_artist"), self.search.album_artist)
-            .on_toggle(move |value| {
-                Message::SearchAlbumartist(value)
-            })
-            .into(),
+                .on_toggle(move |value| Message::SearchAlbumartist(value))
+                .into(),
             widget::horizontal_space().into(),
             widget::checkbox(fl!("search-duration"), self.search.duration)
-            .on_toggle(move |value| {
-                Message::SearchDuration(value)
-            })
-            .into(),
+                .on_toggle(move |value| Message::SearchDuration(value))
+                .into(),
         ]));
         column = column.push(widget::row::with_children(vec![
             widget::checkbox(fl!("search-creation_date"), self.search.creation_date)
-            .on_toggle(move |value| {
-                Message::SearchCreationDate(value)
-            })
-            .into(),
+                .on_toggle(move |value| Message::SearchCreationDate(value))
+                .into(),
             widget::horizontal_space().into(),
-            widget::checkbox(fl!("search-modification_date"), self.search.modification_date)
-            .on_toggle(move |value| {
-                Message::SearchModificationDate(value)
-            })
+            widget::checkbox(
+                fl!("search-modification_date"),
+                self.search.modification_date,
+            )
+            .on_toggle(move |value| Message::SearchModificationDate(value))
             .into(),
             widget::horizontal_space().into(),
             widget::checkbox(fl!("search-release_date"), self.search.release_date)
-            .on_toggle(move |value| {
-                Message::SearchReleaseDate(value)
-            })
-            .into(),
+                .on_toggle(move |value| Message::SearchReleaseDate(value))
+                .into(),
         ]));
         column = column.push(widget::row::with_children(vec![
             widget::checkbox(fl!("search-lense_model"), self.search.lense_model)
-            .on_toggle(move |value| {
-                Message::SearchLenseModel(value)
-            })
-            .into(),
+                .on_toggle(move |value| Message::SearchLenseModel(value))
+                .into(),
             widget::horizontal_space().into(),
             widget::checkbox(fl!("search-focal_length"), self.search.focal_length)
-            .on_toggle(move |value| {
-                Message::SearchFocalLength(value)
-            })
-            .into(),
+                .on_toggle(move |value| Message::SearchFocalLength(value))
+                .into(),
             widget::horizontal_space().into(),
             widget::checkbox(fl!("search-exposure_time"), self.search.exposure_time)
-            .on_toggle(move |value| {
-                Message::SearchExposureTime(value)
-            })
-            .into(),
+                .on_toggle(move |value| Message::SearchExposureTime(value))
+                .into(),
             widget::horizontal_space().into(),
             widget::checkbox(fl!("search-fnumber"), self.search.fnumber)
-            .on_toggle(move |value| {
-                Message::SearchFNumber(value)
-            })
-            .into(),
+                .on_toggle(move |value| Message::SearchFNumber(value))
+                .into(),
         ]));
         column = column.push(widget::row::with_children(vec![
             widget::checkbox(fl!("search-gps_latitude"), self.search.gps_latitude)
-            .on_toggle(move |value| {
-                Message::SearchGpsLatitude(value)
-            })
-            .into(),
+                .on_toggle(move |value| Message::SearchGpsLatitude(value))
+                .into(),
             widget::horizontal_space().into(),
             widget::checkbox(fl!("search-gps_longitude"), self.search.gps_longitude)
-            .on_toggle(move |value| {
-                Message::SearchGpsLongitude(value)
-            })
-            .into(),
+                .on_toggle(move |value| Message::SearchGpsLongitude(value))
+                .into(),
             widget::horizontal_space().into(),
             widget::checkbox(fl!("search-gps_altitude"), self.search.gps_altitude)
-            .on_toggle(move |value| {
-                Message::SearchGpsAltitude(value)
-            })
-            .into(),
+                .on_toggle(move |value| Message::SearchGpsAltitude(value))
+                .into(),
         ]));
-        column = column.push(
-            widget::tooltip(
-                widget::button::icon(widget::icon::from_name(
-                    "media-playback-start-symbolic",
-                ))
+        column = column.push(widget::tooltip(
+            widget::button::icon(widget::icon::from_name("media-playback-start-symbolic"))
                 .on_press(Message::SearchCommit)
                 .padding(8),
-                widget::text::body(fl!("search-commit")),
-                widget::tooltip::Position::Top,
-            )
-        );
+            widget::text::body(fl!("search-commit")),
+            widget::tooltip::Position::Top,
+        ));
         widget::column::with_children(vec![
             widget::text::body(fl!("search-context")).into(),
             column.into(),
@@ -1471,31 +1435,30 @@ impl App {
             ..
         } = theme::active().cosmic().spacing;
 
-        if self.image_view.image_path_loaded != self.image_view.image_path
-        {
+        if self.image_view.image_path_loaded != self.image_view.image_path {
             // construct the video player first
             return self.view_browser_view();
         }
         let image_viewer = Container::new(
-            cosmic::iced::widget::image::Viewer::new(
-                crate::image::image::create_handle(self.image_view.image_path.clone()),
-                )
-                    .width(self.image_view.width)
-                    .height(self.image_view.height)
-                    .min_scale(self.image_view.min_scale)
-                    .max_scale(self.image_view.max_scale)
-                    .scale_step(self.image_view.scale_step)
-                    .padding(5.0),
-            )
-            .class(style::Container::Background)
-            .width(Length::Fill)
-            .height(Length::Fill)
-            .center_x(Length::Fill)
-            .center_y(Length::Fill)
-            .padding([0, space_s]);
+            cosmic::iced::widget::image::Viewer::new(crate::image::image::create_handle(
+                self.image_view.image_path.clone(),
+            ))
+            .width(self.image_view.width)
+            .height(self.image_view.height)
+            .min_scale(self.image_view.min_scale)
+            .max_scale(self.image_view.max_scale)
+            .scale_step(self.image_view.scale_step)
+            .padding(5.0),
+        )
+        .class(style::Container::Background)
+        .width(Length::Fill)
+        .height(Length::Fill)
+        .center_x(Length::Fill)
+        .center_y(Length::Fill)
+        .padding([0, space_s]);
         // draw Image GUI
         let mouse_area = widget::mouse_area(image_viewer)
-            .on_press(Message::PlayPause) 
+            .on_press(Message::PlayPause)
             .on_double_press(Message::Fullscreen);
 
         let mut popover = widget::popover(mouse_area).position(widget::popover::Position::Bottom);
@@ -1514,19 +1477,21 @@ impl App {
                 None => {
                     //TODO
                 }
-            }    
+            }
             if let Some(view) = browser {
                 popup_items.push(
                     widget::container(view)
-                    .padding(1)
-                    //TODO: move style to libcosmic
-                    .class(theme::Container::custom(|theme| {
+                        .padding(1)
+                        //TODO: move style to libcosmic
+                        .class(theme::Container::custom(|theme| {
                             let cosmic = theme.cosmic();
                             let component = &cosmic.background.component;
                             widget::container::Style {
                                 icon_color: Some(component.on.into()),
                                 text_color: Some(component.on.into()),
-                                background: Some(cosmic::iced::Background::Color(component.base.into())),
+                                background: Some(cosmic::iced::Background::Color(
+                                    component.base.into(),
+                                )),
                                 border: cosmic::iced::Border {
                                     radius: 8.0.into(),
                                     width: 1.0,
@@ -1535,10 +1500,10 @@ impl App {
                                 ..Default::default()
                             }
                         }))
-                    .height(Length::Fixed(250.0))
-                    .width(Length::Fill)
-                    .align_x(Alignment::Start)
-                    .into(),
+                        .height(Length::Fixed(250.0))
+                        .width(Length::Fill)
+                        .align_x(Alignment::Start)
+                        .into(),
                 );
             }
             popup_items.push(
@@ -1548,63 +1513,67 @@ impl App {
                         .spacing(space_xxs)
                         .push(
                             widget::button::icon(
-                                    widget::icon::from_name("go-up-symbolic")
-                                        .size(16)
-                            ).on_press(Message::ImageMessage(
-                                        crate::image::image_view::Message::ToBrowser)),
-                        )
-                        .push(
-                                    widget::button::icon(
-                                            widget::icon::from_name("go-previous-symbolic")
-                                                .size(16)
-                            ).on_press(Message::ImageMessage(
-                                                crate::image::image_view::Message::PreviousFile)),
+                                widget::icon::from_name("go-up-symbolic").size(16),
+                            )
+                            .on_press(Message::ImageMessage(
+                                crate::image::image_view::Message::ToBrowser,
+                            )),
                         )
                         .push(
                             widget::button::icon(
-                                    widget::icon::from_name("go-next-symbolic")
-                                        .size(16)
-                            ).on_press(Message::ImageMessage(
-                                        crate::image::image_view::Message::NextFile))
+                                widget::icon::from_name("go-previous-symbolic").size(16),
+                            )
+                            .on_press(Message::ImageMessage(
+                                crate::image::image_view::Message::PreviousFile,
+                            )),
                         )
                         .push(
                             widget::button::icon(
-                                    widget::icon::from_name("zoom-in-symbolic")
-                                        .size(16)
-                            ).on_press(Message::ImageMessage(
-                                        crate::image::image_view::Message::ZoomPlus))
-                        )
-                        .push(
-                            widget::button::icon(
-                                    widget::icon::from_name("zoom-out-symbolic")
-                                        .size(16)
-                            ).on_press(Message::ImageMessage(
-                                        crate::image::image_view::Message::ZoomMinus))
-                        )
-                        .push(
-                            widget::button::icon(
-                                    widget::icon::from_name("zoom-fit-best-symbolic")
-                                        .size(16)
-                            ).on_press(Message::ImageMessage(
-                                        crate::image::image_view::Message::ZoomFit))
-                        )
+                                widget::icon::from_name("go-next-symbolic").size(16),
+                            )
+                            .on_press(Message::ImageMessage(
+                                crate::image::image_view::Message::NextFile,
+                            )),
+                        ), /*
+                           .push(
+                               widget::button::icon(
+                                       widget::icon::from_name("zoom-in-symbolic")
+                                           .size(16)
+                               ).on_press(Message::ImageMessage(
+                                           crate::image::image_view::Message::ZoomPlus))
+                           )
+                           .push(
+                               widget::button::icon(
+                                       widget::icon::from_name("zoom-out-symbolic")
+                                           .size(16)
+                               ).on_press(Message::ImageMessage(
+                                           crate::image::image_view::Message::ZoomMinus))
+                           )
+                           .push(
+                               widget::button::icon(
+                                       widget::icon::from_name("zoom-fit-best-symbolic")
+                                           .size(16)
+                               ).on_press(Message::ImageMessage(
+                                           crate::image::image_view::Message::ZoomFit))
+                           )
+                           */
                 )
                 //TODO: move style to libcosmic
                 .class(theme::Container::custom(|theme| {
-                        let cosmic = theme.cosmic();
-                        let component = &cosmic.background.component;
-                        widget::container::Style {
-                            icon_color: Some(component.on.into()),
-                            text_color: Some(component.on.into()),
-                            background: Some(cosmic::iced::Background::Color(component.base.into())),
-                            border: cosmic::iced::Border {
-                                radius: 8.0.into(),
-                                width: 1.0,
-                                color: component.divider.into(),
-                            },
-                            ..Default::default()
-                        }
-                    }))
+                    let cosmic = theme.cosmic();
+                    let component = &cosmic.background.component;
+                    widget::container::Style {
+                        icon_color: Some(component.on.into()),
+                        text_color: Some(component.on.into()),
+                        background: Some(cosmic::iced::Background::Color(component.base.into())),
+                        border: cosmic::iced::Border {
+                            radius: 8.0.into(),
+                            width: 1.0,
+                            color: component.divider.into(),
+                        },
+                        ..Default::default()
+                    }
+                }))
                 .padding([space_xxs, space_xs])
                 .height(Length::Shrink)
                 .width(Length::Fill)
@@ -1613,7 +1582,7 @@ impl App {
                 .into(),
             );
         }
-        
+
         if !popup_items.is_empty() {
             popover = popover.popup(widget::column::with_children(popup_items));
         }
@@ -1654,7 +1623,7 @@ impl App {
 
         let muted = video.muted();
         let volume = video.volume();
-        
+
         let video_player = VideoPlayer::new(&mut video)
             .mouse_hidden(!self.video_view.controls)
             .on_end_of_stream(Message::EndOfStream)
@@ -1664,18 +1633,19 @@ impl App {
             .height(1080.0);
 
         let mouse_area = widget::mouse_area(video_player)
-            .on_press(Message::PlayPause) 
-            .on_scroll(|delta|Message::MouseScroll(delta))
+            .on_press(Message::PlayPause)
+            .on_scroll(|delta| Message::MouseScroll(delta))
             .on_double_press(Message::Fullscreen);
 
         let mut popover = widget::popover(mouse_area).position(widget::popover::Position::Bottom);
 
         let mut popup_items = Vec::<Element<_>>::with_capacity(2);
         if let Some(dropdown) = self.video_view.dropdown_opt {
-            let mut items = Vec::<Element<_>>::new();
+            let mut items_right = Vec::<Element<_>>::new();
+            //let mut items_left = Vec::<Element<_>>::new();
             match dropdown {
                 crate::video::video_view::DropdownKind::Audio => {
-                    items.push(
+                    items_right.push(
                         widget::row::with_children(vec![
                             widget::button::icon(
                                 widget::icon::from_name({
@@ -1693,7 +1663,9 @@ impl App {
                                 })
                                 .size(16),
                             )
-                            .on_press(Message::VideoMessage(crate::video::video_view::Message::AudioToggle))
+                            .on_press(Message::VideoMessage(
+                                crate::video::video_view::Message::AudioToggle,
+                            ))
                             .into(),
                             //TODO: disable slider when muted?
                             Slider::new(0.0..=1.0, volume, Message::AudioVolume)
@@ -1706,8 +1678,8 @@ impl App {
                 }
                 crate::video::video_view::DropdownKind::Subtitle => {
                     if !self.video_view.audio_codes.is_empty() {
-                        items.push(widget::text::heading(fl!("audio")).into());
-                        items.push(
+                        items_right.push(widget::text::heading(fl!("audio")).into());
+                        items_right.push(
                             widget::dropdown(
                                 &self.video_view.audio_codes,
                                 usize::try_from(self.video_view.current_audio).ok(),
@@ -1718,8 +1690,8 @@ impl App {
                     }
                     if !self.video_view.text_codes.is_empty() {
                         //TODO: allow toggling subtitles
-                        items.push(widget::text::heading(fl!("subtitles")).into());
-                        items.push(
+                        items_right.push(widget::text::heading(fl!("subtitles")).into());
+                        items_right.push(
                             widget::dropdown(
                                 &self.video_view.text_codes,
                                 usize::try_from(self.video_view.current_text).ok(),
@@ -1729,53 +1701,68 @@ impl App {
                         );
                     }
                 }
+                crate::video::video_view::DropdownKind::Browser => {
+                    let mut browser = None;
+                    let entity = self.tab_model.active();
+                    match self.tab_model.data::<Tab>(entity) {
+                        Some(tab) => {
+                            let tab_view = tab
+                                .view(&self.key_binds)
+                                .map(move |message| Message::TabMessage(Some(entity), message));
+                            browser = Some(tab_view);
+                        }
+                        None => {
+                            //TODO
+                        }
+                    }
+                    if let Some(view) = browser {
+                        popup_items.push(
+                            widget::container(view)
+                                .padding(1)
+                                //TODO: move style to libcosmic
+                                .class(theme::Container::custom(|theme| {
+                                    let cosmic = theme.cosmic();
+                                    let component = &cosmic.background.component;
+                                    widget::container::Style {
+                                        icon_color: Some(component.on.into()),
+                                        text_color: Some(component.on.into()),
+                                        background: Some(cosmic::iced::Background::Color(
+                                            component.base.into(),
+                                        )),
+                                        border: cosmic::iced::Border {
+                                            radius: 8.0.into(),
+                                            width: 1.0,
+                                            color: component.divider.into(),
+                                        },
+                                        ..Default::default()
+                                    }
+                                }))
+                                .height(Length::Fixed(250.0))
+                                .width(Length::Fill)
+                                .align_x(Alignment::Start)
+                                .into(),
+                        );
+                    }
+                }
+                crate::video::video_view::DropdownKind::Chapter => {
+                    if !self.video_view.chapters.is_empty() {
+                        items_right.push(widget::text::heading(fl!("chapters")).into());
+                        items_right.push(
+                            widget::dropdown(
+                                &self.video_view.chapters_str, 
+                                Some(self.video_view.current_chapter), 
+                                Message::Chapter)
+                                .into(),
+                        );
+                    }
+                }
             }
 
-            let mut column = widget::column::with_capacity(items.len());
-            for item in items {
+            let mut column = widget::column::with_capacity(items_right.len());
+            for item in items_right {
                 column = column.push(widget::container(item).padding([space_xxs, space_m]));
             }
 
-            let mut browser = None;
-            let entity = self.tab_model.active();
-            match self.tab_model.data::<Tab>(entity) {
-                Some(tab) => {
-                    let tab_view = tab
-                        .view(&self.key_binds)
-                        .map(move |message| Message::TabMessage(Some(entity), message));
-                    browser = Some(tab_view);
-                }
-                None => {
-                    //TODO
-                }
-            }    
-            if let Some(view) = browser {
-                popup_items.push(
-                    widget::container(view)
-                    .padding(1)
-                    //TODO: move style to libcosmic
-                    .class(theme::Container::custom(|theme| {
-                            let cosmic = theme.cosmic();
-                            let component = &cosmic.background.component;
-                            widget::container::Style {
-                                icon_color: Some(component.on.into()),
-                                text_color: Some(component.on.into()),
-                                background: Some(cosmic::iced::Background::Color(component.base.into())),
-                                border: cosmic::iced::Border {
-                                    radius: 8.0.into(),
-                                    width: 1.0,
-                                    color: component.divider.into(),
-                                },
-                                ..Default::default()
-                            }
-                        }))
-                    .height(Length::Fixed(250.0))
-                    .width(Length::Fill)
-                    .align_x(Alignment::Start)
-                    .into(),
-                );
-            }
- 
             popup_items.push(
                 widget::row::with_children(vec![
                     widget::horizontal_space().into(),
@@ -1788,7 +1775,9 @@ impl App {
                             widget::container::Style {
                                 icon_color: Some(component.on.into()),
                                 text_color: Some(component.on.into()),
-                                background: Some(cosmic::iced::Background::Color(component.base.into())),
+                                background: Some(cosmic::iced::Background::Color(
+                                    component.base.into(),
+                                )),
                                 border: cosmic::iced::Border {
                                     radius: 8.0.into(),
                                     width: 1.0,
@@ -1803,10 +1792,8 @@ impl App {
                 .into(),
             );
         }
-        if self.video_view.controls {
-            /*
-            */
 
+        if self.video_view.controls {
             popup_items.push(
                 widget::container(
                     widget::row::with_capacity(10)
@@ -1814,88 +1801,142 @@ impl App {
                         .spacing(space_xxs)
                         .push(widget::tooltip(
                             widget::button::icon(
-                                    widget::icon::from_name("go-up-symbolic")
-                                        .size(16)
-                                ).on_press(Message::VideoMessage(crate::video::video_view::Message::ToBrowser)),
-                                widget::text::body(fl!("descripttion-back")),
-                                widget::tooltip::Position::Top,
+                                widget::icon::from_name("go-up-symbolic").size(16),
                             )
-                        )
+                            .on_press(Message::VideoMessage(
+                                crate::video::video_view::Message::ToBrowser,
+                            )),
+                            widget::text::body(fl!("descripttion-back")),
+                            widget::tooltip::Position::Top,
+                        ))
                         .push(widget::tooltip(
                             widget::button::icon(
-                                            widget::icon::from_name("go-previous-symbolic")
-                                                .size(16)
-                                ).on_press(Message::VideoMessage(crate::video::video_view::Message::PreviousFile)),
-                                widget::text::body(fl!("description-previous-element")),
-                                widget::tooltip::Position::Top,
+                                widget::icon::from_name("go-previous-symbolic").size(16),
                             )
-                        )
+                            .on_press(Message::VideoMessage(
+                                crate::video::video_view::Message::PreviousFile,
+                            )),
+                            widget::text::body(fl!("description-previous-element")),
+                            widget::tooltip::Position::Top,
+                        ))
                         .push(widget::tooltip(
                             widget::button::icon(
-                                    widget::icon::from_name("go-next-symbolic")
-                                        .size(16)
-                                ).on_press(Message::VideoMessage(crate::video::video_view::Message::NextFile)),
-                                widget::text::body(fl!("description-next-element")),
-                                widget::tooltip::Position::Top,
+                                widget::icon::from_name("go-next-symbolic").size(16),
                             )
-                        )
+                            .on_press(Message::VideoMessage(
+                                crate::video::video_view::Message::NextFile,
+                            )),
+                            widget::text::body(fl!("description-next-element")),
+                            widget::tooltip::Position::Top,
+                        ))
                         .push(
-                            if self.audio_view.audio_opt.as_ref().map_or(true, |video| video.paused()) {
+                            if self
+                                .audio_view
+                                .audio_opt
+                                .as_ref()
+                                .map_or(true, |video| video.paused())
+                            {
                                 widget::tooltip(
                                     widget::button::icon(
-                                         widget::icon::from_name("media-playback-start-symbolic")
-                                            .size(16)
-                                        )
-                                        .on_press(Message::VideoMessage(crate::video::video_view::Message::PlayPause)),
-                                        widget::text::body(fl!("description-play")),
-                                        widget::tooltip::Position::Top,
+                                        widget::icon::from_name("media-playback-start-symbolic")
+                                            .size(16),
+                                    )
+                                    .on_press(
+                                        Message::VideoMessage(
+                                            crate::video::video_view::Message::PlayPause,
+                                        ),
+                                    ),
+                                    widget::text::body(fl!("description-play")),
+                                    widget::tooltip::Position::Top,
                                 )
                             } else {
                                 widget::tooltip(
                                     widget::button::icon(
-                                         widget::icon::from_name("media-playback-pause-symbolic")
-                                            .size(16)
-                                        )
-                                        .on_press(Message::VideoMessage(crate::video::video_view::Message::PlayPause)),
-                                        widget::text::body(fl!("description-pause")),
-                                        widget::tooltip::Position::Top,
+                                        widget::icon::from_name("media-playback-pause-symbolic")
+                                            .size(16),
+                                    )
+                                    .on_press(
+                                        Message::VideoMessage(
+                                            crate::video::video_view::Message::PlayPause,
+                                        ),
+                                    ),
+                                    widget::text::body(fl!("description-pause")),
+                                    widget::tooltip::Position::Top,
                                 )
                             },
                         )
                         .push(widget::tooltip(
                             widget::button::icon(
-                                widget::icon::from_name("media-seek-backward-symbolic").size(16),
-                                    )
-                                    .on_press(Message::SeekBackward),
-                                widget::text::body(fl!("description-seek-backward")),
-                                widget::tooltip::Position::Top,
-                            ),
+                                widget::icon::from_name("view-more-symbolic").size(16),
+                            )
+                            .on_press(Message::VideoMessage(
+                                crate::video::video_view::Message::DropdownToggle(
+                                    crate::video::video_view::DropdownKind::Browser,
+                                ),
+                            )),
+                            widget::text::body(fl!("description-browser")),
+                            widget::tooltip::Position::Top,
+                        ))
+                        .push(widget::tooltip(
+                            widget::button::icon(
+                                widget::icon::from_name("media-skip-backward-symbolic").size(16),
+                            )
+                            .on_press(Message::SeekBackward),
+                            widget::text::body(fl!("description-seek-backward")),
+                            widget::tooltip::Position::Top,
+                        ))
+                        .push(widget::tooltip(
+                            widget::button::icon(
+                                widget::icon::from_name("media-skip-forward-symbolic").size(16),
+                            )
+                            .on_press(Message::SeekForward),
+                            widget::text::body(fl!("description-seek-forward")),
+                            widget::tooltip::Position::Top,
+                        ))
+                        .push(
+                            widget::text(format_time(self.video_view.position)).font(font::mono()),
+                        )
+                        .push(
+                            Slider::new(
+                                0.0..=self.video_view.duration,
+                                self.video_view.position,
+                                Message::Seek,
+                            )
+                            .step(0.1)
+                            .on_release(Message::VideoMessage(
+                                crate::video::video_view::Message::SeekRelease,
+                            )),
+                        )
+                        .push(
+                            widget::text(format_time(
+                                self.video_view.duration - self.video_view.position,
+                            ))
+                            .font(font::mono()),
                         )
                         .push(widget::tooltip(
                             widget::button::icon(
-                                widget::icon::from_name("media-seek-forward-symbolic").size(16),
-                                )
-                                .on_press(Message::SeekForward),
-                                widget::text::body(fl!("description-seek-forward")),
-                                widget::tooltip::Position::Top,
-                            ),
-                        )
-                        .push(widget::text(format_time(self.video_view.position)).font(font::mono()))
-                        .push(
-                            Slider::new(0.0..=self.video_view.duration, self.video_view.position, Message::Seek)
-                                .step(0.1)
-                                .on_release(Message::VideoMessage(crate::video::video_view::Message::SeekRelease)),
-                        )
-                        .push(
-                            widget::text(format_time(self.video_view.duration - self.video_view.position))
-                                .font(font::mono()),
-                        )
-                        .push(
+                                widget::icon::from_name("open-menu-symbolic").size(16),
+                            )
+                            .on_press(Message::VideoMessage(
+                                crate::video::video_view::Message::DropdownToggle(
+                                    crate::video::video_view::DropdownKind::Chapter,
+                                ),
+                            )),
+                            widget::text::body(fl!("description-chapters")),
+                            widget::tooltip::Position::Top,
+                        ))
+                        .push(widget::tooltip(
                             widget::button::icon(
                                 widget::icon::from_name("media-view-subtitles-symbolic").size(16),
                             )
-                            .on_press(Message::VideoMessage(crate::video::video_view::Message::DropdownToggle(crate::video::video_view::DropdownKind::Subtitle))),
-                        )
+                            .on_press(Message::VideoMessage(
+                                crate::video::video_view::Message::DropdownToggle(
+                                    crate::video::video_view::DropdownKind::Subtitle,
+                                ),
+                            )),
+                            widget::text::body(fl!("description-streams")),
+                            widget::tooltip::Position::Top,
+                        ))
                         .push(
                             widget::button::icon(
                                 widget::icon::from_name("view-fullscreen-symbolic").size(16),
@@ -1920,7 +1961,11 @@ impl App {
                                 })
                                 .size(16),
                             )
-                            .on_press(Message::VideoMessage(crate::video::video_view::Message::DropdownToggle(crate::video::video_view::DropdownKind::Audio))),
+                            .on_press(Message::VideoMessage(
+                                crate::video::video_view::Message::DropdownToggle(
+                                    crate::video::video_view::DropdownKind::Audio,
+                                ),
+                            )),
                         ),
                 )
                 .padding([space_xxs, space_xs])
@@ -1978,17 +2023,20 @@ impl App {
             .height(1080.0);
 
         let mouse_area = widget::mouse_area(audio_player)
-            .on_press(Message::AudioMessage(crate::audio::audio_view::Message::PlayPause)) 
-            .on_scroll(|delta|Message::MouseScroll(delta))
+            .on_press(Message::AudioMessage(
+                crate::audio::audio_view::Message::PlayPause,
+            ))
+            .on_scroll(|delta| Message::MouseScroll(delta))
             .on_double_press(Message::Fullscreen);
 
         let mut popover = widget::popover(mouse_area).position(widget::popover::Position::Bottom);
         let mut popup_items = Vec::<Element<_>>::with_capacity(2);
         if let Some(dropdown) = self.audio_view.dropdown_opt {
-            let mut items = Vec::<Element<_>>::new();
+            let mut items_right = Vec::<Element<_>>::new();
+            //let mut items_left = Vec::<Element<_>>::new();
             match dropdown {
                 crate::audio::audio_view::DropdownKind::Audio => {
-                    items.push(
+                    items_right.push(
                         widget::row::with_children(vec![
                             widget::button::icon(
                                 widget::icon::from_name({
@@ -2006,7 +2054,9 @@ impl App {
                                 })
                                 .size(16),
                             )
-                            .on_press(Message::AudioMessage(crate::audio::audio_view::Message::AudioToggle))
+                            .on_press(Message::AudioMessage(
+                                crate::audio::audio_view::Message::AudioToggle,
+                            ))
                             .into(),
                             //TODO: disable slider when muted?
                             Slider::new(0.0..=1.0, volume, Message::AudioVolume)
@@ -2019,8 +2069,8 @@ impl App {
                 }
                 crate::audio::audio_view::DropdownKind::Subtitle => {
                     if !self.audio_view.audio_codes.is_empty() {
-                        items.push(widget::text::heading(fl!("audio")).into());
-                        items.push(
+                        items_right.push(widget::text::heading(fl!("audio")).into());
+                        items_right.push(
                             widget::dropdown(
                                 &self.audio_view.audio_codes,
                                 usize::try_from(self.audio_view.current_audio).ok(),
@@ -2031,8 +2081,8 @@ impl App {
                     }
                     if !self.audio_view.text_codes.is_empty() {
                         //TODO: allow toggling subtitles
-                        items.push(widget::text::heading(fl!("subtitles")).into());
-                        items.push(
+                        items_right.push(widget::text::heading(fl!("subtitles")).into());
+                        items_right.push(
                             widget::dropdown(
                                 &self.audio_view.text_codes,
                                 usize::try_from(self.audio_view.current_text).ok(),
@@ -2042,52 +2092,68 @@ impl App {
                         );
                     }
                 }
+                crate::audio::audio_view::DropdownKind::Browser => {
+                    let mut browser = None;
+                    let entity = self.tab_model.active();
+                    match self.tab_model.data::<Tab>(entity) {
+                        Some(tab) => {
+                            let tab_view = tab
+                                .view(&self.key_binds)
+                                .map(move |message| Message::TabMessage(Some(entity), message));
+                            browser = Some(tab_view);
+                        }
+                        None => {
+                            //TODO
+                        }
+                    }
+                    if let Some(view) = browser {
+                        popup_items.push(
+                            widget::container(view)
+                                .padding(1)
+                                //TODO: move style to libcosmic
+                                .class(theme::Container::custom(|theme| {
+                                    let cosmic = theme.cosmic();
+                                    let component = &cosmic.background.component;
+                                    widget::container::Style {
+                                        icon_color: Some(component.on.into()),
+                                        text_color: Some(component.on.into()),
+                                        background: Some(cosmic::iced::Background::Color(
+                                            component.base.into(),
+                                        )),
+                                        border: cosmic::iced::Border {
+                                            radius: 8.0.into(),
+                                            width: 1.0,
+                                            color: component.divider.into(),
+                                        },
+                                        ..Default::default()
+                                    }
+                                }))
+                                .height(Length::Fixed(250.0))
+                                .width(Length::Fill)
+                                .align_x(Alignment::Start)
+                                .into(),
+                        );
+                    }
+                }
+                crate::audio::audio_view::DropdownKind::Chapter => {
+                    if !self.video_view.chapters.is_empty() {
+                        items_right.push(widget::text::heading(fl!("chapters")).into());
+                        items_right.push(
+                            widget::dropdown(
+                                &self.video_view.chapters_str, 
+                                Some(self.video_view.current_chapter), 
+                                Message::Chapter)
+                                .into(),
+                        );
+                    }
+                }
             }
 
-            let mut column = widget::column::with_capacity(items.len());
-            for item in items {
+            let mut column = widget::column::with_capacity(items_right.len());
+            for item in items_right {
                 column = column.push(widget::container(item).padding([space_xxs, space_m]));
             }
 
-            let mut browser = None;
-            let entity = self.tab_model.active();
-            match self.tab_model.data::<Tab>(entity) {
-                Some(tab) => {
-                    let tab_view = tab
-                        .view(&self.key_binds)
-                        .map(move |message| Message::TabMessage(Some(entity), message));
-                    browser = Some(tab_view);
-                }
-                None => {
-                    //TODO
-                }
-            }    
-            if let Some(view) = browser {
-                popup_items.push(
-                    widget::container(view)
-                    .padding(1)
-                    //TODO: move style to libcosmic
-                    .class(theme::Container::custom(|theme| {
-                            let cosmic = theme.cosmic();
-                            let component = &cosmic.background.component;
-                            widget::container::Style {
-                                icon_color: Some(component.on.into()),
-                                text_color: Some(component.on.into()),
-                                background: Some(cosmic::iced::Background::Color(component.base.into())),
-                                border: cosmic::iced::Border {
-                                    radius: 8.0.into(),
-                                    width: 1.0,
-                                    color: component.divider.into(),
-                                },
-                                ..Default::default()
-                            }
-                        }))
-                    .height(Length::Fixed(250.0))
-                    .width(Length::Fill)
-                    .align_x(Alignment::Start)
-                    .into(),
-                );
-            }
             popup_items.push(
                 widget::row::with_children(vec![
                     widget::horizontal_space().into(),
@@ -2100,7 +2166,9 @@ impl App {
                             widget::container::Style {
                                 icon_color: Some(component.on.into()),
                                 text_color: Some(component.on.into()),
-                                background: Some(cosmic::iced::Background::Color(component.base.into())),
+                                background: Some(cosmic::iced::Background::Color(
+                                    component.base.into(),
+                                )),
                                 border: cosmic::iced::Border {
                                     radius: 8.0.into(),
                                     width: 1.0,
@@ -2114,10 +2182,44 @@ impl App {
                 ])
                 .into(),
             );
-        }
-        if self.audio_view.controls {
             /*
- */
+            let mut column = widget::column::with_capacity(items_left.len());
+            for item in items_left {
+                column = column.push(widget::container(item).padding([space_xxs, space_m]));
+            }
+
+            popup_items.push(
+                widget::row::with_children(vec![
+                    widget::container(column)
+                        .padding(1)
+                        //TODO: move style to libcosmic
+                        .class(theme::Container::custom(|theme| {
+                            let cosmic = theme.cosmic();
+                            let component = &cosmic.background.component;
+                            widget::container::Style {
+                                icon_color: Some(component.on.into()),
+                                text_color: Some(component.on.into()),
+                                background: Some(cosmic::iced::Background::Color(
+                                    component.base.into(),
+                                )),
+                                border: cosmic::iced::Border {
+                                    radius: 8.0.into(),
+                                    width: 1.0,
+                                    color: component.divider.into(),
+                                },
+                                ..Default::default()
+                            }
+                        }))
+                        .width(Length::Fixed(240.0))
+                        .into(),
+                    widget::horizontal_space().into(),
+                ])
+                .into(),
+            );
+        */
+        }
+
+        if self.audio_view.controls {
             popup_items.push(
                 widget::container(
                     widget::row::with_capacity(7)
@@ -2125,96 +2227,149 @@ impl App {
                         .spacing(space_xxs)
                         .push(widget::tooltip(
                             widget::button::icon(
-                                    widget::icon::from_name("go-up-symbolic")
-                                        .size(16)
-                                ).on_press(Message::AudioMessage(
-                                        crate::audio::audio_view::Message::ToBrowser)),
-                                widget::text::body(fl!("descripttion-back")),
-                                widget::tooltip::Position::Top,
+                                widget::icon::from_name("go-up-symbolic").size(16),
                             )
-                        )
+                            .on_press(Message::AudioMessage(
+                                crate::audio::audio_view::Message::ToBrowser,
+                            )),
+                            widget::text::body(fl!("descripttion-back")),
+                            widget::tooltip::Position::Top,
+                        ))
                         .push(widget::tooltip(
                             widget::button::icon(
-                                            widget::icon::from_name("go-previous-symbolic")
-                                                .size(16)
-                                ).on_press(Message::AudioMessage(
-                                        crate::audio::audio_view::Message::PreviousFile)),
-                                widget::text::body(fl!("description-previous-element")),
-                                widget::tooltip::Position::Top,
+                                widget::icon::from_name("go-previous-symbolic").size(16),
                             )
-                        )
+                            .on_press(Message::AudioMessage(
+                                crate::audio::audio_view::Message::PreviousFile,
+                            )),
+                            widget::text::body(fl!("description-previous-element")),
+                            widget::tooltip::Position::Top,
+                        ))
                         .push(widget::tooltip(
                             widget::button::icon(
-                                    widget::icon::from_name("go-next-symbolic")
-                                        .size(16)
-                                ).on_press(Message::AudioMessage(
-                                        crate::audio::audio_view::Message::NextFile)),
-                                widget::text::body(fl!("description-next-element")),
-                                widget::tooltip::Position::Top,
+                                widget::icon::from_name("go-next-symbolic").size(16),
                             )
-                        )
+                            .on_press(Message::AudioMessage(
+                                crate::audio::audio_view::Message::NextFile,
+                            )),
+                            widget::text::body(fl!("description-next-element")),
+                            widget::tooltip::Position::Top,
+                        ))
                         .push(
-                            if self.audio_view.audio_opt.as_ref().map_or(true, |video| video.paused()) {
+                            if self
+                                .audio_view
+                                .audio_opt
+                                .as_ref()
+                                .map_or(true, |video| video.paused())
+                            {
                                 widget::tooltip(
                                     widget::button::icon(
-                                         widget::icon::from_name("media-playback-start-symbolic")
-                                            .size(16)
-                                        )
-                                        .on_press(Message::AudioMessage(crate::audio::audio_view::Message::PlayPause)),
-                                        widget::text::body(fl!("description-play")),
-                                        widget::tooltip::Position::Top,
+                                        widget::icon::from_name("media-playback-start-symbolic")
+                                            .size(16),
+                                    )
+                                    .on_press(
+                                        Message::AudioMessage(
+                                            crate::audio::audio_view::Message::PlayPause,
+                                        ),
+                                    ),
+                                    widget::text::body(fl!("description-play")),
+                                    widget::tooltip::Position::Top,
                                 )
                             } else {
                                 widget::tooltip(
                                     widget::button::icon(
-                                         widget::icon::from_name("media-playback-pause-symbolic")
-                                            .size(16)
-                                        )
-                                        .on_press(Message::AudioMessage(crate::audio::audio_view::Message::PlayPause)),
-                                        widget::text::body(fl!("description-pause")),
-                                        widget::tooltip::Position::Top,
+                                        widget::icon::from_name("media-playback-pause-symbolic")
+                                            .size(16),
+                                    )
+                                    .on_press(
+                                        Message::AudioMessage(
+                                            crate::audio::audio_view::Message::PlayPause,
+                                        ),
+                                    ),
+                                    widget::text::body(fl!("description-pause")),
+                                    widget::tooltip::Position::Top,
                                 )
                             },
                         )
                         .push(widget::tooltip(
                             widget::button::icon(
-                                widget::icon::from_name("media-seek-backward-symbolic").size(16),
-                                    )
-                                    .on_press(Message::SeekBackward),
-                                widget::text::body(fl!("description-seek-backward")),
-                                widget::tooltip::Position::Top,
-                            ),
+                                widget::icon::from_name("view-more-symbolic").size(16),
+                            )
+                            .on_press(Message::AudioMessage(
+                                crate::audio::audio_view::Message::DropdownToggle(
+                                    crate::audio::audio_view::DropdownKind::Browser,
+                                ),
+                            )),
+                            widget::text::body(fl!("description-browser")),
+                            widget::tooltip::Position::Top,
+                        ))
+                        .push(widget::tooltip(
+                            widget::button::icon(
+                                widget::icon::from_name("media-skip-backward-symbolic").size(16),
+                            )
+                            .on_press(Message::SeekBackward),
+                            widget::text::body(fl!("description-seek-backward")),
+                            widget::tooltip::Position::Top,
+                        ))
+                        .push(widget::tooltip(
+                            widget::button::icon(
+                                widget::icon::from_name("media-skip-forward-symbolic").size(16),
+                            )
+                            .on_press(Message::SeekForward),
+                            widget::text::body(fl!("description-seek-forward")),
+                            widget::tooltip::Position::Top,
+                        ))
+                        .push(
+                            widget::text(format_time(self.audio_view.position)).font(font::mono()),
+                        )
+                        .push(
+                            Slider::new(
+                                0.0..=self.audio_view.duration,
+                                self.audio_view.position,
+                                Message::Seek,
+                            )
+                            .step(0.1)
+                            .on_release(Message::AudioMessage(
+                                crate::audio::audio_view::Message::SeekRelease,
+                            )),
+                        )
+                        .push(
+                            widget::text(format_time(
+                                self.audio_view.duration - self.audio_view.position,
+                            ))
+                            .font(font::mono()),
                         )
                         .push(widget::tooltip(
                             widget::button::icon(
-                                widget::icon::from_name("media-seek-forward-symbolic").size(16),
-                                )
-                                .on_press(Message::SeekForward),
-                                widget::text::body(fl!("description-seek-forward")),
-                                widget::tooltip::Position::Top,
-                            ),
-                        )
-                        .push(widget::text(format_time(self.audio_view.position)).font(font::mono()))
-                        .push(
-                            Slider::new(0.0..=self.audio_view.duration, self.audio_view.position, Message::Seek)
-                                .step(0.1)
-                                .on_release(Message::AudioMessage(crate::audio::audio_view::Message::SeekRelease)),
-                        )
-                        .push(
-                            widget::text(format_time(self.audio_view.duration - self.audio_view.position))
-                                .font(font::mono()),
-                        )
-                        .push(
+                                widget::icon::from_name("open-menu-symbolic").size(16),
+                            )
+                            .on_press(Message::AudioMessage(
+                                crate::audio::audio_view::Message::DropdownToggle(
+                                    crate::audio::audio_view::DropdownKind::Chapter,
+                                ),
+                            )),
+                            widget::text::body(fl!("description-chapters")),
+                            widget::tooltip::Position::Top,
+                        ))
+                        .push(widget::tooltip(
                             widget::button::icon(
                                 widget::icon::from_name("media-view-subtitles-symbolic").size(16),
                             )
-                            .on_press(Message::AudioMessage(crate::audio::audio_view::Message::DropdownToggle(crate::audio::audio_view::DropdownKind::Subtitle))),
-                        )
+                            .on_press(Message::AudioMessage(
+                                crate::audio::audio_view::Message::DropdownToggle(
+                                    crate::audio::audio_view::DropdownKind::Subtitle,
+                                ),
+                            )),
+                            widget::text::body(fl!("description-streams")),
+                            widget::tooltip::Position::Top,
+                        ))
                         .push(
                             widget::button::icon(
                                 widget::icon::from_name("view-fullscreen-symbolic").size(16),
                             )
-                            .on_press(Message::AudioMessage(crate::audio::audio_view::Message::Fullscreen)),
+                            .on_press(Message::AudioMessage(
+                                crate::audio::audio_view::Message::Fullscreen,
+                            )),
                         )
                         .push(
                             //TODO: scroll up/down on icon to change volume
@@ -2234,7 +2389,11 @@ impl App {
                                 })
                                 .size(16),
                             )
-                            .on_press(Message::AudioMessage(crate::audio::audio_view::Message::DropdownToggle(crate::audio::audio_view::DropdownKind::Audio))),
+                            .on_press(Message::AudioMessage(
+                                crate::audio::audio_view::Message::DropdownToggle(
+                                    crate::audio::audio_view::DropdownKind::Audio,
+                                ),
+                            )),
                         ),
                 )
                 .padding([space_xxs, space_xs])
@@ -2295,10 +2454,7 @@ impl App {
         }
 
         // The toaster is added on top of an empty element to ensure that it does not override context menus
-        tab_column = tab_column.push(widget::toaster(
-            &self.toasts,
-            widget::horizontal_space(),
-        ));
+        tab_column = tab_column.push(widget::toaster(&self.toasts, widget::horizontal_space()));
 
         let content: Element<_> = tab_column.into();
 
@@ -2322,18 +2478,14 @@ impl App {
                 }
             }
         }
-      
+
         if path.is_dir() {
             // change directory
-            if let Some(location_ref) =
-                self.tab_model.data::<Location>(self.tab_model_id)
-            {
+            if let Some(location_ref) = self.tab_model.data::<Location>(self.tab_model_id) {
                 let location = location_ref.to_owned();
                 if let Some(tab) = self.tab_model.data_mut::<Tab>(self.tab_model_id) {
-                    let _ret = tab.update(
-                        tab::Message::Location(location), 
-                        self.modifiers);
-                    }
+                    let _ret = tab.update(tab::Message::Location(location), self.modifiers);
+                }
                 return None;
             }
         } else {
@@ -2354,37 +2506,83 @@ impl App {
                     self.core.window.show_headerbar = true;
                     self.active_view = Mode::Image;
                     self.view();
-                },
+                }
                 file_format::Kind::Video => {
                     self.video_view
                         .update(crate::video::video_view::Message::Open(filepath.clone()));
+                    if let Some(tab) = self.tab_model.data_mut::<Tab>(self.tab_model_id) {
+                        let v = tab.selected_file_paths();
+                        for path in v {
+                            if let Some(items) = tab.items_opt() {
+                                for item in items.iter() {
+                                    if let Some(video) = item.video_opt.as_ref() {
+                                        if PathBuf::from(&video.path) == path {
+                                            self.video_view.chapters.clear();
+                                            self.video_view.chapters_str.clear();
+                                            let (v, s) = crate::sql::fill_chapters(
+                                                video.chapters.clone(),
+                                                video.duration,
+                                            );
+                                            self.video_view.chapters.extend(v);
+                                            self.video_view.chapters_str.extend(s);
+                                            self.video_view.audio_codes.clear();
+                                            self.video_view.audio_codes.extend(video.audiolangs.clone());
+                                            self.video_view.text_codes.clear();
+                                            self.video_view.text_codes.extend(video.sublangs.clone());            
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
                     self.core.window.content_container = true;
                     self.core.window.show_window_menu = true;
                     self.core.window.show_headerbar = true;
                     self.active_view = Mode::Video;
                     self.view();
-                }, 
+                }
                 file_format::Kind::Audio => {
                     self.audio_view
                         .update(crate::audio::audio_view::Message::Open(filepath.clone()));
-                    //let sub = self.audio_subscription();
-                    //self.audio_view.gui_refresh_opt = Some(sub);
+                    if let Some(tab) = self.tab_model.data_mut::<Tab>(self.tab_model_id) {
+                        let v = tab.selected_file_paths();
+                        for path in v {
+                            if let Some(items) = tab.items_opt() {
+                                for item in items.iter() {
+                                    if let Some(audio) = item.audio_opt.as_ref() {
+                                        if PathBuf::from(&audio.path) == path {
+                                            self.audio_view.chapters.clear();
+                                            self.audio_view.chapters_str.clear();
+                                            let (v, s) = crate::sql::fill_chapters(
+                                                audio.chapters.clone(),
+                                                audio.duration,
+                                            );
+                                            self.audio_view.chapters.extend(v);
+                                            self.audio_view.chapters_str.extend(s);
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
                     self.core.window.content_container = true;
                     self.core.window.show_window_menu = true;
                     self.core.window.show_headerbar = true;
                     self.active_view = Mode::Audio;
                     self.view();
-                }, 
+                }
                 _ => {
                     if let Some(_tab) = self.tab_model.data_mut::<Tab>(self.tab_model_id) {
-                        let _ = self.update(Message::TabMessage(Some(self.tab_model_id), tab::Message::OpenInExternalApp(Some(path))));
+                        let _ = self.update(Message::TabMessage(
+                            Some(self.tab_model_id),
+                            tab::Message::OpenInExternalApp(Some(path)),
+                        ));
                     }
                 }
             }
         }
         return Some(Task::none());
     }
-
 }
 
 /// Implement [`Application`] to integrate with COSMIC.
@@ -2488,7 +2686,9 @@ impl Application for App {
             complete_operations: BTreeMap::new(),
             failed_operations: BTreeMap::new(),
             search_id: widget::Id::unique(),
-            search: crate::sql::SearchData {..Default::default()},
+            search: crate::sql::SearchData {
+                ..Default::default()
+            },
             search_string: widget::Id::unique(),
             search_from_string: widget::Id::unique(),
             search_to_string: widget::Id::unique(),
@@ -2510,7 +2710,7 @@ impl Application for App {
         };
         app.tab_model_id = app.tab_model.active();
         let mut commands = vec![app.update_config()];
-        
+
         for location in flags.locations {
             commands.push(app.open_tab(location, true, None));
         }
@@ -2750,11 +2950,17 @@ impl Application for App {
         }
 
         match message {
-            Message::Open(entity_opt, _filepath) => {
-                for path in self.selected_paths(entity_opt).into_iter() {
-                    return match self.open_path(path) {
-                        Some(command) => command,
-                        _ => Task::none(),
+            Message::Open(_entity_opt, filepath) => {
+                if filepath.len() > 0 {
+
+                }
+                if let Some(tab) = self.tab_model.data_mut::<Tab>(self.tab_model_id) {
+                    let v = tab.selected_file_paths();
+                    for path in v {
+                        return match self.open_path(path) {
+                            Some(command) => command,
+                            _ => Task::none(),
+                        };
                     }
                 }
             }
@@ -2773,7 +2979,7 @@ impl Application for App {
                         }
                     }
                 }
-        
+
                 self.active_view = Mode::Browser;
             }
             Message::Image(msg) => {
@@ -2852,27 +3058,43 @@ impl Application for App {
             }
             Message::AudioCode(val) => {
                 if self.active_view == Mode::Video {
-                    let _ = self.update(Message::VideoMessage(crate::video::video_view::Message::AudioCode(val)));
+                    self.video_view.current_audio = val as i32;
+                    let _ = self.update(Message::VideoMessage(
+                        crate::video::video_view::Message::AudioCode(val),
+                    ));
                 } else if self.active_view == Mode::Audio {
-                    let _ = self.update(Message::AudioMessage(crate::audio::audio_view::Message::AudioCode(val)));
+                    self.audio_view.current_audio = val as i32;
+                    let _ = self.update(Message::AudioMessage(
+                        crate::audio::audio_view::Message::AudioCode(val),
+                    ));
                 } else {
                     // no audio active
                 }
             }
             Message::AudioVolume(val) => {
                 if self.active_view == Mode::Video {
-                    let _ = self.update(Message::VideoMessage(crate::video::video_view::Message::AudioVolume(val)));
+                    let _ = self.update(Message::VideoMessage(
+                        crate::video::video_view::Message::AudioVolume(val),
+                    ));
                 } else if self.active_view == Mode::Audio {
-                    let _ = self.update(Message::AudioMessage(crate::audio::audio_view::Message::AudioVolume(val)));
+                    let _ = self.update(Message::AudioMessage(
+                        crate::audio::audio_view::Message::AudioVolume(val),
+                    ));
                 } else {
                     // no audio active
                 }
             }
             Message::TextCode(val) => {
                 if self.active_view == Mode::Video {
-                    let _ = self.update(Message::VideoMessage(crate::video::video_view::Message::TextCode(val)));
+                    self.video_view.current_text = val as i32;
+                    let _ = self.update(Message::VideoMessage(
+                        crate::video::video_view::Message::TextCode(val),
+                    ));
                 } else if self.active_view == Mode::Audio {
-                    let _ = self.update(Message::AudioMessage(crate::audio::audio_view::Message::TextCode(val)));
+                    self.audio_view.current_text = val as i32;
+                    let _ = self.update(Message::AudioMessage(
+                        crate::audio::audio_view::Message::TextCode(val),
+                    ));
                 } else {
                     // no audio active
                 }
@@ -2880,7 +3102,6 @@ impl Application for App {
             Message::Fullscreen => {
                 if self.active_view == Mode::Video {
                     self.video_view.dropdown_opt = None;
-    
                     self.video_view.fullscreen = !self.video_view.fullscreen;
                     self.core.window.show_headerbar = !self.video_view.fullscreen;
                     return window::change_mode(
@@ -2893,7 +3114,7 @@ impl Application for App {
                     );
                 } else if self.active_view == Mode::Audio {
                     self.audio_view.dropdown_opt = None;
-    
+
                     self.audio_view.fullscreen = !self.audio_view.fullscreen;
                     self.core.window.show_headerbar = !self.audio_view.fullscreen;
                     return window::change_mode(
@@ -2904,21 +3125,51 @@ impl Application for App {
                             window::Mode::Windowed
                         },
                     );
-
                 } else {
                     // no audio active
                 }
             }
-            Message::Seek(val) => {
+            Message::Chapter(val) => {
                 if self.active_view == Mode::Video {
-                    let _ = self.update(Message::VideoMessage(crate::video::video_view::Message::Seek(val)));
+                    self.video_view.current_chapter = val;
+                    let new_pos = self.video_view.chapters[val].start as f64;
+                    let _ = self.update(Message::VideoMessage(
+                        crate::video::video_view::Message::Seek(new_pos),
+                    ));
                     if let Some(video) = self.video_view.video_opt.as_mut() {
                         if video.paused() {
                             video.set_paused(false);
                         }
                     }
                 } else if self.active_view == Mode::Audio {
-                    let _ = self.update(Message::AudioMessage(crate::audio::audio_view::Message::Seek(val)));
+                    self.audio_view.current_chapter = val as i32;
+                    let new_pos = self.audio_view.chapters[val].start as f64;
+                    let _ = self.update(Message::AudioMessage(
+                        crate::audio::audio_view::Message::Seek(new_pos),
+                    ));
+                    if let Some(audio) = self.audio_view.audio_opt.as_mut() {
+                        if audio.paused() {
+                            audio.set_paused(false);
+                        }
+                    }
+                } else {
+                    // no audio active
+                }
+            }
+            Message::Seek(val) => {
+                if self.active_view == Mode::Video {
+                    let _ = self.update(Message::VideoMessage(
+                        crate::video::video_view::Message::Seek(val),
+                    ));
+                    if let Some(video) = self.video_view.video_opt.as_mut() {
+                        if video.paused() {
+                            video.set_paused(false);
+                        }
+                    }
+                } else if self.active_view == Mode::Audio {
+                    let _ = self.update(Message::AudioMessage(
+                        crate::audio::audio_view::Message::Seek(val),
+                    ));
                     if let Some(audio) = self.audio_view.audio_opt.as_mut() {
                         if audio.paused() {
                             audio.set_paused(false);
@@ -2930,14 +3181,18 @@ impl Application for App {
             }
             Message::SeekRelative(val) => {
                 if self.active_view == Mode::Video {
-                    let _ = self.update(Message::VideoMessage(crate::video::video_view::Message::SeekRelative(val)));
+                    let _ = self.update(Message::VideoMessage(
+                        crate::video::video_view::Message::SeekRelative(val),
+                    ));
                     if let Some(video) = self.video_view.video_opt.as_mut() {
                         if video.paused() {
                             video.set_paused(false);
                         }
                     }
                 } else if self.active_view == Mode::Audio {
-                    let _ = self.update(Message::AudioMessage(crate::audio::audio_view::Message::SeekRelative(val)));
+                    let _ = self.update(Message::AudioMessage(
+                        crate::audio::audio_view::Message::SeekRelative(val),
+                    ));
                     if let Some(audio) = self.audio_view.audio_opt.as_mut() {
                         if audio.paused() {
                             audio.set_paused(false);
@@ -2949,51 +3204,81 @@ impl Application for App {
             }
             Message::EndOfStream => {
                 if self.active_view == Mode::Video {
-                    let _ = self.update(Message::VideoMessage(crate::video::video_view::Message::EndOfStream));
+                    let _ = self.update(Message::VideoMessage(
+                        crate::video::video_view::Message::EndOfStream,
+                    ));
                 } else if self.active_view == Mode::Audio {
-                    let _ = self.update(Message::AudioMessage(crate::audio::audio_view::Message::EndOfStream));
+                    let _ = self.update(Message::AudioMessage(
+                        crate::audio::audio_view::Message::EndOfStream,
+                    ));
                 } else {
                     // no audio active
                 }
             }
             Message::NewFrame => {
                 if self.active_view == Mode::Video {
-                    let _ = self.update(Message::VideoMessage(crate::video::video_view::Message::NewFrame));
+                    let _ = self.update(Message::VideoMessage(
+                        crate::video::video_view::Message::NewFrame,
+                    ));
                 } else if self.active_view == Mode::Audio {
-                    let _ = self.update(Message::AudioMessage(crate::audio::audio_view::Message::NewFrame));
+                    let _ = self.update(Message::AudioMessage(
+                        crate::audio::audio_view::Message::NewFrame,
+                    ));
                 } else {
                     // no audio active
                 }
             }
             Message::PlayPause => {
                 if self.active_view == Mode::Video {
-                    let _ = self.update(Message::VideoMessage(crate::video::video_view::Message::PlayPause));
+                    let _ = self.update(Message::VideoMessage(
+                        crate::video::video_view::Message::PlayPause,
+                    ));
                 } else if self.active_view == Mode::Audio {
-                    let _ = self.update(Message::AudioMessage(crate::audio::audio_view::Message::PlayPause));
+                    let _ = self.update(Message::AudioMessage(
+                        crate::audio::audio_view::Message::PlayPause,
+                    ));
                 } else {
                     // no audio active
                 }
             }
             Message::Previous(entity_opt) => {
                 if self.active_view == Mode::Video {
-                    let _ = self.update(Message::VideoMessage(crate::video::video_view::Message::PreviousFile));
+                    let _ = self.update(Message::VideoMessage(
+                        crate::video::video_view::Message::PreviousFile,
+                    ));
                 } else if self.active_view == Mode::Audio {
-                    let _ = self.update(Message::AudioMessage(crate::audio::audio_view::Message::PreviousFile));
+                    let _ = self.update(Message::AudioMessage(
+                        crate::audio::audio_view::Message::PreviousFile,
+                    ));
                 } else if self.active_view == Mode::Browser {
-                    let _ = self.update(Message::TabMessage(entity_opt, crate::tab::Message::GoPrevious));
+                    let _ = self.update(Message::TabMessage(
+                        entity_opt,
+                        crate::tab::Message::GoPrevious,
+                    ));
                 } else {
-                    let _ = self.update(Message::ImageMessage(crate::image::image_view::Message::PreviousFile));
+                    let _ = self.update(Message::ImageMessage(
+                        crate::image::image_view::Message::PreviousFile,
+                    ));
                 }
             }
             Message::Next(entity_opt) => {
                 if self.active_view == Mode::Video {
-                    let _ = self.update(Message::VideoMessage(crate::video::video_view::Message::NextFile));
+                    let _ = self.update(Message::VideoMessage(
+                        crate::video::video_view::Message::NextFile,
+                    ));
                 } else if self.active_view == Mode::Audio {
-                    let _ = self.update(Message::AudioMessage(crate::audio::audio_view::Message::NextFile));
+                    let _ = self.update(Message::AudioMessage(
+                        crate::audio::audio_view::Message::NextFile,
+                    ));
                 } else if self.active_view == Mode::Browser {
-                    let _ = self.update(Message::TabMessage(entity_opt, crate::tab::Message::GoPrevious));
+                    let _ = self.update(Message::TabMessage(
+                        entity_opt,
+                        crate::tab::Message::GoPrevious,
+                    ));
                 } else {
-                    let _ = self.update(Message::ImageMessage(crate::image::image_view::Message::NextFile));
+                    let _ = self.update(Message::ImageMessage(
+                        crate::image::image_view::Message::NextFile,
+                    ));
                 }
             }
             Message::RecursiveScanDirectories(entity_opt) => {
@@ -3005,9 +3290,9 @@ impl Application for App {
                                 if item.selected {
                                     if let Some(Location::Path(path)) = &item.location_opt {
                                         let pathbuf = path.to_path_buf();
-                                        let _joinhandle = std::thread::spawn(
-                                            move || crate::tab::scan_path_recursive(pathbuf)
-                                        );
+                                        let _joinhandle = std::thread::spawn(move || {
+                                            crate::tab::scan_path_recursive(pathbuf)
+                                        });
                                     }
                                 }
                             }
@@ -3025,15 +3310,17 @@ impl Application for App {
                             tokio::task::spawn_blocking(move || {
                                 match gst_pbutils::MissingPluginMessage::parse(&element) {
                                     Ok(missing_plugin) => {
-                                        let mut install_ctx = gst_pbutils::InstallPluginsContext::new();
+                                        let mut install_ctx =
+                                            gst_pbutils::InstallPluginsContext::new();
                                         install_ctx
                                             .set_desktop_id(&format!("{}.desktop", Self::APP_ID));
                                         let install_detail = missing_plugin.installer_detail();
                                         println!("installing plugins: {}", install_detail);
-                                        let status = gst_pbutils::missing_plugins::install_plugins_sync(
-                                            &[&install_detail],
-                                            Some(&install_ctx),
-                                        );
+                                        let status =
+                                            gst_pbutils::missing_plugins::install_plugins_sync(
+                                                &[&install_detail],
+                                                Some(&install_ctx),
+                                            );
                                         log::info!("plugin install status: {}", status);
                                         log::info!(
                                             "gstreamer registry update: {:?}",
@@ -3044,7 +3331,9 @@ impl Application for App {
                                         log::warn!("failed to parse missing plugin message: {err}");
                                     }
                                 }
-                                message::app(Message::AudioMessage(crate::audio::audio_view::Message::Reload))
+                                message::app(Message::AudioMessage(
+                                    crate::audio::audio_view::Message::Reload,
+                                ))
                             })
                             .await
                             .unwrap()
@@ -3060,15 +3349,17 @@ impl Application for App {
                             tokio::task::spawn_blocking(move || {
                                 match gst_pbutils::MissingPluginMessage::parse(&element) {
                                     Ok(missing_plugin) => {
-                                        let mut install_ctx = gst_pbutils::InstallPluginsContext::new();
+                                        let mut install_ctx =
+                                            gst_pbutils::InstallPluginsContext::new();
                                         install_ctx
                                             .set_desktop_id(&format!("{}.desktop", Self::APP_ID));
                                         let install_detail = missing_plugin.installer_detail();
                                         println!("installing plugins: {}", install_detail);
-                                        let status = gst_pbutils::missing_plugins::install_plugins_sync(
-                                            &[&install_detail],
-                                            Some(&install_ctx),
-                                        );
+                                        let status =
+                                            gst_pbutils::missing_plugins::install_plugins_sync(
+                                                &[&install_detail],
+                                                Some(&install_ctx),
+                                            );
                                         log::info!("plugin install status: {}", status);
                                         log::info!(
                                             "gstreamer registry update: {:?}",
@@ -3079,20 +3370,22 @@ impl Application for App {
                                         log::warn!("failed to parse missing plugin message: {err}");
                                     }
                                 }
-                                message::app(Message::AudioMessage(crate::audio::audio_view::Message::Reload))
+                                message::app(Message::AudioMessage(
+                                    crate::audio::audio_view::Message::Reload,
+                                ))
                             })
                             .await
                             .unwrap()
                         },
                         |x| x,
                     );
-                } 
+                }
             }
             Message::AudioMessage(audio_message) => match audio_message {
                 crate::audio::audio_view::Message::ToBrowser => {
                     self.active_view = Mode::Browser;
                     self.view();
-                },
+                }
                 crate::audio::audio_view::Message::Open(audiopath) => {
                     match url::Url::from_file_path(std::path::PathBuf::from(&audiopath)) {
                         Ok(url) => {
@@ -3100,10 +3393,10 @@ impl Application for App {
                             self.audio_view.load();
                             self.active_view = Mode::Audio;
                             self.view();
-                        },
-                        _ => {},
-                    }    
-                },
+                        }
+                        _ => {}
+                    }
+                }
                 crate::audio::audio_view::Message::NextFile => {
                     // open next file in the sorted list if possible
                     if let Some(tab) = self.tab_model.data_mut::<Tab>(self.tab_model_id) {
@@ -3113,10 +3406,10 @@ impl Application for App {
                             return match self.open_path(path) {
                                 Some(command) => command,
                                 _ => Task::none(),
-                            }
+                            };
                         }
-                    }                
-                },
+                    }
+                }
                 crate::audio::audio_view::Message::PreviousFile => {
                     // open next file in the sorted list if possible
                     if let Some(tab) = self.tab_model.data_mut::<Tab>(self.tab_model_id) {
@@ -3126,10 +3419,10 @@ impl Application for App {
                             return match self.open_path(path) {
                                 Some(command) => command,
                                 _ => Task::none(),
-                            }
+                            };
                         }
-                    }                
-                },
+                    }
+                }
                 crate::audio::audio_view::Message::FileClose => {
                     self.audio_view.close();
                 }
@@ -3147,7 +3440,7 @@ impl Application for App {
                 crate::audio::audio_view::Message::Fullscreen => {
                     //TODO: cleanest way to close dropdowns
                     self.audio_view.dropdown_opt = None;
-    
+
                     self.audio_view.fullscreen = !self.audio_view.fullscreen;
                     self.core.window.show_headerbar = !self.audio_view.fullscreen;
                     return window::change_mode(
@@ -3347,15 +3640,16 @@ impl Application for App {
                 crate::image::image_view::Message::ToBrowser => {
                     self.active_view = Mode::Browser;
                     self.view();
-                },
-                crate::image::image_view::Message::ToImage => {},
-                crate::image::image_view::Message::ToVideo => {},
-                crate::image::image_view::Message::ToAudio => {},
+                }
+                crate::image::image_view::Message::ToImage => {}
+                crate::image::image_view::Message::ToVideo => {}
+                crate::image::image_view::Message::ToAudio => {}
                 crate::image::image_view::Message::Open(imagepath) => {
-                    self.image_view.update(crate::image::image_view::Message::Open(imagepath));
+                    self.image_view
+                        .update(crate::image::image_view::Message::Open(imagepath));
                     self.active_view = Mode::Image;
                     self.view();
-                },
+                }
                 crate::image::image_view::Message::NextFile => {
                     // open next file in the sorted list if possible
                     if let Some(tab) = self.tab_model.data_mut::<Tab>(self.tab_model_id) {
@@ -3365,10 +3659,10 @@ impl Application for App {
                             return match self.open_path(path) {
                                 Some(command) => command,
                                 _ => Task::none(),
-                            }
+                            };
                         }
                     }
-                },
+                }
                 crate::image::image_view::Message::PreviousFile => {
                     // open previous file in the sorted list if possible
                     if let Some(tab) = self.tab_model.data_mut::<Tab>(self.tab_model_id) {
@@ -3378,13 +3672,13 @@ impl Application for App {
                             return match self.open_path(path) {
                                 Some(command) => command,
                                 _ => Task::none(),
-                            }
+                            };
                         }
                     }
-                },
+                }
                 _ => {
                     self.image_view.update(image_message);
-                },
+                }
             },
             Message::Key(modifiers, key) => {
                 let entity = self.tab_model.active();
@@ -3501,7 +3795,9 @@ impl Application for App {
                 };
                 if self.active_view == Mode::Video {
                     let seconds = self.video_view.position + delta_y as f64 * 10.0;
-                    let _= self.update(Message::VideoMessage(crate::video::video_view::Message::Seek(seconds)));
+                    let _ = self.update(Message::VideoMessage(
+                        crate::video::video_view::Message::Seek(seconds),
+                    ));
                     if let Some(video) = self.video_view.video_opt.as_mut() {
                         if video.paused() {
                             video.set_paused(false);
@@ -3509,16 +3805,18 @@ impl Application for App {
                     }
                 } else if self.active_view == Mode::Audio {
                     let seconds = self.audio_view.position + delta_y as f64 * 10.0;
-                    let _= self.update(Message::AudioMessage(crate::audio::audio_view::Message::Seek(seconds)));
+                    let _ = self.update(Message::AudioMessage(
+                        crate::audio::audio_view::Message::Seek(seconds),
+                    ));
                     if let Some(audio) = self.audio_view.audio_opt.as_mut() {
                         if audio.paused() {
                             audio.set_paused(false);
                         }
                     }
                 }
-                       
+
                 return Task::none();
-            },
+            }
             Message::NetworkAuth(mounter_key, uri, auth, auth_tx) => {
                 self.dialog_pages.push_back(DialogPage::NetworkAuth {
                     mounter_key,
@@ -3884,7 +4182,6 @@ impl Application for App {
                         config_set!(show_details, show_details);
                         return self.update_config();
                     }
-
                 }
             }
             Message::RescanTrash => {
@@ -3953,9 +4250,11 @@ impl Application for App {
                                     }
                                 }
                             }
-                            let _joinhandle = std::thread::spawn(
-                                move || crate::cmd::rename_with_pattern(selected, pattern, start_val, numdigits)
-                            );
+                            let _joinhandle = std::thread::spawn(move || {
+                                crate::cmd::rename_with_pattern(
+                                    selected, pattern, start_val, numdigits,
+                                )
+                            });
                         }
                     }
                 }
@@ -4016,9 +4315,11 @@ impl Application for App {
                 return self.search_set(Some(input));
             }
             Message::SearchStart => {
-                self.search = crate::sql::SearchData {..Default::default()};
+                self.search = crate::sql::SearchData {
+                    ..Default::default()
+                };
                 self.context_page = ContextPage::Search;
-                self.core.window.show_context = true;        
+                self.core.window.show_context = true;
             }
             Message::SearchImages(is_checked) => {
                 self.search.image = is_checked;
@@ -4074,7 +4375,7 @@ impl Application for App {
                 if !self.search.video {
                     self.search.video = true;
                 }
-             }
+            }
             Message::SearchActor(is_checked) => {
                 self.search.actor = is_checked;
                 if !self.search.video {
@@ -4172,7 +4473,9 @@ impl Application for App {
                     } else {
                         adjustment = position - 10.0;
                     }
-                    let _ = self.update(Message::VideoMessage(crate::video::video_view::Message::Seek(adjustment)));
+                    let _ = self.update(Message::VideoMessage(
+                        crate::video::video_view::Message::Seek(adjustment),
+                    ));
                 } else if self.active_view == Mode::Audio {
                     let position = self.audio_view.position;
                     let adjustment;
@@ -4181,7 +4484,9 @@ impl Application for App {
                     } else {
                         adjustment = position - 10.0;
                     }
-                    let _ = self.update(Message::AudioMessage(crate::audio::audio_view::Message::Seek(adjustment)));
+                    let _ = self.update(Message::AudioMessage(
+                        crate::audio::audio_view::Message::Seek(adjustment),
+                    ));
                 }
             }
             Message::SeekForward => {
@@ -4193,7 +4498,9 @@ impl Application for App {
                     } else {
                         adjustment = position + 10.0;
                     }
-                    let _ = self.update(Message::VideoMessage(crate::video::video_view::Message::Seek(adjustment)));
+                    let _ = self.update(Message::VideoMessage(
+                        crate::video::video_view::Message::Seek(adjustment),
+                    ));
                 } else if self.active_view == Mode::Audio {
                     let position = self.audio_view.position;
                     let adjustment;
@@ -4202,18 +4509,24 @@ impl Application for App {
                     } else {
                         adjustment = position + 10.0;
                     }
-                    let _ = self.update(Message::AudioMessage(crate::audio::audio_view::Message::Seek(adjustment)));
+                    let _ = self.update(Message::AudioMessage(
+                        crate::audio::audio_view::Message::Seek(adjustment),
+                    ));
                 }
             }
             Message::SkipToPosition(seconds) => {
                 if self.active_view == Mode::Video {
                     let position = self.video_view.position;
                     let adjustment = seconds - position;
-                    let _ = self.update(Message::VideoMessage(crate::video::video_view::Message::Seek(adjustment)));
+                    let _ = self.update(Message::VideoMessage(
+                        crate::video::video_view::Message::Seek(adjustment),
+                    ));
                 } else if self.active_view == Mode::Audio {
                     let position = self.audio_view.position;
                     let adjustment = seconds - position;
-                    let _ = self.update(Message::AudioMessage(crate::audio::audio_view::Message::Seek(adjustment)));
+                    let _ = self.update(Message::AudioMessage(
+                        crate::audio::audio_view::Message::Seek(adjustment),
+                    ));
                 }
             }
             Message::SetShowDetails(show_details) => {
@@ -4365,7 +4678,11 @@ impl Application for App {
                             self.operation(Operation::Delete { paths });
                         }
                         tab::Command::Open(filepath) => {
-                            self.open_path(filepath);
+                            return match self.open_path(filepath) {
+                                Some(command) => command,
+                                _ => Task::none(),
+                            };
+    
                         }
                         tab::Command::OpenInExternalApp(path) => {
                             let mut found_desktop_exec = false;
@@ -4540,7 +4857,7 @@ impl Application for App {
                 crate::video::video_view::Message::ToBrowser => {
                     self.active_view = Mode::Browser;
                     self.view();
-                },
+                }
                 crate::video::video_view::Message::Open(videopath) => {
                     match url::Url::from_file_path(std::path::PathBuf::from(&videopath)) {
                         Ok(url) => {
@@ -4548,10 +4865,10 @@ impl Application for App {
                             self.video_view.load();
                             self.active_view = Mode::Video;
                             self.view();
-                        },
-                        _ => {},
-                    }    
-                },
+                        }
+                        _ => {}
+                    }
+                }
                 crate::video::video_view::Message::NextFile => {
                     // open next file in the sorted list if possible
                     if let Some(tab) = self.tab_model.data_mut::<Tab>(self.tab_model_id) {
@@ -4561,10 +4878,10 @@ impl Application for App {
                             return match self.open_path(path) {
                                 Some(command) => command,
                                 _ => Task::none(),
-                            }
+                            };
                         }
-                    }                
-                },
+                    }
+                }
                 crate::video::video_view::Message::PreviousFile => {
                     // open next file in the sorted list if possible
                     if let Some(tab) = self.tab_model.data_mut::<Tab>(self.tab_model_id) {
@@ -4574,10 +4891,10 @@ impl Application for App {
                             return match self.open_path(path) {
                                 Some(command) => command,
                                 _ => Task::none(),
-                            }
+                            };
                         }
-                    }                
-                },
+                    }
+                }
                 crate::video::video_view::Message::FileClose => {
                     self.video_view.close();
                 }
@@ -4596,7 +4913,7 @@ impl Application for App {
                 crate::video::video_view::Message::Fullscreen => {
                     //TODO: cleanest way to close dropdowns
                     self.video_view.dropdown_opt = None;
-    
+
                     self.video_view.fullscreen = !self.video_view.fullscreen;
                     self.core.window.show_headerbar = !self.video_view.fullscreen;
                     return window::change_mode(
@@ -4674,7 +4991,6 @@ impl Application for App {
                     }
                     return self.update(Message::TabConfig(config));
                 } else if self.active_view == Mode::Image {
-                    
                 }
             }
             Message::ZoomIn(entity_opt) => {
@@ -4865,7 +5181,10 @@ impl Application for App {
                         .map(|x| x.to_path_buf())
                     {
                         Some(path) => {
-                            let _ = self.update(Message::Open(Some(entity), crate::parsers::osstr_to_string(path.clone().into_os_string())));
+                            let _ = self.update(Message::Open(
+                                Some(entity),
+                                crate::parsers::osstr_to_string(path.clone().into_os_string()),
+                            ));
                         }
                         None => {}
                     }
@@ -4906,11 +5225,8 @@ impl Application for App {
                         }
                     }
                 }
-
             },
-            Message::Recents => {
-                
-            }
+            Message::Recents => {}
             #[cfg(feature = "wayland")]
             Message::OutputEvent(output_event, output) => {
                 match output_event {
@@ -5356,7 +5672,10 @@ impl Application for App {
                         )
                         .width(Length::Fill)
                         .class(theme::Button::MenuItem)
-                        .on_press(Message::Open(Some(entity), crate::parsers::osstr_to_string(path.clone().into_os_string()))),
+                        .on_press(Message::Open(
+                            Some(entity),
+                            crate::parsers::osstr_to_string(path.clone().into_os_string()),
+                        )),
                     );
                 }
 
@@ -5369,7 +5688,6 @@ impl Application for App {
                         widget::button::standard(fl!("cancel")).on_press(Message::DialogCancel),
                     )
                     .control(column);
-
 
                 dialog
             }
@@ -5675,7 +5993,7 @@ impl Application for App {
 
         if self.active_view == Mode::Image {
             return self.view_image_view();
-         } else if self.active_view == Mode::Video {
+        } else if self.active_view == Mode::Video {
             return self.view_video_view();
         } else if self.active_view == Mode::Audio {
             return self.view_audio_view();
@@ -6111,8 +6429,11 @@ impl Application for App {
             }
         }
         subscriptions.push(
-            cosmic::iced::time::every(cosmic::iced::time::Duration::from_millis(1000))
-                .map(|_time| -> Message {return Message::NewFrame;})
+            cosmic::iced::time::every(cosmic::iced::time::Duration::from_millis(1000)).map(
+                |_time| -> Message {
+                    return Message::NewFrame;
+                },
+            ),
         );
 
         Subscription::batch(subscriptions)

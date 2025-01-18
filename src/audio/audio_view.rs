@@ -87,6 +87,8 @@ pub struct Flags {
 pub enum DropdownKind {
     Audio,
     Subtitle,
+    Browser,
+    Chapter,
 }
 
 /// Messages that are used specifically by our [`App`].
@@ -140,7 +142,9 @@ pub struct AudioView {
     pub current_audio: i32,
     pub text_codes: Vec<String>,
     pub current_text: i32,
-    pub gui_refresh_opt: Option<Subscription<crate::app::Message>>,
+    pub chapters: Vec<crate::sql::Chapter>,
+    pub chapters_str: Vec<String>,
+    pub current_chapter: i32,
 }
 
 impl AudioView {
@@ -162,7 +166,9 @@ impl AudioView {
             current_audio: -1,
             text_codes: Vec::new(),
             current_text: -1,
-            gui_refresh_opt: None,
+            chapters: Vec::new(),
+            chapters_str: Vec::new(),
+            current_chapter: 0,
         };
         audio_view
     }
@@ -204,9 +210,6 @@ impl AudioView {
                     return;
                 }
         };
-        //} else {
-        //    return;
-        //}
 
         self.duration = audio.duration().as_secs_f64();
         let pipeline = audio.pipeline();
@@ -244,6 +247,7 @@ impl AudioView {
                     format!("Subtitle #{i}")
                 });
         }
+        
         self.current_text = pipeline.property::<i32>("current-text");
 
         //TODO: Flags can be used to enable/disable subtitles
