@@ -19,4 +19,5 @@ Architecture: amd64 arm64
 Depends: ${misc:Depends}, ${shlibs:Depends},
       gstreamer1.0-plugins-base,
       gstreamer1.0-plugins-good,
+      ffmpeg
 Description: Media Browser with Database backend
