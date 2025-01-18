@@ -1,6 +1,6 @@
 // Copyright 2023 System76 <info@system76.com>
 // SPDX-License-Identifier: GPL-3.0-only
-// 
+//
 // Modifications:
 // Copyright 2024 Alexander Schwarzkopf
 
@@ -428,9 +428,18 @@ pub fn scan_path_recursive(tab_path: PathBuf) {
             return;
         }
     }
-    let mut known_files: std::collections::BTreeMap<PathBuf, crate::sql::FileMetadata> = crate::sql::files(&mut connection);
+    let mut known_files: std::collections::BTreeMap<PathBuf, crate::sql::FileMetadata> =
+        crate::sql::files(&mut connection);
     let mut special_files = std::collections::BTreeSet::new();
-    let _ = scan_path_runner(&mut connection, &tab_path, IconSizes::default(), true, &mut known_files, &mut special_files, &mut items);
+    let _ = scan_path_runner(
+        &mut connection,
+        &tab_path,
+        IconSizes::default(),
+        true,
+        &mut known_files,
+        &mut special_files,
+        &mut items,
+    );
 }
 
 pub fn scan_path(tab_path: &PathBuf, sizes: IconSizes, recursive: bool) -> Vec<Item> {
@@ -445,15 +454,23 @@ pub fn scan_path(tab_path: &PathBuf, sizes: IconSizes, recursive: bool) -> Vec<I
     }
     let mut known_files = crate::sql::files(&mut connection);
     let mut special_files = std::collections::BTreeSet::new();
-    items = scan_path_runner(&mut connection, &tab_path, sizes, recursive, &mut known_files, &mut special_files, &mut items);
+    items = scan_path_runner(
+        &mut connection,
+        &tab_path,
+        sizes,
+        recursive,
+        &mut known_files,
+        &mut special_files,
+        &mut items,
+    );
 
     items
 }
 
 pub fn scan_path_runner(
-    connection: &mut rusqlite::Connection, 
-    tab_path: &PathBuf, 
-    sizes: IconSizes, 
+    connection: &mut rusqlite::Connection,
+    tab_path: &PathBuf,
+    sizes: IconSizes,
     recursive: bool,
     known_files: &mut std::collections::BTreeMap<PathBuf, crate::sql::FileMetadata>,
     special_files: &mut std::collections::BTreeSet<PathBuf>,
@@ -498,7 +515,14 @@ pub fn scan_path_runner(
                         } else if &extension == "mkv" || &extension == "mp4" || &extension == "webm"
                         {
                             videos.push(path.clone());
-                        } else if &extension == "jpg" || &extension == "jpeg" || &extension == "jfif" || &extension == "tif" || &extension == "tiff" || &extension == "gif" || &extension == "webp" || &extension == "png"
+                        } else if &extension == "jpg"
+                            || &extension == "jpeg"
+                            || &extension == "jfif"
+                            || &extension == "tif"
+                            || &extension == "tiff"
+                            || &extension == "gif"
+                            || &extension == "webp"
+                            || &extension == "png"
                         {
                             images.push(path.clone());
                         }
@@ -522,10 +546,10 @@ pub fn scan_path_runner(
 
             for video in videos {
                 if let ControlFlow::Break(_) = crate::parsers::scan_videos(
-                    special_files, 
+                    special_files,
                     video,
-                    items, 
-                    sizes, 
+                    items,
+                    sizes,
                     known_files,
                     connection,
                 ) {
@@ -560,7 +584,7 @@ pub fn scan_path_runner(
                     continue;
                 }
             }
-            
+
             for path in images {
                 if let ControlFlow::Break(_) = crate::parsers::scan_exif(
                     path,
@@ -577,11 +601,20 @@ pub fn scan_path_runner(
             for path in justdirs {
                 if recursive {
                     if let Some(dirname) = path.file_stem() {
-                        if crate::parsers::osstr_to_string(dirname.to_os_string()).starts_with(".") {
+                        if crate::parsers::osstr_to_string(dirname.to_os_string()).starts_with(".")
+                        {
                             continue; // skip hidden directories when recursively scanning
                         }
                     }
-                    scan_path_runner(connection, &path, sizes, recursive, known_files, special_files, items);
+                    scan_path_runner(
+                        connection,
+                        &path,
+                        sizes,
+                        recursive,
+                        known_files,
+                        special_files,
+                        items,
+                    );
                 } else {
                     if let ControlFlow::Break(_) =
                         crate::parsers::scan_directories(special_files, path, items, sizes)
@@ -903,7 +936,11 @@ impl std::fmt::Display for Location {
             Self::Path(path) => write!(f, "{}", path.display()),
             Self::Recents => write!(f, "recents"),
             Self::Search(path, term, ..) => write!(f, "search {} for {}", path.display(), term),
-            Self::DBSearch(search) => write!(f, "search {} in database for selected entries.", search.search_string),
+            Self::DBSearch(search) => write!(
+                f,
+                "search {} in database for selected entries.",
+                search.search_string
+            ),
             Self::Trash => write!(f, "trash"),
         }
     }
@@ -1268,13 +1305,10 @@ impl Item {
         name: &str,
         mime: &Mime,
     ) -> (
-        cosmic::iced_widget::Column<'_, app::Message, theme::Theme>, 
-        Vec<cosmic::iced_widget::Row<'_, app::Message, theme::Theme>>
+        cosmic::iced_widget::Column<'_, app::Message, theme::Theme>,
+        Vec<cosmic::iced_widget::Row<'_, app::Message, theme::Theme>>,
     ) {
-        let cosmic_theme::Spacing {
-            space_xxxs,
-            ..
-        } = theme::active().cosmic().spacing;
+        let cosmic_theme::Spacing { space_xxxs, .. } = theme::active().cosmic().spacing;
 
         let mut details = widget::column().spacing(space_xxxs);
         let mut settings = Vec::new();
@@ -1285,12 +1319,9 @@ impl Item {
                 return (details, settings);
             }
         };
-    
+
         details = details.push(widget::text::heading(name.to_string()));
-        details = details.push(widget::text::body(fl!(
-            "type",
-            mime = mime.to_string()
-        )));
+        details = details.push(widget::text::body(fl!("type", mime = mime.to_string())));
         if let Ok(time) = metadata.created() {
             details = details.push(widget::text::body(fl!(
                 "item-created",
@@ -1351,17 +1382,15 @@ impl Item {
         (details, settings)
     }
 
-    pub fn preview_view<'a>(
-        &'a self, 
-        sizes: IconSizes, 
-    ) -> Element<'a, app::Message> {
+    pub fn preview_view<'a>(&'a self, sizes: IconSizes) -> Element<'a, app::Message> {
         let cosmic_theme::Spacing {
             space_xxxs,
             space_m,
             ..
         } = theme::active().cosmic().spacing;
 
-        let mut column: cosmic::iced_widget::Column<'_, app::Message, theme::Theme> = widget::column().spacing(space_m);
+        let mut column: cosmic::iced_widget::Column<'_, app::Message, theme::Theme> =
+            widget::column().spacing(space_m);
 
         column = column.push(widget::row::with_children(vec![
             widget::horizontal_space().into(),
@@ -1370,7 +1399,7 @@ impl Item {
         ]));
 
         let mut details;
-        let settings; 
+        let settings;
         match &self.metadata {
             ItemMetadata::Path { metadata, children } => {
                 if metadata.is_dir() {
@@ -1391,8 +1420,9 @@ impl Item {
                 } else {
                     if let Some(video) = self.video_opt.as_ref() {
                         let path = PathBuf::from(&video.path);
-                        
-                        (details, settings) = self.file_details(&path, &self.name, &mime_for_path(path.clone()));
+
+                        (details, settings) =
+                            self.file_details(&path, &self.name, &mime_for_path(path.clone()));
                         details = details.push(widget::text::body(fl!(
                             "item-media-release-date",
                             text = video.date.to_string()
@@ -1435,13 +1465,16 @@ impl Item {
                             let end = crate::parsers::timecode_to_ffmpeg_time(l.end as u32);
                             details = details.push(widget::text::body(fl!(
                                 "item-media-chapter",
-                                id = l.title.clone(), start = start, end = end
+                                id = l.title.clone(),
+                                start = start,
+                                end = end
                             )));
                         }
                     } else if let Some(audio) = self.audio_opt.as_ref() {
                         let path = PathBuf::from(&audio.path);
-                            
-                        (details, settings) = self.file_details(&path, &self.name, &mime_for_path(path.clone()));
+
+                        (details, settings) =
+                            self.file_details(&path, &self.name, &mime_for_path(path.clone()));
                         details = details.push(widget::text::body(fl!(
                             "item-media-release-date",
                             text = audio.date.to_string()
@@ -1467,13 +1500,16 @@ impl Item {
                             let end = crate::parsers::timecode_to_ffmpeg_time(l.end as u32);
                             details = details.push(widget::text::body(fl!(
                                 "item-media-chapter",
-                                id = l.title.clone(), start = start, end = end
+                                id = l.title.clone(),
+                                start = start,
+                                end = end
                             )));
                         }
                     } else if let Some(image) = self.image_opt.as_ref() {
                         let path = PathBuf::from(&image.path);
-                            
-                        (details, settings) = self.file_details(&path, &self.name, &mime_for_path(path.clone()));
+
+                        (details, settings) =
+                            self.file_details(&path, &self.name, &mime_for_path(path.clone()));
                         details = details.push(widget::text::body(fl!(
                             "item-media-release-date",
                             text = image.date.to_string()
@@ -1530,7 +1566,7 @@ impl Item {
                         settings = Vec::new();
                     }
                 }
-            },
+            }
             _ => {
                 details = widget::column().spacing(space_xxxs);
                 settings = Vec::new();
@@ -2812,7 +2848,12 @@ impl Tab {
                                     //TODO: use correct IconSizes
                                     items.insert(
                                         index,
-                                        super::parsers::item_from_entry(path, name, metadata, IconSizes::default()),
+                                        super::parsers::item_from_entry(
+                                            path,
+                                            name,
+                                            metadata,
+                                            IconSizes::default(),
+                                        ),
                                     );
                                 }
                                 // Ensure that updates make it to the GUI in a timely manner
@@ -3388,13 +3429,13 @@ impl Tab {
             }
             Location::Path(uri) => {
                 children.push(
-                    widget::button::custom(
-                        widget::text::heading(
-                            crate::parsers::osstr_to_string(uri.clone().into_os_string())))
-                        .padding(space_xxxs)
-                        .on_press(Message::Location(Location::Path(uri.clone())))
-                        .class(theme::Button::Text)
-                        .into(),
+                    widget::button::custom(widget::text::heading(crate::parsers::osstr_to_string(
+                        uri.clone().into_os_string(),
+                    )))
+                    .padding(space_xxxs)
+                    .on_press(Message::Location(Location::Path(uri.clone())))
+                    .class(theme::Button::Text)
+                    .into(),
                 );
             }
             Location::Search(uri, display_name, show_hidden, instant) => {
@@ -3405,7 +3446,7 @@ impl Tab {
                             uri.clone(),
                             display_name.clone(),
                             *show_hidden,
-                            *instant
+                            *instant,
                         )))
                         .class(theme::Button::Text)
                         .into(),
@@ -3413,12 +3454,9 @@ impl Tab {
             }
             Location::DBSearch(search) => {
                 children.push(
-                    widget::button::custom(
-                        widget::text::heading(fl!("search-context")))
+                    widget::button::custom(widget::text::heading(fl!("search-context")))
                         .padding(space_xxxs)
-                        .on_press(Message::Location(Location::DBSearch(
-                            search.clone(),
-                        )))
+                        .on_press(Message::Location(Location::DBSearch(search.clone())))
                         .class(theme::Button::Text)
                         .into(),
                 );
