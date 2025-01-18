@@ -2481,6 +2481,7 @@ impl App {
 
         if path.is_dir() {
             // change directory
+            self.core.nav_bar_set_toggled(false);
             if let Some(location_ref) = self.tab_model.data::<Location>(self.tab_model_id) {
                 let location = location_ref.to_owned();
                 if let Some(tab) = self.tab_model.data_mut::<Tab>(self.tab_model_id) {
@@ -2497,6 +2498,7 @@ impl App {
             }
             let fmt = ret.unwrap();
             let filepath = path.display().to_string();
+            self.core.nav_bar_set_toggled(false);
             match fmt.kind() {
                 file_format::Kind::Image => {
                     self.image_view

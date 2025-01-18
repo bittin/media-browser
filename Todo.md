@@ -65,11 +65,11 @@ Positions ended with a ? are *stretch goals*. If it is possible AND somebody doe
 - display detail information of entry (Free-Form Text field with all the available information)
 - Search panel with a separate result model/view
   - (new tab per search result, derived from tab so ESC returns to the search and the search handles the previous/next)
+- disable the NavBar by default
 
 #### Open Features
 
 - get the bread-crumb navigation in the tab back
-- disable the sidebar by default
 - manage previous searches in the search context menu
 - sort by release date / creation / modification time
   - adjust the sort options when just one type is displayed and more details are available?
