@@ -923,7 +923,11 @@ pub fn fill_chapters(chapters: Vec<crate::sql::Chapter>, duration: u32) -> (Vec<
         let numstep = duration / 5 / 60;
         let mut i = 0;
         while i < numstep {
-            s.push(format!("Chapter{:02}", i));
+            let mut c = Chapter {..Default::default()};
+            c.title = format!("Chapter{:02}", i);
+            c.start = (i * 5 * 60) as f32;
+            c.end = ((i + 1) * 5 * 60) as f32;
+            v.push(c);
             i += 1;
         }
     }

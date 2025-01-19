@@ -1003,7 +1003,7 @@ impl App {
 
     fn about(&self) -> Element<Message> {
         let cosmic_theme::Spacing { space_xxs, .. } = theme::active().cosmic().spacing;
-        let repository = "https://github.com/pop-os/media-browser";
+        let repository = "https://github.com/fangornsrealm/media-browser";
         let hash = env!("VERGEN_GIT_SHA");
         let short_hash: String = hash.chars().take(7).collect();
         let date = env!("VERGEN_GIT_COMMIT_DATE");
@@ -1435,13 +1435,13 @@ impl App {
             ..
         } = theme::active().cosmic().spacing;
 
-        if self.image_view.image_path_loaded != self.image_view.image_path {
-            // construct the video player first
+        if self.image_view.handle_opt == None {
+            // construct the image first
             return self.view_browser_view();
         }
         let image_viewer = Container::new(
             cosmic::iced::widget::image::Viewer::new(crate::image::image::create_handle(
-                self.image_view.image_path.clone(),
+self.image_view.image_path.clone(),
             ))
             .width(self.image_view.width)
             .height(self.image_view.height)
@@ -1803,9 +1803,7 @@ impl App {
                             widget::button::icon(
                                 widget::icon::from_name("go-up-symbolic").size(16),
                             )
-                            .on_press(Message::VideoMessage(
-                                crate::video::video_view::Message::ToBrowser,
-                            )),
+                            .on_press(Message::Browser),
                             widget::text::body(fl!("descripttion-back")),
                             widget::tooltip::Position::Top,
                         ))
@@ -2136,12 +2134,12 @@ impl App {
                     }
                 }
                 crate::audio::audio_view::DropdownKind::Chapter => {
-                    if !self.video_view.chapters.is_empty() {
+                    if !self.audio_view.chapters.is_empty() {
                         items_right.push(widget::text::heading(fl!("chapters")).into());
                         items_right.push(
                             widget::dropdown(
-                                &self.video_view.chapters_str, 
-                                Some(self.video_view.current_chapter), 
+                                &self.audio_view.chapters_str, 
+                                Some(self.audio_view.current_chapter), 
                                 Message::Chapter)
                                 .into(),
                         );
@@ -2182,41 +2180,6 @@ impl App {
                 ])
                 .into(),
             );
-            /*
-            let mut column = widget::column::with_capacity(items_left.len());
-            for item in items_left {
-                column = column.push(widget::container(item).padding([space_xxs, space_m]));
-            }
-
-            popup_items.push(
-                widget::row::with_children(vec![
-                    widget::container(column)
-                        .padding(1)
-                        //TODO: move style to libcosmic
-                        .class(theme::Container::custom(|theme| {
-                            let cosmic = theme.cosmic();
-                            let component = &cosmic.background.component;
-                            widget::container::Style {
-                                icon_color: Some(component.on.into()),
-                                text_color: Some(component.on.into()),
-                                background: Some(cosmic::iced::Background::Color(
-                                    component.base.into(),
-                                )),
-                                border: cosmic::iced::Border {
-                                    radius: 8.0.into(),
-                                    width: 1.0,
-                                    color: component.divider.into(),
-                                },
-                                ..Default::default()
-                            }
-                        }))
-                        .width(Length::Fixed(240.0))
-                        .into(),
-                    widget::horizontal_space().into(),
-                ])
-                .into(),
-            );
-        */
         }
 
         if self.audio_view.controls {
@@ -2229,9 +2192,7 @@ impl App {
                             widget::button::icon(
                                 widget::icon::from_name("go-up-symbolic").size(16),
                             )
-                            .on_press(Message::AudioMessage(
-                                crate::audio::audio_view::Message::ToBrowser,
-                            )),
+                            .on_press(Message::Browser),
                             widget::text::body(fl!("descripttion-back")),
                             widget::tooltip::Position::Top,
                         ))
@@ -2519,14 +2480,16 @@ impl App {
                                 for item in items.iter() {
                                     if let Some(video) = item.video_opt.as_ref() {
                                         if PathBuf::from(&video.path) == path {
-                                            self.video_view.chapters.clear();
-                                            self.video_view.chapters_str.clear();
                                             let (v, s) = crate::sql::fill_chapters(
                                                 video.chapters.clone(),
                                                 video.duration,
                                             );
-                                            self.video_view.chapters.extend(v);
-                                            self.video_view.chapters_str.extend(s);
+                                            if v.len() > 0 {
+                                                self.video_view.chapters.clear();
+                                                self.video_view.chapters_str.clear();
+                                                self.video_view.chapters.extend(v);
+                                                self.video_view.chapters_str.extend(s);
+                                            }
                                             self.video_view.audio_codes.clear();
                                             self.video_view.audio_codes.extend(video.audiolangs.clone());
                                             self.video_view.text_codes.clear();
@@ -2553,14 +2516,16 @@ impl App {
                                 for item in items.iter() {
                                     if let Some(audio) = item.audio_opt.as_ref() {
                                         if PathBuf::from(&audio.path) == path {
-                                            self.audio_view.chapters.clear();
-                                            self.audio_view.chapters_str.clear();
                                             let (v, s) = crate::sql::fill_chapters(
                                                 audio.chapters.clone(),
                                                 audio.duration,
                                             );
-                                            self.audio_view.chapters.extend(v);
-                                            self.audio_view.chapters_str.extend(s);
+                                            if v.len() > 0 {
+                                                self.audio_view.chapters.clear();
+                                                self.audio_view.chapters_str.clear();
+                                                self.audio_view.chapters.extend(v);
+                                                self.audio_view.chapters_str.extend(s);
+                                            }
                                         }
                                     }
                                 }
@@ -3144,7 +3109,7 @@ impl Application for App {
                         }
                     }
                 } else if self.active_view == Mode::Audio {
-                    self.audio_view.current_chapter = val as i32;
+                    self.audio_view.current_chapter = val;
                     let new_pos = self.audio_view.chapters[val].start as f64;
                     let _ = self.update(Message::AudioMessage(
                         crate::audio::audio_view::Message::Seek(new_pos),
@@ -3393,6 +3358,29 @@ impl Application for App {
                         Ok(url) => {
                             self.audio_view.audiopath_opt = Some(url);
                             self.audio_view.load();
+                            if let Some(tab) = self.tab_model.data_mut::<Tab>(self.tab_model_id) {
+                                let v = tab.selected_file_paths();
+                                for path in v {
+                                    if let Some(items) = tab.items_opt() {
+                                        for item in items.iter() {
+                                            if let Some(audio) = item.audio_opt.as_ref() {
+                                                if PathBuf::from(&audio.path) == path {
+                                                    let (v, s) = crate::sql::fill_chapters(
+                                                        audio.chapters.clone(),
+                                                        audio.duration,
+                                                    );
+                                                    if v.len() > 0 {
+                                                        self.audio_view.chapters.clear();
+                                                        self.audio_view.chapters_str.clear();
+                                                        self.audio_view.chapters.extend(v);
+                                                        self.audio_view.chapters_str.extend(s);
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
                             self.active_view = Mode::Audio;
                             self.view();
                         }
@@ -3647,8 +3635,10 @@ impl Application for App {
                 crate::image::image_view::Message::ToVideo => {}
                 crate::image::image_view::Message::ToAudio => {}
                 crate::image::image_view::Message::Open(imagepath) => {
-                    self.image_view
-                        .update(crate::image::image_view::Message::Open(imagepath));
+                    self.image_view.image_path = imagepath;
+                    self.image_view.handle_opt = Some(crate::image::image::create_handle(
+                        self.image_view.image_path.clone()));
+                    self.image_view.image_path_loaded = self.image_view.image_path.clone();
                     self.active_view = Mode::Image;
                     self.view();
                 }
@@ -3977,6 +3967,7 @@ impl Application for App {
                 }
             },
             Message::OpenItemLocation(entity_opt) => {
+                log::warn!("OpenItemLocation");
                 return Task::batch(self.selected_paths(entity_opt).into_iter().filter_map(
                     |path| {
                         if let Some(parent) = path.parent() {

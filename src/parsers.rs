@@ -1003,20 +1003,6 @@ fn audio_metadata(
     special_files: &mut std::collections::BTreeSet<PathBuf>,
     meta_data: &mut crate::sql::AudioMetadata,
 ) {
-    // read chapter data from ffmpeg
-    let mut temp = crate::sql::VideoMetadata {
-        ..Default::default()
-    };
-    if meta_data.chapters.len() == 0 {
-        temp.path = meta_data.path.clone();
-        video_metadata(&mut temp);
-        if temp.chapters.len() > 0 {
-            meta_data.chapters.extend(temp.chapters);
-        }
-        if temp.duration > 0 && meta_data.duration == 0 {
-            meta_data.duration = temp.duration
-        }
-    }
     // find external lyrics files
     if let Some(path) = audio.parent() {
         if let Some(base) = audio.file_stem() {
@@ -1094,6 +1080,21 @@ pub fn item_from_audiotags(
                 if refresh {
                     // file is newer
                     parse_audiotags(&audio, metadata);
+                    // read chapter data from ffmpeg
+                    let mut temp = crate::sql::VideoMetadata {
+                        ..Default::default()
+                    };
+                    if metadata.chapters.len() == 0 {
+                        temp.path = metadata.path.clone();
+                        video_metadata(&mut temp);
+                        if temp.chapters.len() > 0 {
+                            metadata.chapters.extend(temp.chapters);
+                        }
+                        if temp.duration > 0 && metadata.duration == 0 {
+                            metadata.duration = temp.duration
+                        }
+                    }
+
                     audio_metadata(audio, special_files, metadata);
                     crate::sql::update_audio(connection, metadata, statdata, known_files);
                 } else {
@@ -1103,6 +1104,21 @@ pub fn item_from_audiotags(
             }
         } else {
             parse_audiotags(&audio, metadata);
+            // read chapter data from ffmpeg
+            let mut temp = crate::sql::VideoMetadata {
+                ..Default::default()
+            };
+            if metadata.chapters.len() == 0 {
+                temp.path = metadata.path.clone();
+                video_metadata(&mut temp);
+                if temp.chapters.len() > 0 {
+                    metadata.chapters.extend(temp.chapters);
+                }
+                if temp.duration > 0 && metadata.duration == 0 {
+                    metadata.duration = temp.duration
+                }
+            }
+
             audio_metadata(audio, special_files, metadata);
             crate::sql::insert_audio(connection, metadata, statdata, known_files);
         }

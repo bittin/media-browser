@@ -144,7 +144,7 @@ pub struct AudioView {
     pub current_text: i32,
     pub chapters: Vec<crate::sql::Chapter>,
     pub chapters_str: Vec<String>,
-    pub current_chapter: i32,
+    pub current_chapter: usize,
 }
 
 impl AudioView {

@@ -23,6 +23,7 @@ pub enum Message {
 
 //single static page, is not supposed to do anything other than display a button that lets you move to the next page
 pub struct ImageView {
+    pub handle_opt: Option<super::image::Handle>,
     pub controls: bool,
     pub controls_time: std::time::Instant,
     pub fullscreen: bool,
@@ -38,6 +39,7 @@ pub struct ImageView {
 impl ImageView {
     pub fn new() -> Self {
         ImageView {
+            handle_opt: None,
             controls: true,
             controls_time: std::time::Instant::now(),
             fullscreen: false,
