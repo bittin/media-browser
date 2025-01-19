@@ -562,7 +562,10 @@ fn video_metadata(meta: &mut crate::sql::VideoMetadata) {
         //    .output()
         //    .expect("failed to execute process");
         //let lines = slice_u8_to_vec_string(ffmpeg_output.stderr);
-        for line in stdout { 
+        let mut i = 0;
+        let num_lines = stdout.len();
+        while i < num_lines {
+            let line = stdout[i].clone();
             if let Ok(re_duration) = regex::Regex::new(
                 r"(?i)\s*Duration:\s+(?P<hours>\d+):(?P<minutes>\d+):(?P<seconds>\d+).\d+\s*,",
             ) {
@@ -590,11 +593,18 @@ fn video_metadata(meta: &mut crate::sql::VideoMetadata) {
                     let caps = re_chapter.captures(&line).unwrap();
                     let start = string_to_float(&caps["start"]);
                     let end = string_to_float(&caps["end"]);
-                    let name = format!("Chapter_{:02}", meta.chapters.len() + 1);
                     let mut chapter = crate::sql::Chapter {..Default::default()};
-                    chapter.title = name;
                     chapter.start = start;
                     chapter.end = end;
+                    if i + 2 < num_lines {
+                        let v: Vec<&str> = stdout[i+2].split(" : ").collect();
+                        if v.len() > 1 {
+                            chapter.title = v[1].to_string();
+                        }
+                    }
+                    if chapter.title.len() == 0 {
+                        chapter.title = format!("Chapter_{:02}", meta.chapters.len() + 1);
+                    }
                     meta.chapters.push(chapter);
                 }
             }
@@ -611,6 +621,7 @@ fn video_metadata(meta: &mut crate::sql::VideoMetadata) {
                     meta.sublangs.push(caps["language"].to_string());
                 }
             }
+            i += 1;
         }
     }
 }

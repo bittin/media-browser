@@ -35,9 +35,11 @@ Positions ended with a ? are *stretch goals*. If it is possible AND somebody doe
 - browsing images fills memory in seconds
 - search results don't preview actors and chapters
 - PageUp and PageDown do no longer navigate the Presious / Next
+- Parse Chapter names from media files
 
 #### Open Bugs
 
+- Chapters not diplayed in audio player
 - fix release date 1970-01-01
 - check creation date newer than modification date
 - Automatically close Popup GUI after 5 Seconds of no activity
