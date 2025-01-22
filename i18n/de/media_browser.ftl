@@ -210,15 +210,17 @@ search-images = Images
 search-videos = Videos
 search-audios = Audio Dateien
 search-ranges = Suchbereiche
-search-textentry = Text der gesucht werden soll
-search-text-from = Von / Minimum (Text)
-search-text-to = Bis / Maximum (Text)
+search-textentry = Ein Feld für einen Wert, beide für einen Bereich
+search-text-from = Von / Minimum
+search-text-to = Bis / Maximum
 search-value-from = Von / Minimum (Zahl)
 search-value-to = Bis / Maximum (Zahl)
-search-tooltip-date = Zum Beispiel:
-    Datum im Format YYYY-MM-DDThh:mm:ss
-    Beispiel:       2003-01-14T20:15:00
-    Die Zeitangabe kann auch weggelassen werden: 2003-01-14
+search-tooltip-date = 
+    Suche nach Text, Zahlen oder Datum
+    Datum Eingabe nach folgedem Schema:
+        Datum im Format YYYY-MM-DDThh:mm:ss
+        Beispiel:       2003-01-14T20:15:00
+        Die Zeitangabe kann auch weggelassen werden: 2003-01-14
 search-tooltip-value = Zahlen
 search-filepath = Dateipfad
 search-title = Titel
@@ -227,11 +229,11 @@ search-actor = DarstellerInnen
 search-director = RegiseurInnen
 search-artist = Künstlername
 search-album_artist = Album Künstler
-search-duration = Spieldauer
+search-duration = Spieldauer (in Sekunden)
 search-creation_date = Erzeugungsdatum
 search-modification_date = Änderungsdatum
 search-release_date = Veröffentlichungsdatum
-search-lense_model = Linsenmodel
+search-lense_model = Linsenmodell
 search-focal_length = Brennweite
 search-exposure_time = Belichtungszeit
 search-fnumber = Cropfactor

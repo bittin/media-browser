@@ -209,16 +209,18 @@ search-mediatypes = Search Media types
 search-images = Images
 search-videos = Videos
 search-audios = Audio files
-search-textentry = Search term
+search-textentry = One field for exact match, both for range
 search-ranges = Search ranges
-search-text-from = From / Minimum (Text)
-search-text-to = To / Maximum (Text)
+search-text-from = From / Minimum
+search-text-to = To / Maximum
 search-value-from = From / Minimum (Number)
 search-value-to = To / Maximum (Number)
-search-tooltip-date = For Example:
-    Date in format YYYY-MM-DDThh:mm:ss
-    Example:       2003-01-14T20:15:00
-    The Time can be omitted by giving just the date 2003-01-14
+search-tooltip-date = 
+    Search for Text, Number, or date
+    Dates have to follow this schema:
+        Date in format YYYY-MM-DDThh:mm:ss
+        Example:       2003-01-14T20:15:00
+        The Time can be omitted by giving just the date 2003-01-14
 search-tooltip-value = Numerical value
 search-filepath = Filepath
 search-title = Title
@@ -227,7 +229,7 @@ search-actor = Actor/Actress
 search-director = Director
 search-artist = Artist name
 search-album_artist = Album artist
-search-duration = Duration
+search-duration = Duration (in seconds)
 search-creation_date = Creation date
 search-modification_date = Modification date
 search-release_date = Release date

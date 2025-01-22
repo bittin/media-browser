@@ -7,7 +7,7 @@
 use rusqlite::{Connection, Result, params};
 use std::path::PathBuf;
 use std::collections::BTreeMap;
-use chrono::NaiveDate;
+use chrono::{NaiveDate, Timelike};
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Hash)]
 pub struct SearchData {
@@ -15,10 +15,12 @@ pub struct SearchData {
     pub search_string: String,
     pub from_string: String,
     pub from_value_string: String,
-    pub from_value: u32,
+    pub from_value: u64,
+    pub from_date: i64,
     pub to_string: String,
     pub to_value_string: String,
-    pub to_value: u32,
+    pub to_value: u64,
+    pub to_date: i64,
     pub image: bool,
     pub video: bool,
     pub audio: bool,
@@ -50,9 +52,11 @@ impl Default for SearchData {
             from_string: String::new(),
             from_value_string: String::new(),
             from_value: 0,
+            from_date: 0,
             to_string: String::new(),
             to_value_string: String::new(),
             to_value: 0,
+            to_date: 0,
             image: false,
             video: false,
             audio: false,
@@ -179,7 +183,7 @@ pub fn search_video(
         return (videos, files);
     }
     if search.title {
-        let query = format!("SELECT video_id FROM video_metadata WHERE title LIKE '%{}%'", search.search_string);
+        let query = format!("SELECT video_id FROM video_metadata WHERE title LIKE '%{}%'", search.from_string);
         let (newvideos, newfiles) = search_video_metadata(
             connection, 
             query, 
@@ -193,7 +197,7 @@ pub fn search_video(
         }
     }
     if search.description {
-        let query = format!("SELECT video_id FROM video_metadata WHERE description LIKE '%{}%'", search.search_string);
+        let query = format!("SELECT video_id FROM video_metadata WHERE description LIKE '%{}%'", search.from_string);
         let (newvideos, newfiles) = search_video_metadata(
             connection, 
             query, 
@@ -226,7 +230,7 @@ pub fn search_video(
         }
     }
     if search.actor {
-        let query = format!("SELECT video_id FROM actors INNER JOIN people ON people.person_id = actors.actor_id WHERE people.person_name LIKE '%{}%'", search.search_string);
+        let query = format!("SELECT video_id FROM actors INNER JOIN people ON people.person_id = actors.actor_id WHERE people.person_name LIKE '%{}%'", search.from_string);
         let (newvideos, newfiles) = search_video_metadata(
             connection, 
             query, 
@@ -240,7 +244,7 @@ pub fn search_video(
         }
     }
     if search.director {
-        let query = format!("SELECT video_id FROM directors INNER JOIN people ON people.person_id = directors.director_id WHERE people.person_name LIKE '%{}%'", search.search_string);
+        let query = format!("SELECT video_id FROM directors INNER JOIN people ON people.person_id = directors.director_id WHERE people.person_name LIKE '%{}%'", search.from_string);
         let (newvideos, newfiles) = search_video_metadata(
             connection, 
             query, 
@@ -253,14 +257,12 @@ pub fn search_video(
             }
         }
     }
-    if search.release_date && search.from_string.len() != 0 {
-        let from_date = string_to_linux_time(&search.from_string);
-        let to_date = string_to_linux_time(&search.to_string);
+    if search.release_date {
         let query;
-        if to_date != 0 {
-            query = format!("SELECT video_id FROM video_metadata WHERE released > {} AND released < {}", from_date, to_date);
+        if search.to_date != 0 {
+            query = format!("SELECT video_id FROM video_metadata WHERE released > {} AND released < {}", search.from_date, search.to_date);
         } else {
-            query = format!("SELECT video_id FROM video_metadata WHERE released > {}", from_date);
+            query = format!("SELECT video_id FROM video_metadata WHERE released > {}", search.from_date);
         }
         let (newvideos, newfiles) = search_video_metadata(
             connection, 
@@ -347,7 +349,7 @@ pub fn search_audio(
         return (audios, files);
     }
     if search.title {
-        let query = format!("SELECT audio_id FROM audio_metadata WHERE title LIKE '%{}%'", search.search_string);
+        let query = format!("SELECT audio_id FROM audio_metadata WHERE title LIKE '%{}%'", search.from_string);
         let (newvideos, newfiles) = search_audio_metadata(
             connection, 
             query, 
@@ -380,7 +382,21 @@ pub fn search_audio(
         }
     }
     if search.artist {
-        let query = format!("SELECT audio_id FROM artist_audio_map INNER JOIN artists ON artists.artist_id  = artist_audio_map.artist_id WHERE artists.artist_name LIKE '%{}%'", search.search_string);
+        let query = format!("SELECT audio_id FROM artist_audio_map INNER JOIN artists ON artists.artist_id  = artist_audio_map.artist_id WHERE artists.artist_name LIKE '%{}%'", search.from_string);
+        let (newvideos, newfiles) = search_audio_metadata(
+            connection, 
+            query, 
+        );
+        for i in 0..newfiles.len() {
+            if !used_files.contains(&newfiles[i].filepath) {
+                used_files.insert(newfiles[i].filepath.clone());
+                files.push(newfiles[i].clone());
+                audios.push(newvideos[i].clone());
+            }
+        }
+    }
+    if search.title {
+        let query = format!("SELECT audio_id FROM album_audio_map INNER JOIN albums ON albums.album_id  = album_audio_map.album_id WHERE albums.album_name LIKE '%{}%'", search.from_string);
         let (newvideos, newfiles) = search_audio_metadata(
             connection, 
             query, 
@@ -394,7 +410,7 @@ pub fn search_audio(
         }
     }
     if search.album_artist {
-        let query = format!("SELECT audio_id FROM albumartist_audio_map INNER JOIN artists ON artists.artist_id  = albumartist_audio_map.artist_id WHERE artists.artist_name LIKE '%{}%'", search.search_string);
+        let query = format!("SELECT audio_id FROM albumartist_audio_map INNER JOIN artists ON artists.artist_id  = albumartist_audio_map.albumartist_id WHERE artists.artist_name LIKE '%{}%'", search.from_string);
         let (newvideos, newfiles) = search_audio_metadata(
             connection, 
             query, 
@@ -407,14 +423,12 @@ pub fn search_audio(
             }
         }
     }
-    if search.release_date && search.from_string.len() != 0 {
-        let from_date = string_to_linux_time(&search.from_string);
-        let to_date = string_to_linux_time(&search.to_string);
+    if search.release_date {
         let query;
-        if to_date != 0 {
-            query = format!("SELECT audio_id FROM audio_metadata WHERE released > {} AND released < {}", from_date, to_date);
+        if search.to_date != 0 {
+            query = format!("SELECT audio_id FROM audio_metadata WHERE released > {} AND released < {}", search.from_date, search.to_date);
         } else {
-            query = format!("SELECT audio_id FROM audio_metadata WHERE released > {}", from_date);
+            query = format!("SELECT audio_id FROM audio_metadata WHERE released > {}", search.from_date);
         }
         let (newvideos, newfiles) = search_audio_metadata(
             connection, 
@@ -498,11 +512,11 @@ pub fn search_image(
     let mut images: Vec<ImageMetadata> = Vec::new();
 
     let mut used_files: std::collections::BTreeSet<PathBuf> = std::collections::BTreeSet::new();
-    if !search.audio {
+    if !search.image {
         return (images, files);
     }
     if search.title {
-        let query = format!("SELECT image_id FROM image_metadata WHERE name LIKE '%{}%'", search.search_string);
+        let query = format!("SELECT image_id FROM image_metadata WHERE name LIKE '%{}%'", search.from_string);
         let (newvideos, newfiles) = search_image_metadata(
             connection, 
             query, 
@@ -516,7 +530,7 @@ pub fn search_image(
         }
     }
     if search.lense_model {
-        let query = format!("SELECT image_id FROM image_metadata WHERE LenseModel LIKE '%{}%'", search.search_string);
+        let query = format!("SELECT image_id FROM image_metadata WHERE LenseModel LIKE '%{}%'", search.from_string);
         let (newvideos, newfiles) = search_image_metadata(
             connection, 
             query, 
@@ -530,7 +544,7 @@ pub fn search_image(
         }
     }
     if search.focal_length {
-        let query = format!("SELECT image_id FROM image_metadata WHERE Focallength LIKE '%{}%'", search.search_string);
+        let query = format!("SELECT image_id FROM image_metadata WHERE Focallength LIKE '%{}%'", search.from_string);
         let (newvideos, newfiles) = search_image_metadata(
             connection, 
             query, 
@@ -544,7 +558,7 @@ pub fn search_image(
         }
     }
     if search.exposure_time {
-        let query = format!("SELECT image_id FROM image_metadata WHERE Exposuretime LIKE '%{}%'", search.search_string);
+        let query = format!("SELECT image_id FROM image_metadata WHERE Exposuretime LIKE '%{}%'", search.from_string);
         let (newvideos, newfiles) = search_image_metadata(
             connection, 
             query, 
@@ -558,7 +572,7 @@ pub fn search_image(
         }
     }
     if search.fnumber {
-        let query = format!("SELECT image_id FROM image_metadata WHERE FNumber LIKE '%{}%'", search.search_string);
+        let query = format!("SELECT image_id FROM image_metadata WHERE FNumber LIKE '%{}%'", search.from_string);
         let (newvideos, newfiles) = search_image_metadata(
             connection, 
             query, 
@@ -629,13 +643,11 @@ pub fn search_image(
         }
     }
     if search.release_date && search.from_string.len() != 0 {
-        let from_date = string_to_linux_time(&search.from_string);
-        let to_date = string_to_linux_time(&search.to_string);
         let query;
-        if to_date != 0 {
-            query = format!("SELECT image_id FROM image_metadata WHERE created > {} AND created < {}", from_date, to_date);
+        if search.to_date != 0 {
+            query = format!("SELECT image_id FROM image_metadata WHERE created > {} AND created < {}", search.from_date, search.to_date);
         } else {
-            query = format!("SELECT image_id FROM image_metadata WHERE created > {}", from_date);
+            query = format!("SELECT image_id FROM image_metadata WHERE created > {}", search.from_date);
         }
         let (newvideos, newfiles) = search_image_metadata(
             connection, 
@@ -773,7 +785,7 @@ fn stuff_items(
 
 /// date has to be in the following format
 /// YYYY-MM-DDThh:mm:ss (1996-12-19T16:39:57)
-fn string_to_linux_time(date: &str) -> i64 {
+pub fn string_to_linux_time(date: &str) -> i64 {
     let mut linuxtime = 0;
     if let Ok(date) = chrono::DateTime::parse_from_rfc3339(date) {
         let naive = date.naive_utc();
@@ -785,13 +797,89 @@ fn string_to_linux_time(date: &str) -> i64 {
 
 pub fn search_items(
     connection: &mut rusqlite::Connection, 
-    search: &SearchData,
+    s: &SearchData,
 ) -> Vec<crate::tab::Item> {
+    let mut search = s.to_owned();
+    // if the search term was entered into the to box switch the boxes
+    if search.from_string.trim().len() == 0 && search.to_string.len() > 0 {
+        search.from_string = search.to_string.clone();
+        search.to_string.clear();
+    }
+    // if the string is a date, convert it
+    if search.from_string.len() > 0 && search.from_date == 0 {
+        let lt = crate::sql::string_to_linux_time(&search.from_string);
+        if lt > 0 {
+            search.from_date = lt as i64;
+            search.from_string.clear();
+        }
+    }
+    // if the string is a number, convert it
+    if search.from_string.len() > 0 && search.from_value == 0 {
+        match search.from_string.parse::<f32>() {
+            Ok(float) => {
+                search.from_value = (float * 1000000.0) as u64;
+                search.from_string.clear();
+            },
+            Err(_) => {}
+        }
+    }
+    // if the string is a date, convert it
+    if search.to_string.len() > 0 && search.to_date == 0 {
+        let lt = crate::sql::string_to_linux_time(&search.to_string);
+        if lt > 0 {
+            search.to_date = lt as i64;
+            search.to_string.clear();
+        }
+    }
+    // if the string is a number, convert it
+    if search.to_string.len() > 0 && search.to_value == 0 {
+        match search.to_string.parse::<f32>() {
+            Ok(float) => {
+                search.to_value = (float * 1000000.0) as u64;
+                search.to_string.clear();
+            },
+            Err(_) => {}
+        }
+    }
+    // if we are searching for dates, activate them if necessary
+    if (search.from_date > 0 || search.to_date > 0) && !search.creation_date && !search.modification_date && !search.release_date {
+        search.creation_date = true;
+        search.modification_date = true;
+        search.release_date = true;
+    }
+
+    // if we search for a single date, search for a whole date. 
+    if search.from_date > 0 && search.to_date == 0 {
+        if let Some(datetime) = chrono::DateTime::from_timestamp(search.from_date, 0) {
+            if let Some(starthour) = datetime.checked_add_signed(chrono::Duration::hours(-(datetime.hour() as i64))) {
+                if let Some(startminute) = starthour.checked_add_signed(chrono::Duration::minutes(-(datetime.minute() as i64))) {
+                    if let Some(startsecond) = startminute.checked_add_signed(chrono::Duration::minutes(-(datetime.second() as i64))) {
+                        let start = startsecond.timestamp();
+                        if let Some(enddatetime) = datetime.checked_add_signed(chrono::Duration::days(1)) {
+                            search.from_date = start;
+                            search.to_date = enddatetime.timestamp();
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    if search.from_string.len() == 0 && search.to_string.len() == 0 && search.from_value == 0 && search.to_value == 0 && search.from_date == 0 && search.to_date == 0 {
+        log::error!("Please enter some value to search for!");
+        return Vec::new();
+    }
+    // if we don't search for anything, exit with warning
+    if !search.image && !search.video && !search.audio {
+        log::error!("Please select some media to search for!");
+        return Vec::new();
+    }
+
     let mut items: Vec<crate::tab::Item> = Vec::new();
     let mut used_files: std::collections::BTreeSet<PathBuf> = std::collections::BTreeSet::new();
     let mut known_files: std::collections::BTreeMap<PathBuf, FileMetadata> = std::collections::BTreeMap::new();
     if search.video {
-        let (mut newmetadata, newfiles) = search_video(connection, search);
+        let (mut newmetadata, newfiles) = search_video(connection, &search);
         for i in 0..newfiles.len() {
             if !used_files.contains(&newfiles[i].filepath) {
                 used_files.insert(newfiles[i].filepath.clone());
@@ -811,7 +899,7 @@ pub fn search_items(
         }
     }
     if search.audio {
-        let (mut newmetadata, newfiles) = search_audio(connection, search);
+        let (mut newmetadata, newfiles) = search_audio(connection, &search);
         for i in 0..newfiles.len() {
             if !used_files.contains(&newfiles[i].filepath) {
                 used_files.insert(newfiles[i].filepath.clone());
@@ -833,7 +921,7 @@ pub fn search_items(
         }
     }
     if search.image {
-        let (mut newmetadata, newfiles) = search_image(connection, search);
+        let (mut newmetadata, newfiles) = search_image(connection, &search);
         for i in 0..newfiles.len() {
             if !used_files.contains(&newfiles[i].filepath) {
                 used_files.insert(newfiles[i].filepath.clone());
@@ -853,47 +941,43 @@ pub fn search_items(
         }
     }
     if search.creation_date && search.from_string.len() != 0 {
-        let from_date = string_to_linux_time(&search.from_string);
-        let to_date = string_to_linux_time(&search.to_string);
-        let query;
-        if to_date != 0 {
-            query = format!("SELECT metadata_id FROM file_metadata WHERE creation_time > {} AND creation_time < {}", from_date, to_date);
+       let query;
+        if search.to_date != 0 {
+            query = format!("SELECT metadata_id FROM file_metadata WHERE creation_time > {} AND creation_time < {}", search.from_date, search.to_date);
         } else {
-            query = format!("SELECT metadata_id FROM file_metadata WHERE creation_time > {}", from_date);
+            query = format!("SELECT metadata_id FROM file_metadata WHERE creation_time > {}", search.from_date);
         }
         let newfiles: Vec<FileMetadata> = search_file_metadata(
             connection, 
             query, 
         );
         for file in newfiles {
-            stuff_items(connection, search, &mut known_files, &mut used_files, file, &mut items);
+            stuff_items(connection, &search, &mut known_files, &mut used_files, file, &mut items);
         }
     }
     if search.modification_date && search.from_string.len() != 0 {
-        let from_date = string_to_linux_time(&search.from_string);
-        let to_date = string_to_linux_time(&search.to_string);
         let query;
-        if to_date != 0 {
-            query = format!("SELECT metadata_id FROM file_metadata WHERE modification_time > {} AND modification_time < {}", from_date, to_date);
+        if search.to_date != 0 {
+            query = format!("SELECT metadata_id FROM file_metadata WHERE modification_time > {} AND modification_time < {}", search.from_date, search.to_date);
         } else {
-            query = format!("SELECT metadata_id FROM file_metadata WHERE modification_time > {}", from_date);
+            query = format!("SELECT metadata_id FROM file_metadata WHERE modification_time > {}", search.from_date);
         }
         let newfiles: Vec<FileMetadata> = search_file_metadata(
             connection, 
             query, 
         );
         for file in newfiles {
-            stuff_items(connection, search, &mut known_files, &mut used_files, file, &mut items);
+            stuff_items(connection, &search, &mut known_files, &mut used_files, file, &mut items);
         }
     }
     if search.filepath {
-        let query = format!("SELECT metadata_id FROM file_metadata WHERE filepath LIKE '%{}%'", search.search_string);
+        let query = format!("SELECT metadata_id FROM file_metadata WHERE filepath LIKE '%{}%'", search.from_string);
         let newfiles: Vec<FileMetadata> = search_file_metadata(
             connection, 
             query, 
         );
         for file in newfiles {
-            stuff_items(connection, search, &mut known_files, &mut used_files, file, &mut items);
+            stuff_items(connection, &search, &mut known_files, &mut used_files, file, &mut items);
         }
     }
 
@@ -3700,21 +3784,28 @@ pub fn insert_search(
     let fromvalue = (s.from_value / 1000000) as f32;
     let tovalue = (s.to_value / 1000000) as f32;
     match connection.execute(
-        "INSERT INTO searches (search_string, from_string, from_value, to_string, to_value,
-                image, video, audio, filepath, title, description, actor, director, artist, album_artist,
+        "INSERT INTO searches (from_string, from_value, from_date, to_string, to_value, to_date,
+                image, video, audio, filepath, title, description, 
+                actor, director, artist, album_artist,
                 duration, creation_date, modification_date, release_date, 
                 lense_model, focal_length, exposure_time, fnumber,
                 gps_latitude, gps_longitude, gps_altitude) VALUES 
-                (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23, ?24, ?25, ?26)",
-        params![&s.search_string, &s.from_string, &fromvalue, &s.to_string, &tovalue , 
-                &s.image, &s.video, &s.audio, &s.filepath, &s.title, &s.description, &s.actor, &s.director, &s.artist, &s.album_artist,
+                (?1, ?2, ?3, ?4, ?5, ?6, 
+                ?7, ?8, ?9, ?10, ?11, ?12, 
+                ?13, ?14, ?15, ?16, 
+                ?17, ?18, ?19, ?20, 
+                ?21, ?22, ?23, ?24, 
+                ?25, ?26, ?27)",
+        params![&s.from_string, &fromvalue, &s.from_date, &s.to_string, &tovalue, &s.to_date, 
+                &s.image, &s.video, &s.audio, &s.filepath, &s.title, &s.description, 
+                &s.actor, &s.director, &s.artist, &s.album_artist,
                 &s.duration, &s.creation_date, &s.modification_date, &s.release_date,
                 &s.lense_model, &s.focal_length, &s.exposure_time, &s.fnumber,
                 &s.gps_latitude, &s.gps_longitude, &s.gps_altitude],
     ) {
         Ok(_retval) => {}, //log::warn!("Inserted {} video with ID {} and location {} into candidates.", video.id, video.index, candidate_id),
         Err(error) => {
-            log::error!("Failed to insert video into  database: {}", error);
+            log::error!("Failed to insert search into searches database: {}", error);
             return;
         }
     }
@@ -3756,195 +3847,202 @@ pub fn searches(
                                         v.search_id = val;
                                     },
                                     Err(error) => {
-                                        log::error!("Failed to read id for video: {}", error);
+                                        log::error!("Failed to read search_id for searches: {}", error);
                                         continue;
                                     }
                                 }
                                 match row.get(1) {
-                                    Ok(val) => v.search_string = val,
+                                    Ok(val) => v.from_string = val,
                                     Err(error) => {
-                                        log::error!("Failed to read video_id for video: {}", error);
+                                        log::error!("Failed to read from_string for searches: {}", error);
                                         continue;
                                     }
                                 }
                                 match row.get(2) {
-                                    Ok(val) => v.from_string = val,
+                                    Ok(val) => {
+                                        let f: f32 = val;
+                                        v.from_value = (f * 1000000.0) as u64;
+                                    },
                                     Err(error) => {
-                                        log::error!("Failed to read screenshot_id for video: {}", error);
+                                        log::error!("Failed to read from_value for searches: {}", error);
                                         continue;
                                     }
                                 }
                                 match row.get(3) {
-                                    Ok(val) => {
-                                        let f: f32 = val;
-                                        v.from_value = (f * 1000000.0) as u32;
-                                    },
+                                    Ok(val) => v.from_date = val,
                                     Err(error) => {
-                                        log::error!("Failed to read runtime for video: {}", error);
+                                        log::error!("Failed to read from_date for searches: {}", error);
                                         continue;
                                     }
                                 }
                                 match row.get(4) {
                                     Ok(val) => v.to_string = val,
                                     Err(error) => {
-                                        log::error!("Failed to read runtime for video: {}", error);
+                                        log::error!("Failed to read to_string for searches: {}", error);
                                         continue;
                                     }
                                 }
                                 match row.get(5) {
                                     Ok(val) => {
                                         let f: f32 = val;
-                                        v.to_value = (f * 1000000.0) as u32;
+                                        v.to_value = (f * 1000000.0) as u64;
                                     },
                                     Err(error) => {
-                                        log::error!("Failed to read runtime for video: {}", error);
+                                        log::error!("Failed to read to_value for searches: {}", error);
                                         continue;
                                     }
                                 }
                                 match row.get(6) {
-                                    Ok(val) => v.image = val,
+                                    Ok(val) => v.to_date = val,
                                     Err(error) => {
-                                        log::error!("Failed to read runtime for video: {}", error);
+                                        log::error!("Failed to read to_date for searches: {}", error);
                                         continue;
                                     }
                                 }
                                 match row.get(7) {
-                                    Ok(val) => v.video = val,
+                                    Ok(val) => v.image = val,
                                     Err(error) => {
-                                        log::error!("Failed to read runtime for video: {}", error);
+                                        log::error!("Failed to read image for searches: {}", error);
                                         continue;
                                     }
                                 }
                                 match row.get(8) {
-                                    Ok(val) => v.audio = val,
+                                    Ok(val) => v.video = val,
                                     Err(error) => {
-                                        log::error!("Failed to read runtime for video: {}", error);
+                                        log::error!("Failed to read video for searches: {}", error);
                                         continue;
                                     }
                                 }
                                 match row.get(9) {
-                                    Ok(val) => v.filepath = val,
+                                    Ok(val) => v.audio = val,
                                     Err(error) => {
-                                        log::error!("Failed to read runtime for video: {}", error);
+                                        log::error!("Failed to read audio for searches: {}", error);
                                         continue;
                                     }
                                 }
                                 match row.get(10) {
-                                    Ok(val) => v.title = val,
+                                    Ok(val) => v.filepath = val,
                                     Err(error) => {
-                                        log::error!("Failed to read runtime for video: {}", error);
+                                        log::error!("Failed to read filepath for searches: {}", error);
                                         continue;
                                     }
                                 }
                                 match row.get(11) {
-                                    Ok(val) => v.description = val,
+                                    Ok(val) => v.title = val,
                                     Err(error) => {
-                                        log::error!("Failed to read runtime for video: {}", error);
+                                        log::error!("Failed to read title for searches: {}", error);
                                         continue;
                                     }
                                 }
                                 match row.get(12) {
-                                    Ok(val) => v.actor = val,
+                                    Ok(val) => v.description = val,
                                     Err(error) => {
-                                        log::error!("Failed to read runtime for video: {}", error);
+                                        log::error!("Failed to read description for searches: {}", error);
                                         continue;
                                     }
                                 }
                                 match row.get(13) {
-                                    Ok(val) => v.director = val,
+                                    Ok(val) => v.actor = val,
                                     Err(error) => {
-                                        log::error!("Failed to read runtime for video: {}", error);
+                                        log::error!("Failed to read actor for searches: {}", error);
                                         continue;
                                     }
                                 }
                                 match row.get(14) {
-                                    Ok(val) => v.artist = val,
+                                    Ok(val) => v.director = val,
                                     Err(error) => {
-                                        log::error!("Failed to read runtime for video: {}", error);
+                                        log::error!("Failed to read director for searches: {}", error);
                                         continue;
                                     }
                                 }
                                 match row.get(15) {
-                                    Ok(val) => v.album_artist = val,
+                                    Ok(val) => v.artist = val,
                                     Err(error) => {
-                                        log::error!("Failed to read runtime for video: {}", error);
+                                        log::error!("Failed to read artist for searches: {}", error);
                                         continue;
                                     }
                                 }
                                 match row.get(16) {
-                                    Ok(val) => v.duration = val,
+                                    Ok(val) => v.album_artist = val,
                                     Err(error) => {
-                                        log::error!("Failed to read runtime for video: {}", error);
+                                        log::error!("Failed to read album_artist for searches: {}", error);
                                         continue;
                                     }
                                 }
                                 match row.get(17) {
-                                    Ok(val) => v.creation_date = val,
+                                    Ok(val) => v.duration = val,
                                     Err(error) => {
-                                        log::error!("Failed to read runtime for video: {}", error);
+                                        log::error!("Failed to read duration for searches: {}", error);
                                         continue;
                                     }
                                 }
                                 match row.get(18) {
-                                    Ok(val) => v.modification_date = val,
+                                    Ok(val) => v.creation_date = val,
                                     Err(error) => {
-                                        log::error!("Failed to read runtime for video: {}", error);
+                                        log::error!("Failed to read creation_date for searches: {}", error);
                                         continue;
                                     }
                                 }
                                 match row.get(19) {
-                                    Ok(val) => v.release_date = val,
+                                    Ok(val) => v.modification_date = val,
                                     Err(error) => {
-                                        log::error!("Failed to read runtime for video: {}", error);
+                                        log::error!("Failed to read modification_date for searches: {}", error);
                                         continue;
                                     }
                                 }
                                 match row.get(20) {
-                                    Ok(val) => v.lense_model = val,
+                                    Ok(val) => v.release_date = val,
                                     Err(error) => {
-                                        log::error!("Failed to read runtime for video: {}", error);
+                                        log::error!("Failed to read release_date for searches: {}", error);
                                         continue;
                                     }
                                 }
                                 match row.get(21) {
-                                    Ok(val) => v.focal_length = val,
+                                    Ok(val) => v.lense_model = val,
                                     Err(error) => {
-                                        log::error!("Failed to read runtime for video: {}", error);
+                                        log::error!("Failed to read lense_model for searches: {}", error);
                                         continue;
                                     }
                                 }
                                 match row.get(22) {
-                                    Ok(val) => v.exposure_time = val,
+                                    Ok(val) => v.focal_length = val,
                                     Err(error) => {
-                                        log::error!("Failed to read runtime for video: {}", error);
+                                        log::error!("Failed to read focal_length for searches: {}", error);
                                         continue;
                                     }
                                 }
                                 match row.get(23) {
-                                    Ok(val) => v.fnumber = val,
+                                    Ok(val) => v.exposure_time = val,
                                     Err(error) => {
-                                        log::error!("Failed to read runtime for video: {}", error);
+                                        log::error!("Failed to read exposure_time for searches: {}", error);
                                         continue;
                                     }
                                 }
                                 match row.get(24) {
-                                    Ok(val) => v.gps_latitude = val,
+                                    Ok(val) => v.fnumber = val,
                                     Err(error) => {
-                                        log::error!("Failed to read runtime for video: {}", error);
+                                        log::error!("Failed to read fnumber for searches: {}", error);
                                         continue;
                                     }
                                 }
                                 match row.get(25) {
-                                    Ok(val) => v.gps_longitude = val,
+                                    Ok(val) => v.gps_latitude = val,
                                     Err(error) => {
-                                        log::error!("Failed to read runtime for video: {}", error);
+                                        log::error!("Failed to read gps_latitude for searches: {}", error);
                                         continue;
                                     }
                                 }
                                 match row.get(26) {
+                                    Ok(val) => v.gps_longitude = val,
+                                    Err(error) => {
+                                        log::error!("Failed to read gps_longitude for searches: {}", error);
+                                        continue;
+                                    }
+                                }
+                                match row.get(27) {
                                     Ok(val) => v.gps_altitude = val,
                                     Err(error) => {
-                                        log::error!("Failed to read runtime for video: {}", error);
+                                        log::error!("Failed to read gps_altitude for searches: {}", error);
                                         continue;
                                     }
                                 }
@@ -3955,14 +4053,14 @@ pub fn searches(
                                 break;
                             },
                             Err(error) => {
-                                log::error!("Failed to read a row from indices: {}", error);
+                                log::error!("Failed to read a row from searches: {}", error);
                                 break;
                             }
                         }
                     }
                 },
                 Err(err) => {
-                    log::error!("could not read line from videostore_indices database: {}", err);
+                    log::error!("could not read line from searches database: {}", err);
                 }
             }
         },
@@ -4449,11 +4547,12 @@ pub fn connect() -> Result<rusqlite::Connection, rusqlite::Error> {
         match connection.execute("
             CREATE TABLE searches (
                 search_id INTEGER,
-                search_string  TEXT, 
                 from_string  TEXT, 
                 from_value DOUBLE, 
+                from_date INTEGER,
                 to_string  TEXT, 
                 to_value DOUBLE, 
+                to_date INTEGER,
                 image  INTEGER, 
                 video  INTEGER, 
                 audio  INTEGER, 
