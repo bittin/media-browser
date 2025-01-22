@@ -1248,13 +1248,6 @@ impl App {
                 .into(),
         ]));
         column = column.push(widget::text::heading(fl!("search-textentry")));
-        column = column.push(
-            widget::text_input("".to_string(), self.search.search_string.as_str())
-                .id(self.search_string.clone())
-                .on_input(Message::SearchSearchString)
-                .on_submit(Message::SearchSearchStringSubmit),
-        );
-        column = column.push(widget::text::heading(fl!("search-ranges")));
         column = column.push(widget::row::with_children(vec![
             widget::text::heading(fl!("search-text-from")).into(),
             widget::horizontal_space().into(),
@@ -1276,31 +1269,6 @@ impl App {
                     .on_input(Message::SearchSearchToString)
                     .on_submit(Message::SearchSearchToStringSubmit),
                 widget::text::body(fl!("search-tooltip-date")),
-                widget::tooltip::Position::Top,
-            )
-            .into(),
-        ]));
-        column = column.push(widget::row::with_children(vec![
-            widget::text::heading(fl!("search-value-from")).into(),
-            widget::horizontal_space().into(),
-            widget::text::heading(fl!("search-value-to")).into(),
-        ]));
-        column = column.push(widget::row::with_children(vec![
-            widget::tooltip(
-                widget::text_input("".to_string(), self.search.from_value_string.as_str())
-                    .id(self.search_from_value.clone())
-                    .on_input(Message::SearchSearchFromValue)
-                    .on_submit(Message::SearchSearchFromValueSubmit),
-                widget::text::body(fl!("search-tooltip-value")),
-                widget::tooltip::Position::Top,
-            )
-            .into(),
-            widget::tooltip(
-                widget::text_input("".to_string(), self.search.to_value_string.as_str())
-                    .id(self.search_to_value.clone())
-                    .on_input(Message::SearchSearchToValue)
-                    .on_submit(Message::SearchSearchToValueSubmit),
-                widget::text::body(fl!("search-tooltip-value")),
                 widget::tooltip::Position::Top,
             )
             .into(),
@@ -1629,8 +1597,8 @@ self.image_view.image_path.clone(),
             .on_end_of_stream(Message::EndOfStream)
             .on_missing_plugin(Message::MissingPlugin)
             .on_new_frame(Message::NewFrame)
-            .width(1920.0)
-            .height(1080.0);
+            .width(3840.0)
+            .height(2160.0);
 
         let mouse_area = widget::mouse_area(video_player)
             .on_press(Message::PlayPause)
@@ -3636,8 +3604,7 @@ impl Application for App {
                 crate::image::image_view::Message::ToAudio => {}
                 crate::image::image_view::Message::Open(imagepath) => {
                     self.image_view.image_path = imagepath;
-                    self.image_view.handle_opt = Some(crate::image::image::create_handle(
-                        self.image_view.image_path.clone()));
+                    self.image_view.handle_opt = Some(crate::image::image::Handle::from_path(self.image_view.image_path.clone()));
                     self.image_view.image_path_loaded = self.image_view.image_path.clone();
                     self.active_view = Mode::Image;
                     self.view();
@@ -4333,18 +4300,34 @@ impl Application for App {
                 self.search.from_string = input.clone();
             }
             Message::SearchSearchFromStringSubmit => {
-                log::warn!("{}", self.search.search_string);
+                log::warn!("{}", self.search.from_string);
+                let lt = crate::sql::string_to_linux_time(&self.search.from_string);
+                if lt > 0 {
+                    self.search.from_date = lt as i64;
+                }
+                match self.search.from_string.parse::<f32>() {
+                    Ok(float) => self.search.from_value = (float * 1000000.0) as u64,
+                    Err(_) => {}
+                }
             }
             Message::SearchSearchToString(input) => {
                 self.search.to_string = input.clone();
             }
             Message::SearchSearchToStringSubmit => {
-                log::warn!("{}", self.search.search_string);
+                log::warn!("{}", self.search.to_string);
+                let lt = crate::sql::string_to_linux_time(&self.search.to_string);
+                if lt > 0 {
+                    self.search.to_date = lt as i64;
+                }
+                match self.search.to_string.parse::<f32>() {
+                    Ok(float) => self.search.to_value = (float * 1000000.0) as u64,
+                    Err(_) => {}
+                }
             }
             Message::SearchSearchFromValue(input) => {
                 self.search.from_value_string = input.clone();
                 let float = crate::parsers::string_to_float(&self.search.from_value_string);
-                self.search.from_value = (float * 1000000.0) as u32;
+                self.search.from_value = (float * 1000000.0) as u64;
             }
             Message::SearchSearchFromValueSubmit => {
                 log::warn!("{}", self.search.search_string);
@@ -4352,7 +4335,7 @@ impl Application for App {
             Message::SearchSearchToValue(input) => {
                 self.search.to_value_string = input.clone();
                 let float = crate::parsers::string_to_float(&self.search.to_value_string);
-                self.search.to_value = (float * 1000000.0) as u32;
+                self.search.to_value = (float * 1000000.0) as u64;
             }
             Message::SearchSearchToValueSubmit => {
                 log::warn!("{}", self.search.to_value);

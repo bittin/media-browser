@@ -40,6 +40,7 @@ Positions ended with a ? are *stretch goals*. If it is possible AND somebody doe
 
 #### Open Bugs
 
+- unbounded searches will kill the machine. Make sanity checks!
 - fix release date 1970-01-01
 - check creation date newer than modification date
 - Automatically close Popup GUI after 5 Seconds of no activity
@@ -92,13 +93,13 @@ Positions ended with a ? are *stretch goals*. If it is possible AND somebody doe
 - add a popup selection strip of the files/images in the same directory
 - store image metadata in the database
 - images larger than 9000 pixels in any direction are scaled down to thumbnail directory and used from there.
+- adjust the size and shape away from the original aspect ratio of the image viewer on zoom-in if there is room to grow in the window?
 
 #### Image Open Features
 
 - make the zoom buttons work? (might require another viewer)
 - make the popup strip disappear once the mouse is no longer hovering over it?
   - mouse_area is whole image_viewer, not just the pop_over
-- adjust the size and shape away from the original aspect ratio of the image viewer on zoom-in if there is room to grow in the window?
 
 ## Video viewer
 
@@ -116,10 +117,10 @@ Positions ended with a ? are *stretch goals*. If it is possible AND somebody doe
 - stop playback when opening new file
 - stop playback when switching to Browser view
 - add chapter navigation
+- make the player zoom a video that is smaller than the display area
 
 #### Video Open Features
 
-- make the player zoom a video that is smaller than the display area
 - add playback speed control?
 
 ## Audio Player
