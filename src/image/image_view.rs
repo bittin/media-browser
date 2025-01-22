@@ -61,6 +61,7 @@ impl ImageView {
             Message::ToAudio => {},
             Message::Open(imagepath) => {
                 self.image_path = imagepath.clone();
+                self.handle_opt = Some(super::image::Handle::from_path(self.image_path.clone()));
                 self.image_path_loaded = self.image_path.clone();
             }
             Message::NextFile => {},
