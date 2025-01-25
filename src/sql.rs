@@ -9,7 +9,7 @@ use std::path::PathBuf;
 use std::collections::BTreeMap;
 use chrono::{NaiveDate, Timelike};
 
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Hash)]
+#[derive(Clone, Debug, Eq, PartialOrd, Hash)]
 pub struct SearchData {
     pub search_id: u32,
     pub search_string: String,
@@ -82,35 +82,82 @@ impl Default for SearchData {
     }
 }
 
-impl std::fmt::Display for SearchData {
-    // This trait requires `fmt` with this exact signature.
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        let _ = write!(f, "{}", self.search_id);
+impl SearchData {
+    pub fn display(&self) -> String {
+        let mut s = String::new();
+        s = format!("{}", self.search_id);
         if self.image {
-            let _ = write!(f, " Image");
+            s = format!("{} Image", s);
         } 
         if self.video {
-            let _ = write!(f, " Video");
+            s = format!("{} Video", s);
         }
         if self.audio {
-            let _ = write!(f, " Audio");
-        }
-        if self.search_string.len() > 0 {
-            let _ = write!(f, " {}", self.search_string);
+            s = format!("{} Audio", s);
         }
         if self.from_string.len() > 0 {
-            let _ = write!(f, " from {}", self.from_string);
+            s = format!("{} from {}", s, self.from_string);
         }
         if self.to_string.len() > 0 {
-            let _ = write!(f, " to {}", self.to_string);
+            s = format!("{} to {}", s, self.to_string);
         }
         if self.from_value > 0 {
-            let _ = write!(f, " from {}", self.from_value);
+            s = format!("{} from {}", s, self.from_value);
         }
         if self.to_value > 0 {
-            let _ = write!(f, " to {}", self.to_value);
+            s = format!("{} to {}", s, self.to_value);
         }
-        write!(f, " ")
+        if self.from_date > 0 {
+            s = format!("{} from {}", s, self.from_date);
+        }
+        if self.to_date > 0 {
+            s = format!("{} to {}", s, self.to_date);
+        }
+        s
+    }
+
+    pub fn store(&mut self) {
+        if let Ok(mut connection) = connect() {
+            let id = insert_search(&mut connection, self.clone());
+            self.search_id = id;
+        }
+    }
+}
+
+impl PartialEq for SearchData {
+    fn eq(&self, other: &Self) -> bool {
+        let res = self.from_string.to_ascii_lowercase() == other.from_string.to_ascii_lowercase()
+            && self.from_value == other.from_value
+            && self.from_date == other.from_date
+            && self.to_string.to_ascii_lowercase() == other.to_string.to_ascii_lowercase()
+            && self.to_value == other.to_value
+            && self.to_date == other.to_date
+            && self.image == other.image
+            && self.video == other.video
+            && self.audio == other.audio
+            && self.filepath == other.filepath
+            && self.title == other.title
+            && self.description == other.description
+            && self.actor == other.actor
+            && self.director == other.director
+            && self.artist == other.artist
+            && self.album_artist == other.album_artist
+            && self.duration == other.duration
+            && self.creation_date == other.creation_date
+            && self.modification_date == other.modification_date
+            && self.release_date == other.release_date
+            && self.lense_model == other.lense_model
+            && self.focal_length == other.focal_length
+            && self.exposure_time == other.exposure_time
+            && self.fnumber == other.fnumber
+            && self.gps_latitude == other.gps_latitude
+            && self.gps_longitude == other.gps_longitude
+            && self.gps_longitude == other.gps_longitude
+            && self.gps_altitude == other.gps_altitude;
+        if !res {
+            return false;
+        }
+        return true;
     }
 }
 
@@ -3780,7 +3827,8 @@ pub fn update_file(
 pub fn insert_search(
     connection: &mut rusqlite::Connection, 
     s: SearchData,
-) {
+) -> u32 {
+    let mut search_id = 0;
     let fromvalue = (s.from_value / 1000000) as f32;
     let tovalue = (s.to_value / 1000000) as f32;
     match connection.execute(
@@ -3796,7 +3844,7 @@ pub fn insert_search(
                 ?17, ?18, ?19, ?20, 
                 ?21, ?22, ?23, ?24, 
                 ?25, ?26, ?27)",
-        params![&s.from_string, &fromvalue, &s.from_date, &s.to_string, &tovalue, &s.to_date, 
+        params![&s.from_string.to_ascii_lowercase(), &fromvalue, &s.from_date, &s.to_string.to_ascii_lowercase(), &tovalue, &s.to_date, 
                 &s.image, &s.video, &s.audio, &s.filepath, &s.title, &s.description, 
                 &s.actor, &s.director, &s.artist, &s.album_artist,
                 &s.duration, &s.creation_date, &s.modification_date, &s.release_date,
@@ -3806,9 +3854,33 @@ pub fn insert_search(
         Ok(_retval) => {}, //log::warn!("Inserted {} video with ID {} and location {} into candidates.", video.id, video.index, candidate_id),
         Err(error) => {
             log::error!("Failed to insert search into searches database: {}", error);
-            return;
+            return search_id;
         }
     }
+    let query = "SELECT last_insert_rowid()";
+    match connection.prepare(query) {
+        Ok(mut statement) => {
+            match statement.query(params![]) {
+                Ok(mut rows) => {
+                    while let Ok(Some(row)) = rows.next() {
+                        let s_opt = row.get(0);
+                        if s_opt.is_ok() {
+                            search_id = s_opt.unwrap();
+                        }
+                    }
+                },
+                Err(err) => {
+                    log::error!("could not read line from audio_metadata database: {}", err);
+                }
+            }
+        },
+        Err(error) => {
+            log::error!("Failed to get audio_id for from database: {}", error);
+            return search_id;
+        }
+    }
+    search_id
+
 }
 
 pub fn delete_search(    
@@ -4070,6 +4142,13 @@ pub fn searches(
     }
 
     searches
+}
+
+pub fn previous_searches() -> Vec<SearchData> {
+    if let Ok(mut connection) = connect() {
+        return searches(&mut connection);
+    }
+    Vec::new()
 }
 
 pub fn connect() -> Result<rusqlite::Connection, rusqlite::Error> {

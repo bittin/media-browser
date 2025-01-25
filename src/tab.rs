@@ -657,7 +657,6 @@ fn scan_search_db(search: &crate::sql::SearchData) -> Vec<Item> {
             return Vec::new();
         }
     }
-    crate::sql::insert_search(&mut connection, search.to_owned());
     log::warn!("Searching database");
     let mut items = crate::sql::search_items(&mut connection, search);
 
@@ -936,11 +935,13 @@ impl std::fmt::Display for Location {
             Self::Path(path) => write!(f, "{}", path.display()),
             Self::Recents => write!(f, "recents"),
             Self::Search(path, term, ..) => write!(f, "search {} for {}", path.display(), term),
-            Self::DBSearch(search) => write!(
-                f,
-                "search {} in database for selected entries.",
-                search.search_string
-            ),
+            Self::DBSearch(search) => {
+                write!(
+                    f,
+                    "search {} in database for selected entries.",
+                    search.display()
+                )
+            },
             Self::Trash => write!(f, "trash"),
         }
     }

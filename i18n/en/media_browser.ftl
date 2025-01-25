@@ -205,6 +205,9 @@ item-media-chapter = Chapter: {$id}, from {$start} to {$end}
 
 ## Search
 search-context = Search the database
+search-previous = Previous search terms
+search-select = Select
+search-delete = Delete
 search-mediatypes = Search Media types
 search-images = Images
 search-videos = Videos
@@ -241,10 +244,6 @@ search-gps_latitude = GPS latitude
 search-gps_longitude = GPS longitude
 search-gps_altitude = GPS altitude
 search-commit = Start Search
-search-previous = Previous Search
-search-previous-list = Select a previous search
-search-previous-use = Use selected
-search-previous-delete = Delete selected
 
 ## Settings
 settings = Settings

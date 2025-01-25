@@ -356,6 +356,9 @@ pub enum Message {
     SearchClear,
     SearchInput(String),
     SearchStart,
+    SearchPreviousPick(usize),
+    SearchPreviousSelect,
+    SearchPreviousDelete,
     SearchImages(bool),
     SearchVideos(bool),
     SearchAudios(bool),
@@ -558,11 +561,11 @@ pub struct App {
     failed_operations: BTreeMap<u64, (Operation, Controller, String)>,
     search_id: widget::Id,
     search: crate::sql::SearchData,
-    search_string: widget::Id,
+    search_previous: Vec<crate::sql::SearchData>,
+    search_previous_str: Vec<String>,
+    search_previous_pos: usize,
     search_from_string: widget::Id,
     search_to_string: widget::Id,
-    search_from_value: widget::Id,
-    search_to_value: widget::Id,
     size: Option<Size>,
     #[cfg(feature = "wayland")]
     surface_ids: HashMap<WlOutput, WindowId>,
@@ -1232,6 +1235,28 @@ impl App {
         let cosmic_theme::Spacing { space_m, .. } = theme::active().cosmic().spacing;
 
         let mut column = widget::column().spacing(space_m);
+        column = column.push(widget::text::heading(fl!("search-previous")));
+        column = column.push(widget::row::with_children(vec![
+            widget::dropdown(
+                &self.search_previous_str,
+                usize::try_from(self.search_previous_pos).ok(),
+                Message::SearchPreviousPick,
+            )
+            .into(),
+            widget::horizontal_space().into(),
+            widget::tooltip(widget::button::icon(
+                widget::icon::from_name("checkbox-checked-symbolic").size(16))
+                .on_press(Message::SearchPreviousSelect), 
+                widget::text::body(fl!("search-select")), 
+                widget::tooltip::Position::Top,)
+                .into(),
+            widget::tooltip(widget::button::icon(
+                widget::icon::from_name("edit-delete-symbolic").size(16))
+                .on_press(Message::SearchPreviousDelete), 
+                widget::text::body(fl!("search-delete")), 
+                widget::tooltip::Position::Top,)
+                .into(),
+            ]));
 
         column = column.push(widget::text::heading(fl!("search-mediatypes")));
         column = column.push(widget::row::with_children(vec![
@@ -2624,11 +2649,11 @@ impl Application for App {
             search: crate::sql::SearchData {
                 ..Default::default()
             },
-            search_string: widget::Id::unique(),
+            search_previous: Vec::new(),
+            search_previous_str: Vec::new(),
+            search_previous_pos: 0,
             search_from_string: widget::Id::unique(),
             search_to_string: widget::Id::unique(),
-            search_from_value: widget::Id::unique(),
-            search_to_value: widget::Id::unique(),
             size: None,
             #[cfg(feature = "wayland")]
             surface_ids: HashMap::new(),
@@ -4278,8 +4303,28 @@ impl Application for App {
                 self.search = crate::sql::SearchData {
                     ..Default::default()
                 };
+                self.search_previous.clear();
+                self.search_previous.extend(crate::sql::previous_searches());
+                for s in self.search_previous.iter() {
+                    self.search_previous_str.push(s.display());
+                }
                 self.context_page = ContextPage::Search;
                 self.core.window.show_context = true;
+            }
+            Message::SearchPreviousPick(pos) => {
+                self.search_previous_pos = pos;
+            }
+            Message::SearchPreviousSelect => {
+                let search = self.search_previous[self.search_previous_pos].clone();
+                self.search = search.clone();
+            }
+            Message::SearchPreviousDelete => {
+                let search = self.search_previous[self.search_previous_pos].clone();
+                self.search_previous_str.remove(self.search_previous_pos);
+                self.search_previous.remove(self.search_previous_pos);
+                if let Ok(mut connection) = crate::sql::connect() {
+                    crate::sql::delete_search(&mut connection, search);
+                }
             }
             Message::SearchImages(is_checked) => {
                 self.search.image = is_checked;
@@ -4431,7 +4476,18 @@ impl Application for App {
                 }
             }
             Message::SearchCommit => {
-                let location = Location::DBSearch(self.search.clone());
+                let mut s = self.search.clone();
+                for s2 in self.search_previous.iter() {
+                    if &s == s2 {
+                        s.search_id = s2.search_id;
+                    }
+                }
+                if s.search_id == 0 {
+                    s.store();
+                    self.search_previous.push(s.clone());
+                }
+                self.search = s.clone();
+                let location = Location::DBSearch(s);
                 let (parent_item_opt, items) = location.scan(IconSizes::default());
                 let (entity, command) = self.open_tab_entity(location, true, None);
                 if let Some(tab) = self.tab_model.data_mut::<Tab>(entity) {
