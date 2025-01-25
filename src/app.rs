@@ -4339,24 +4339,31 @@ impl Application for App {
                 }
             }
             Message::SearchImages(is_checked) => {
+                self.search.search_id = 0;
                 self.search.image = is_checked;
             }
             Message::SearchVideos(is_checked) => {
+                self.search.search_id = 0;
                 self.search.video = is_checked;
             }
             Message::SearchAudios(is_checked) => {
+                self.search.search_id = 0;
                 self.search.audio = is_checked;
             }
             Message::SearchSearchString(input) => {
+                self.search.search_id = 0;
                 self.search.search_string = input.clone();
             }
             Message::SearchSearchStringSubmit => {
+                self.search.search_id = 0;
                 log::warn!("{}", self.search.search_string);
             }
             Message::SearchSearchFromString(input) => {
+                self.search.search_id = 0;
                 self.search.from_string = input.clone();
             }
             Message::SearchSearchFromStringSubmit => {
+                self.search.search_id = 0;
                 log::warn!("{}", self.search.from_string);
                 let lt = crate::sql::string_to_linux_time(&self.search.from_string);
                 if lt > 0 {
@@ -4368,9 +4375,11 @@ impl Application for App {
                 }
             }
             Message::SearchSearchToString(input) => {
+                self.search.search_id = 0;
                 self.search.to_string = input.clone();
             }
             Message::SearchSearchToStringSubmit => {
+                self.search.search_id = 0;
                 log::warn!("{}", self.search.to_string);
                 let lt = crate::sql::string_to_linux_time(&self.search.to_string);
                 if lt > 0 {
@@ -4382,106 +4391,128 @@ impl Application for App {
                 }
             }
             Message::SearchSearchFromValue(input) => {
+                self.search.search_id = 0;
                 self.search.from_value_string = input.clone();
                 let float = crate::parsers::string_to_float(&self.search.from_value_string);
                 self.search.from_value = (float * 1000000.0) as u64;
             }
             Message::SearchSearchFromValueSubmit => {
+                self.search.search_id = 0;
                 log::warn!("{}", self.search.search_string);
             }
             Message::SearchSearchToValue(input) => {
+                self.search.search_id = 0;
                 self.search.to_value_string = input.clone();
                 let float = crate::parsers::string_to_float(&self.search.to_value_string);
                 self.search.to_value = (float * 1000000.0) as u64;
             }
             Message::SearchSearchToValueSubmit => {
+                self.search.search_id = 0;
                 log::warn!("{}", self.search.to_value);
             }
             Message::SearchFilepath(is_checked) => {
+                self.search.search_id = 0;
                 self.search.filepath = is_checked;
             }
             Message::SearchTitle(is_checked) => {
+                self.search.search_id = 0;
                 self.search.title = is_checked;
             }
             Message::SearchDescription(is_checked) => {
+                self.search.search_id = 0;
                 self.search.description = is_checked;
                 if !self.search.video {
                     self.search.video = true;
                 }
             }
             Message::SearchActor(is_checked) => {
+                self.search.search_id = 0;
                 self.search.actor = is_checked;
                 if !self.search.video {
                     self.search.video = true;
                 }
             }
             Message::SearchDirector(is_checked) => {
+                self.search.search_id = 0;
                 self.search.director = is_checked;
                 if !self.search.video {
                     self.search.video = true;
                 }
             }
             Message::SearchArtist(is_checked) => {
+                self.search.search_id = 0;
                 self.search.artist = is_checked;
                 if !self.search.audio {
                     self.search.audio = true;
                 }
             }
             Message::SearchAlbumartist(is_checked) => {
+                self.search.search_id = 0;
                 self.search.album_artist = is_checked;
                 if !self.search.audio {
                     self.search.audio = true;
                 }
             }
             Message::SearchDuration(is_checked) => {
+                self.search.search_id = 0;
                 self.search.duration = is_checked;
             }
             Message::SearchCreationDate(is_checked) => {
+                self.search.search_id = 0;
                 self.search.creation_date = is_checked;
             }
             Message::SearchModificationDate(is_checked) => {
+                self.search.search_id = 0;
                 self.search.modification_date = is_checked;
             }
             Message::SearchReleaseDate(is_checked) => {
+                self.search.search_id = 0;
                 self.search.release_date = is_checked;
             }
             Message::SearchLenseModel(is_checked) => {
+                self.search.search_id = 0;
                 self.search.lense_model = is_checked;
                 if !self.search.image {
                     self.search.image = true;
                 }
             }
             Message::SearchFocalLength(is_checked) => {
+                self.search.search_id = 0;
                 self.search.focal_length = is_checked;
                 if !self.search.image {
                     self.search.image = true;
                 }
             }
             Message::SearchExposureTime(is_checked) => {
+                self.search.search_id = 0;
                 self.search.exposure_time = is_checked;
                 if !self.search.image {
                     self.search.image = true;
                 }
             }
             Message::SearchFNumber(is_checked) => {
+                self.search.search_id = 0;
                 self.search.fnumber = is_checked;
                 if !self.search.image {
                     self.search.image = true;
                 }
             }
             Message::SearchGpsLatitude(is_checked) => {
+                self.search.search_id = 0;
                 self.search.gps_latitude = is_checked;
                 if !self.search.image {
                     self.search.image = true;
                 }
             }
             Message::SearchGpsLongitude(is_checked) => {
+                self.search.search_id = 0;
                 self.search.gps_longitude = is_checked;
                 if !self.search.image {
                     self.search.image = true;
                 }
             }
             Message::SearchGpsAltitude(is_checked) => {
+                self.search.search_id = 0;
                 self.search.gps_altitude = is_checked;
                 if !self.search.image {
                     self.search.image = true;

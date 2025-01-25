@@ -39,6 +39,7 @@ Positions ended with a ? are *stretch goals*. If it is possible AND somebody doe
 - Chapters not diplayed in audio player
 - Image search delivers videos
 - Navigation in search results navigates the directory view instead
+- New searches are not stored in the database
 
 #### Open Bugs
 
