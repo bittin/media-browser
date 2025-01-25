@@ -1424,10 +1424,12 @@ impl Item {
 
                         (details, settings) =
                             self.file_details(&path, &self.name, &mime_for_path(path.clone()));
-                        details = details.push(widget::text::body(fl!(
-                            "item-media-release-date",
-                            text = video.date.to_string()
-                        )));
+                        if video.date.to_string() != "1970-01-01".to_string() {
+                            details = details.push(widget::text::body(fl!(
+                                "item-media-release-date",
+                                text = video.date.to_string()
+                            )));
+                        }
                         details = details.push(widget::text::body(fl!(
                             "item-media-size",
                             width = video.width,
@@ -1476,10 +1478,12 @@ impl Item {
 
                         (details, settings) =
                             self.file_details(&path, &self.name, &mime_for_path(path.clone()));
-                        details = details.push(widget::text::body(fl!(
-                            "item-media-release-date",
-                            text = audio.date.to_string()
-                        )));
+                        if audio.date.to_string() != "1970-01-01".to_string() {
+                            details = details.push(widget::text::body(fl!(
+                                "item-media-release-date",
+                                text = audio.date.to_string()
+                            )));
+                        }
                         details = details.push(widget::text::body(fl!(
                             "item-media-runtime",
                             text = seconds_to_runtime(audio.duration)
@@ -1511,10 +1515,12 @@ impl Item {
 
                         (details, settings) =
                             self.file_details(&path, &self.name, &mime_for_path(path.clone()));
-                        details = details.push(widget::text::body(fl!(
-                            "item-media-release-date",
-                            text = image.date.to_string()
-                        )));
+                        if image.date.to_string() != "1970-01-01".to_string() {
+                            details = details.push(widget::text::body(fl!(
+                                "item-media-release-date",
+                                text = image.date.to_string()
+                            )));
+                        }
                         details = details.push(widget::text::body(fl!(
                             "item-media-size",
                             width = image.width,

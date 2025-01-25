@@ -29,6 +29,7 @@ Positions ended with a ? are *stretch goals*. If it is possible AND somebody doe
 - fix bug that single Movie directories are not parsed correctly
 - fix Previous/Next navigation by PageUp/PageDown
 - make Esc stop playback of audio and video and kill the gstreamer pipeline
+- skip EXIF extraction for unsupported image formats
 - Audio files do not open properly from database
 - Image files do not open properly from database
 - cosmic::iced::wgpu crashes when loading images too large on Intel ARC A770 with 16 GB VRAM if preview is open even with 2000xYYYY images when preview is open
@@ -59,15 +60,14 @@ Positions ended with a ? are *stretch goals*. If it is possible AND somebody doe
 - create thumbnails from video files without poster images
 - when entering a directory the contents are scanned automatically if they are not yet in the database
 - display all media files in the tab view and hide the metadata files
-- Display media on enter or double clidk and navigate to Previous and Next file on Button or Page-up and Page-Down, Button or Escape to leave viewer
+- Display media on enter or double click and navigate to Previous and Next file on Button or Page-up and Page-Down, Button or Escape to leave viewer
 - resursive scan of the selected directory by menu or right-click menu
-- skip EXIF extraction for unsupported image formats
 - Make recursive scan run in the background
   - Only already parsed images / directories can be used normally!
   - Write access to the database is blocked during runtime!
 - Search for filetype, actor, director, artist, albumartist, release date range, duration, chapters, ... in the database
 - Saved search management in the database
-- multiple file rename feature, using the sort order of the model (skip videos)
+- multiple file rename feature, using the sort order of the model
 - display detail information of entry (Free-Form Text field with all the available information)
 - Search panel with a separate result model/view
   - (new tab per search result, derived from tab so ESC returns to the search and the search handles the previous/next)
@@ -77,6 +77,7 @@ Positions ended with a ? are *stretch goals*. If it is possible AND somebody doe
 
 #### Open Features
 
+- optionally skip different media types in navigation?
 - sort by release date / creation / modification time
   - adjust the sort options when just one type is displayed and more details are available?
 - view files of only one type?
