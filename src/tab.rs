@@ -3397,6 +3397,97 @@ impl Tab {
 
         let mut children: Vec<Element<_>> = Vec::new();
         match &self.location {
+            Location::Path(path) => {
+                /*children.push(
+                    widget::button::custom(widget::text::heading(crate::parsers::osstr_to_string(
+                        uri.clone().into_os_string(),
+                    )))
+                    .padding(space_xxxs)
+                    .on_press(Message::Location(Location::Path(uri.clone())))
+                    .class(theme::Button::Text)
+                    .into(),
+                );
+                */
+                let excess_str = "...";
+                let excess_width = text_width_body(excess_str);
+                for (index, ancestor) in path.ancestors().enumerate() {
+                    let (name, found_home) = folder_name(&ancestor);
+                    let (name_width, name_text) = if children.is_empty() {
+                        (
+                            text_width_heading(&name),
+                            widget::text::heading(name).wrapping(text::Wrapping::None),
+                        )
+                    } else {
+                        children.push(
+                            widget::icon::from_name("go-next-symbolic")
+                                .size(16)
+                                .icon()
+                                .into(),
+                        );
+                        w += 16.0;
+                        (
+                            text_width_body(&name),
+                            widget::text::body(name).wrapping(text::Wrapping::None),
+                        )
+                    };
+
+                    // Add padding for mouse area
+                    w += 2.0 * space_xxxs as f32;
+
+                    let mut row = widget::row::with_capacity(2)
+                        .align_y(Alignment::Center)
+                        .spacing(space_xxxs);
+                    //TODO: figure out why this hardcoded offset is needed after the first item is ellipsed
+                    let overflow_offset = 32.0;
+                    let overflow = w + name_width + overflow_offset > size.width && index > 0;
+                    if overflow {
+                        row = row.push(widget::text::body(excess_str));
+                        w += excess_width;
+                    } else {
+                        row = row.push(name_text);
+                        w += name_width;
+                    }
+
+                    let location = match &self.location {
+                        Location::Path(_) => Location::Path(ancestor.to_path_buf()),
+                        Location::Search(_, term, _, _) => {
+                            Location::Search(ancestor.to_path_buf(), term.clone(), false, Instant::now())
+                        }
+                        other => other.clone(),
+                    };
+
+                    let mut mouse_area = crate::mouse_area::MouseArea::new(
+                        widget::button::custom(row)
+                            .padding(space_xxxs)
+                            .class(theme::Button::Link)
+                            .on_press(Message::Location(location.clone())),
+                    );
+
+                    if self.location_context_menu_index.is_some() {
+                        mouse_area = mouse_area.on_right_press(move |_point_opt| {
+                            Message::LocationContextMenuIndex(None)
+                        })
+                    } else {
+                        mouse_area = mouse_area.on_right_press_no_capture(move |_point_opt| {
+                            Message::LocationContextMenuIndex(Some(index))
+                        })
+                    }
+
+                    let mouse_area = if let Location::Path(_) = &self.location {
+                        mouse_area
+                            .on_middle_press(move |_| Message::OpenInNewTab(ancestor.to_path_buf()))
+                    } else {
+                        mouse_area
+                    };
+
+                    children.push(self.dnd_dest(&location, mouse_area));
+
+                    if found_home || overflow {
+                        break;
+                    }
+                }
+                children.reverse();
+            }
             Location::Trash => {
                 children.push(
                     widget::button::custom(widget::text::heading(fl!("trash")))
@@ -3425,17 +3516,6 @@ impl Tab {
                         )))
                         .class(theme::Button::Text)
                         .into(),
-                );
-            }
-            Location::Path(uri) => {
-                children.push(
-                    widget::button::custom(widget::text::heading(crate::parsers::osstr_to_string(
-                        uri.clone().into_os_string(),
-                    )))
-                    .padding(space_xxxs)
-                    .on_press(Message::Location(Location::Path(uri.clone())))
-                    .class(theme::Button::Text)
-                    .into(),
                 );
             }
             Location::Search(uri, display_name, show_hidden, instant) => {
