@@ -8,7 +8,7 @@ use crate::mime_app::mime_apps;
 use crate::mime_icon::{mime_for_path, mime_icon};
 use crate::tab::{hidden_attribute, DirSize, Item, ItemMetadata, ItemThumbnail, Location};
 
-use chrono::{NaiveDate, DateTime};
+use chrono::{DateTime, Datelike, NaiveDate};
 use cosmic::widget;
 use mime_guess::mime;
 use std::cell::Cell;
@@ -731,6 +731,15 @@ pub fn item_from_video(
                 if refresh {
                     // file is newer
                     create_screenshots(videometadata);
+                    if videometadata.date.num_days_from_ce() < 100 {
+                        if let Ok(created) = statdata.created() {
+                            if let Ok(nsecs) = created.duration_since(UNIX_EPOCH) {
+                                if let Some(ndt) = chrono::DateTime::from_timestamp(nsecs.as_secs() as i64, 0) {
+                                    videometadata.date = ndt.date_naive();
+                                }                                
+                            }
+                        }
+                    }
                     videometadata.thumb = crate::thumbnails::create_thumbnail(&PathBuf::from(&videometadata.poster), 254);
                     crate::sql::update_video(connection, videometadata, statdata, known_files);
                 } else {
@@ -739,6 +748,15 @@ pub fn item_from_video(
             }
         } else {
             create_screenshots(videometadata);
+            if videometadata.date.num_days_from_ce() < 100 {
+                if let Ok(created) = statdata.created() {
+                    if let Ok(nsecs) = created.duration_since(UNIX_EPOCH) {
+                        if let Some(ndt) = chrono::DateTime::from_timestamp(nsecs.as_secs() as i64, 0) {
+                            videometadata.date = ndt.date_naive();
+                        }                                
+                    }
+                }
+            }
             videometadata.thumb = crate::thumbnails::create_thumbnail(&PathBuf::from(&videometadata.poster), 254);
             crate::sql::insert_video(connection, videometadata, statdata, known_files);
         }
@@ -898,6 +916,15 @@ pub fn item_from_nfo(
                     // file is newer
                     video_metadata(metadata);
                     parse_nfo(&nfo_file, metadata);
+                    if metadata.date.num_days_from_ce() < 100 {
+                        if let Ok(created) = statdata.created() {
+                            if let Ok(nsecs) = created.duration_since(UNIX_EPOCH) {
+                                if let Some(ndt) = chrono::DateTime::from_timestamp(nsecs.as_secs() as i64, 0) {
+                                    metadata.date = ndt.date_naive();
+                                }                                
+                            }
+                        }
+                    }
                     metadata.thumb = crate::thumbnails::create_thumbnail(&PathBuf::from(&metadata.poster), 254);
                     metadata.name = basename.clone();
                     crate::sql::update_video(connection, metadata, statdata, known_files);
@@ -908,6 +935,15 @@ pub fn item_from_nfo(
         } else {
             video_metadata( metadata);
             parse_nfo(&nfo_file, metadata);
+            if metadata.date.num_days_from_ce() < 100 {
+                if let Ok(created) = statdata.created() {
+                    if let Ok(nsecs) = created.duration_since(UNIX_EPOCH) {
+                        if let Some(ndt) = chrono::DateTime::from_timestamp(nsecs.as_secs() as i64, 0) {
+                            metadata.date = ndt.date_naive();
+                        }                                
+                    }
+                }
+            }
             metadata.thumb = crate::thumbnails::create_thumbnail(&PathBuf::from(&metadata.poster), 254);
             metadata.name = basename.clone();
             crate::sql::insert_video(connection, metadata, statdata, known_files);
@@ -1096,6 +1132,15 @@ pub fn item_from_audiotags(
                     }
 
                     audio_metadata(audio, special_files, metadata);
+                    if metadata.date.num_days_from_ce() < 100 {
+                        if let Ok(created) = statdata.created() {
+                            if let Ok(nsecs) = created.duration_since(UNIX_EPOCH) {
+                                if let Some(ndt) = chrono::DateTime::from_timestamp(nsecs.as_secs() as i64, 0) {
+                                    metadata.date = ndt.date_naive();
+                                }                                
+                            }
+                        }
+                    }
                     crate::sql::update_audio(connection, metadata, statdata, known_files);
                 } else {
                     *metadata = crate::sql::audio(connection, &metadata.path, known_files);
@@ -1120,6 +1165,15 @@ pub fn item_from_audiotags(
             }
 
             audio_metadata(audio, special_files, metadata);
+            if metadata.date.num_days_from_ce() < 100 {
+                if let Ok(created) = statdata.created() {
+                    if let Ok(nsecs) = created.duration_since(UNIX_EPOCH) {
+                        if let Some(ndt) = chrono::DateTime::from_timestamp(nsecs.as_secs() as i64, 0) {
+                            metadata.date = ndt.date_naive();
+                        }                                
+                    }
+                }
+            }
             crate::sql::insert_audio(connection, metadata, statdata, known_files);
         }
     }
@@ -1267,6 +1321,15 @@ pub fn item_from_exif(
                             metadata.thumb = crate::thumbnails::create_thumbnail(&PathBuf::from(&metadata.path), 254);
                         }
                     }
+                    if metadata.date.num_days_from_ce() < 100 {
+                        if let Ok(created) = statdata.created() {
+                            if let Ok(nsecs) = created.duration_since(UNIX_EPOCH) {
+                                if let Some(ndt) = chrono::DateTime::from_timestamp(nsecs.as_secs() as i64, 0) {
+                                    metadata.date = ndt.date_naive();
+                                }                                
+                            }
+                        }
+                    }
                     metadata.name = basename.clone();
                     crate::sql::update_image(connection, metadata, statdata, known_files);
                 } else {
@@ -1280,6 +1343,15 @@ pub fn item_from_exif(
                     metadata.thumb = crate::thumbnails::create_thumbnail(&PathBuf::from(&metadata.resized), 254);
                 } else {
                     metadata.thumb = crate::thumbnails::create_thumbnail(&PathBuf::from(&metadata.path), 254);
+                }
+            }
+            if metadata.date.num_days_from_ce() < 100 {
+                if let Ok(created) = statdata.created() {
+                    if let Ok(nsecs) = created.duration_since(UNIX_EPOCH) {
+                        if let Some(ndt) = chrono::DateTime::from_timestamp(nsecs.as_secs() as i64, 0) {
+                            metadata.date = ndt.date_naive();
+                        }                                
+                    }
                 }
             }
             metadata.name = basename.clone();

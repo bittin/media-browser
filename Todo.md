@@ -40,13 +40,13 @@ Positions ended with a ? are *stretch goals*. If it is possible AND somebody doe
 - Image search delivers videos
 - Navigation in search results navigates the directory view instead
 - New searches are not stored in the database
+- unbounded searches will kill the machine. Make sanity checks!
+- fix release date 1970-01-01
 
 #### Open Bugs
 
-- unbounded searches will kill the machine. Make sanity checks!
-- fix release date 1970-01-01
 - check creation date newer than modification date
-- Automatically close Popup GUI after 5 Seconds of no activity
+- Automatically close Popup GUI after 5 Seconds of no activity?
 
 ### Features
 
