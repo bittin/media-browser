@@ -37,6 +37,7 @@ Positions ended with a ? are *stretch goals*. If it is possible AND somebody doe
 - PageUp and PageDown do no longer navigate the Presious / Next
 - Parse Chapter names from media files
 - Chapters not diplayed in audio player
+- Image search delivers videos
 
 #### Open Bugs
 

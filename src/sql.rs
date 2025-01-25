@@ -895,7 +895,7 @@ pub fn search_items(
         search.release_date = true;
     }
 
-    // if we search for a single date, search for a whole date. 
+    // if we search for a single date, search for a whole day. 
     if search.from_date > 0 && search.to_date == 0 {
         if let Some(datetime) = chrono::DateTime::from_timestamp(search.from_date, 0) {
             if let Some(starthour) = datetime.checked_add_signed(chrono::Duration::hours(-(datetime.hour() as i64))) {
@@ -928,6 +928,9 @@ pub fn search_items(
     if search.video {
         let (mut newmetadata, newfiles) = search_video(connection, &search);
         for i in 0..newfiles.len() {
+            if newfiles[i].file_type != 2 {
+                continue;
+            }
             if !used_files.contains(&newfiles[i].filepath) {
                 used_files.insert(newfiles[i].filepath.clone());
                 if let Ok(metadata) = std::fs::metadata(newfiles[i].filepath.clone()) {
@@ -949,6 +952,9 @@ pub fn search_items(
         let (mut newmetadata, newfiles) = search_audio(connection, &search);
         for i in 0..newfiles.len() {
             if !used_files.contains(&newfiles[i].filepath) {
+                if newfiles[i].file_type != 3 {
+                    continue;
+                }
                 used_files.insert(newfiles[i].filepath.clone());
                 let mut special_files = std::collections::BTreeSet::new();
                 if let Ok(metadata) = std::fs::metadata(newfiles[i].filepath.clone()) {
@@ -970,6 +976,9 @@ pub fn search_items(
     if search.image {
         let (mut newmetadata, newfiles) = search_image(connection, &search);
         for i in 0..newfiles.len() {
+            if newfiles[i].file_type != 1 {
+                continue;
+            }
             if !used_files.contains(&newfiles[i].filepath) {
                 used_files.insert(newfiles[i].filepath.clone());
                 if let Ok(metadata) = std::fs::metadata(newfiles[i].filepath.clone()) {
