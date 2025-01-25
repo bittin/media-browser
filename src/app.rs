@@ -1516,17 +1516,13 @@ self.image_view.image_path.clone(),
                             widget::button::icon(
                                 widget::icon::from_name("go-previous-symbolic").size(16),
                             )
-                            .on_press(Message::ImageMessage(
-                                crate::image::image_view::Message::PreviousFile,
-                            )),
+                            .on_press(Message::Previous(Some(entity))),
                         )
                         .push(
                             widget::button::icon(
                                 widget::icon::from_name("go-next-symbolic").size(16),
                             )
-                            .on_press(Message::ImageMessage(
-                                crate::image::image_view::Message::NextFile,
-                            )),
+                            .on_press(Message::Next(Some(entity))),
                         ), /*
                            .push(
                                widget::button::icon(
@@ -3382,6 +3378,10 @@ impl Application for App {
                 }
                 crate::audio::audio_view::Message::NextFile => {
                     // open next file in the sorted list if possible
+                    let id = self.tab_model.active();
+                    if id != self.tab_model_id {
+                        self.tab_model_id = id;
+                    }
                     if let Some(tab) = self.tab_model.data_mut::<Tab>(self.tab_model_id) {
                         let _ret = tab.update(tab::Message::ItemRight, self.modifiers);
                         let v = tab.selected_file_paths();
@@ -3395,6 +3395,10 @@ impl Application for App {
                 }
                 crate::audio::audio_view::Message::PreviousFile => {
                     // open next file in the sorted list if possible
+                    let id = self.tab_model.active();
+                    if id != self.tab_model_id {
+                        self.tab_model_id = id;
+                    }
                     if let Some(tab) = self.tab_model.data_mut::<Tab>(self.tab_model_id) {
                         let _ret = tab.update(tab::Message::ItemLeft, self.modifiers);
                         let v = tab.selected_file_paths();
@@ -3636,6 +3640,10 @@ impl Application for App {
                 }
                 crate::image::image_view::Message::NextFile => {
                     // open next file in the sorted list if possible
+                    let id = self.tab_model.active();
+                    if id != self.tab_model_id {
+                        self.tab_model_id = id;
+                    }
                     if let Some(tab) = self.tab_model.data_mut::<Tab>(self.tab_model_id) {
                         let _ret = tab.update(tab::Message::ItemRight, self.modifiers);
                         let v = tab.selected_file_paths();
@@ -3649,6 +3657,10 @@ impl Application for App {
                 }
                 crate::image::image_view::Message::PreviousFile => {
                     // open previous file in the sorted list if possible
+                    let id = self.tab_model.active();
+                    if id != self.tab_model_id {
+                        self.tab_model_id = id;
+                    }
                     if let Some(tab) = self.tab_model.data_mut::<Tab>(self.tab_model_id) {
                         let _ret = tab.update(tab::Message::ItemLeft, self.modifiers);
                         let v = tab.selected_file_paths();
@@ -4903,6 +4915,10 @@ impl Application for App {
                 }
                 crate::video::video_view::Message::NextFile => {
                     // open next file in the sorted list if possible
+                    let id = self.tab_model.active();
+                    if id != self.tab_model_id {
+                        self.tab_model_id = id;
+                    }
                     if let Some(tab) = self.tab_model.data_mut::<Tab>(self.tab_model_id) {
                         let _ret = tab.update(tab::Message::ItemRight, self.modifiers);
                         let v = tab.selected_file_paths();
@@ -4916,6 +4932,10 @@ impl Application for App {
                 }
                 crate::video::video_view::Message::PreviousFile => {
                     // open next file in the sorted list if possible
+                    let id = self.tab_model.active();
+                    if id != self.tab_model_id {
+                        self.tab_model_id = id;
+                    }
                     if let Some(tab) = self.tab_model.data_mut::<Tab>(self.tab_model_id) {
                         let _ret = tab.update(tab::Message::ItemLeft, self.modifiers);
                         let v = tab.selected_file_paths();

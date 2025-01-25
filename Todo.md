@@ -38,6 +38,7 @@ Positions ended with a ? are *stretch goals*. If it is possible AND somebody doe
 - Parse Chapter names from media files
 - Chapters not diplayed in audio player
 - Image search delivers videos
+- Navigation in search results navigates the directory view instead
 
 #### Open Bugs
 
