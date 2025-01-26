@@ -1,0 +1,11 @@
+#TODO: more build-out, desktop actions, translations?
+[Desktop Entry]
+Name=Media Browser
+Exec=media-browser %F
+Terminal=false
+Type=Application
+StartupNotify=true
+Icon=eu.fangornsrealm.MediaBrowser
+Categories=COSMIC;Utility;Graphics;Video;Audio;Viewer;Player;Database
+Keywords=Folder;Manager;
+MimeType=inode/directory;

@@ -1013,7 +1013,7 @@ impl App {
         widget::column::with_children(vec![
             widget::svg(widget::svg::Handle::from_memory(
                 &include_bytes!(
-                    "../res/icons/hicolor/128x128/apps/com.system76.CosmicMediaBrowser.svg"
+                    "../res/icons/hicolor/128x128/apps/eu.fangornsrealm.MediaBrowser.svg"
                 )[..],
             ))
             .into(),

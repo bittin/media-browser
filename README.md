@@ -33,6 +33,12 @@ You will need a rust environment to compile the project.
 
 [Installing Rust](https://www.rust-lang.org/tools/install)
 
+Installing build dependencies.
+
+```sh
+sudo apt install build-essential cmake libxkbcommon-dev
+```
+
 ## Build the project from source
 
 ```sh
