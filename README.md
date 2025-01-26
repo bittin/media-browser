@@ -12,14 +12,12 @@ The GUI of the video / audio player is a clone of COSMIC player. The player itse
 
 The Image viewer GUI is inspired by gthumb.
 
-The backend is a genuine creation. And making all the above work together was quite a lot of work.
+The backend is a genuine creation.
 
-This project is developed and tested on Linux using Wayland and Pipewire.
+This project is developed and tested on Linux using Wayland and Pipewire. Gstreamer supports any audio and video pipeline. But the GUI is libcosmic, which is a Wayland only framework. It should be possible to run this on any Linux/Wayland desktop. And also WSL2 on Windows 11. I just will not test it.
 
 > [!NOTE]
-> This project is still a work in progress.
-> Currently it is considered Alpha Code.
-> It is close to feature complete and is working fine in my testing.
+> The current Status is feature complete for the 1.0 release. We are in beta mode for the release.
 
 ## Required dependencies
 
