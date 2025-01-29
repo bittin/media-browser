@@ -43,6 +43,7 @@ Positions ended with a ? are *stretch goals*. If it is possible AND somebody doe
 - New searches are not stored in the database
 - unbounded searches will kill the machine. Make sanity checks!
 - fix release date 1970-01-01
+- recursive_scan needs to check if a file is already in the database
 
 #### Open Bugs
 
