@@ -29,6 +29,10 @@ Gstreamer is modular. Depending on what formats you want to playback (mp3, m4a, 
 
 Creation of video thumbnails and metadata extraction from video and audio require an installation of ffmpeg in available to execute from the command line. Most linux distributions install that or at least have a copy available in the repositories.
 
+```sh
+sudo apt install ffmpeg
+```
+
 You will need a rust environment to compile the project.
 
 [Installing Rust](https://www.rust-lang.org/tools/install)
@@ -37,6 +41,12 @@ Installing build dependencies.
 
 ```sh
 sudo apt install build-essential cmake libxkbcommon-dev
+```
+
+If you have problems to build on a system that does not have the COSMIC Desktop installed, it can help to install the dependencies for it.
+
+```sh
+sudo apt install just rustc libglvnd-dev libwayland-dev libseat-dev libxkbcommon-dev libinput-dev udev dbus libdbus-1-dev libsystemd-dev libpixman-1-dev libssl-dev libflatpak-dev libpulse-dev pop-launcher libexpat1-dev libfontconfig-dev libfreetype-dev mold cargo libgbm-dev libclang-dev libpipewire-0.3-dev libpam0g-dev -y
 ```
 
 ## Build the project from source
