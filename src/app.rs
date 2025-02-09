@@ -116,6 +116,7 @@ pub enum Action {
     OpenAudio,
     About,
     AddToSidebar,
+    AudioMuteToggle,
     Copy,
     Cut,
     CosmicSettingsAppearance,
@@ -139,6 +140,9 @@ pub enum Action {
     OpenInNewWindow,
     OpenItemLocation,
     Paste,
+    PlayPause,
+    PlayFromBeginning,
+    //PlaySkip,
     Preview,
     Previous,
     RecursiveScanDirectories,
@@ -146,9 +150,12 @@ pub enum Action {
     RestoreFromTrash,
     SearchActivate,
     SearchDB,
+    SeekBackward,
+    SeekForward,
     SelectAll,
     SetSort(HeadingOptions, bool),
     Settings,
+    //SubtitleToggle,
     TabClose,
     TabNew,
     TabNext,
@@ -171,6 +178,7 @@ impl Action {
         match self {
             Action::About => Message::ToggleContextPage(ContextPage::About),
             Action::AddToSidebar => Message::AddToSidebar(entity_opt),
+            Action::AudioMuteToggle => Message::AudioMuteToggle,
             Action::OpenBrowser => Message::Browser,
             Action::OpenImage => Message::Image(crate::image::image_view::Message::ToImage),
             Action::OpenVideo => Message::Video(crate::video::video_view::Message::ToVideo),
@@ -202,6 +210,8 @@ impl Action {
             Action::OpenInNewWindow => Message::OpenInNewWindow(entity_opt),
             Action::OpenItemLocation => Message::OpenItemLocation(entity_opt),
             Action::Paste => Message::Paste(entity_opt),
+            Action::PlayFromBeginning => Message::Seek(0.0),
+            Action::PlayPause => Message::PlayPause,
             Action::Preview => Message::Preview(entity_opt),
             Action::Previous => Message::Previous(entity_opt),
             Action::RecursiveScanDirectories => Message::RecursiveScanDirectories(entity_opt),
@@ -214,6 +224,9 @@ impl Action {
                 Message::TabMessage(entity_opt, tab::Message::SetSort(*sort, *dir))
             }
             Action::Settings => Message::ToggleContextPage(ContextPage::Settings),
+            Action::SeekBackward => Message::SeekBackward,
+            Action::SeekForward => Message::SeekForward,
+            //Action::SubtitleToggle => Message::SubtitleToggle,
             Action::TabClose => Message::TabClose(entity_opt),
             Action::TabNew => Message::TabNew,
             Action::TabNext => Message::TabNext,
@@ -289,8 +302,10 @@ pub enum Message {
     AddToSidebar(Option<Entity>),
     AppTheme(AppTheme),
     AudioMessage(crate::audio::audio_view::Message),
+    AudioMuteToggle,
     AudioCode(usize),
     AudioVolume(f64),
+    //SubtitleToggle,
     TextCode(usize),
     MissingPlugin(gstreamer::Message),
     Fullscreen,
@@ -313,6 +328,7 @@ pub enum Message {
     ImageMessage(crate::image::image_view::Message),
     Key(Modifiers, Key),
     LaunchUrl(String),
+    LaunchSearch(crate::sql::SearchType, String),
     MaybeExit,
     Modifiers(Modifiers),
     MoveToTrash(Option<Entity>),
@@ -2678,7 +2694,7 @@ impl Application for App {
                 commands.push(app.open_tab(Location::Path(home_dir()), true, None));
             }
         }
-
+        app.core.nav_bar_set_toggled(false);
         (app, Task::batch(commands))
     }
 
@@ -3011,6 +3027,19 @@ impl Application for App {
             Message::AppTheme(app_theme) => {
                 config_set!(app_theme, app_theme);
                 return self.update_config();
+            }
+            Message::AudioMuteToggle => {
+                if self.active_view == Mode::Video {
+                    let _ = self.update(Message::VideoMessage(
+                        crate::video::video_view::Message::AudioToggle,
+                    ));
+                } else if self.active_view == Mode::Audio {
+                   let _ = self.update(Message::AudioMessage(
+                        crate::audio::audio_view::Message::AudioToggle,
+                    ));
+                } else {
+                    // no audio active
+                }
             }
             Message::AudioCode(val) => {
                 if self.active_view == Mode::Video {
@@ -3695,6 +3724,39 @@ impl Application for App {
                 Err(err) => {
                     log::warn!("failed to open {:?}: {}", url, err);
                 }
+            },
+            Message::LaunchSearch(search_type, search_term) => {
+                use crate::sql::SearchType as ST;
+                self.search = crate::sql::SearchData {
+                    ..Default::default()
+                };
+                self.search_previous.clear();
+                self.search_previous.extend(crate::sql::previous_searches());
+                match search_type {
+                    ST::Director => {
+                        self.search.director = true;
+                        self.search.video = true;
+                        self.search.from_string = search_term;
+                    },
+                    ST::Actor => {
+                        self.search.actor = true;
+                        self.search.video = true;
+                        self.search.from_string = search_term;
+                    },
+                    ST::Artist => {
+                        self.search.artist = true;
+                        self.search.audio = true;
+                        self.search.from_string = search_term;
+                    },
+                    ST::AlbumArtist => {
+                        self.search.album_artist = true;
+                        self.search.audio = true;
+                        self.search.from_string = search_term;
+                    },
+
+                    _ => return Task::none(),
+                }
+                return self.update(Message::SearchCommit);
             },
             Message::Modifiers(modifiers) => {
                 self.modifiers = modifiers;

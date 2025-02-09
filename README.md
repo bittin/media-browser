@@ -2,6 +2,8 @@
 
 Media browser with database backend for the COSMIC desktop environment. It manages media, makes it searchable by internal or external metadata and displays / plays them.
 
+![media-browser](res/media-browsewr.png)
+
 EXIF metadata for images, NFO files for videos (XBMC/Kodi style) and ID3/MP4tag metadata for audio files are stored in a database and can be searched to produce a list of files matching, regardless where they are stored.
 
 Search results and existing directories are navigatable with keyboard or picking files in preview.

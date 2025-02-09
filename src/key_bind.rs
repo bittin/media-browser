@@ -91,5 +91,17 @@ pub fn key_binds(mode: &tab::Mode) -> HashMap<KeyBind, Action> {
         bind!([], Key::Named(Named::Escape), OpenBrowser);
     }
 
+    if matches!(mode, tab::Mode::Video | tab::Mode::Audio ) {
+        bind!([], Key::Named(Named::ArrowRight), SeekForward);
+        bind!([], Key::Named(Named::ArrowLeft), SeekBackward);
+        bind!([], Key::Named(Named::Space), PlayPause);
+        bind!([], Key::Character("m".into()), AudioMuteToggle);
+        //bind!([], Key::Character("s".into()), SubtitleToggle);
+        bind!([], Key::Character("f".into()), SeekForward);
+        bind!([], Key::Character("b".into()), SeekBackward);
+        bind!([], Key::Named(Named::Home), PlayFromBeginning);
+        bind!([], Key::Named(Named::End), ItemRight);
+    }
+
     key_binds
 }

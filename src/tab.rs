@@ -43,7 +43,7 @@ use cosmic::{
     Element,
 };
 
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, NaiveDateTime, Utc};
 use i18n_embed::LanguageLoader;
 use mime_guess::{mime, Mime};
 use once_cell::sync::Lazy;
@@ -1384,6 +1384,7 @@ impl Item {
     }
 
     pub fn preview_view<'a>(&'a self, sizes: IconSizes) -> Element<'a, app::Message> {
+        use crate::sql::SearchType as ST;
         let cosmic_theme::Spacing {
             space_xxxs,
             space_m,
@@ -1452,16 +1453,18 @@ impl Item {
                             )));
                         }
                         for l in video.director.iter() {
-                            details = details.push(widget::text::body(fl!(
+                            details = details.push(widget::button::link(fl!(
                                 "item-media-director",
                                 text = l.to_string()
-                            )));
+                            )).on_press(crate::app::Message::LaunchSearch(ST::Director, l.to_string()))
+                            .padding(0));
                         }
                         for l in video.actors.iter() {
-                            details = details.push(widget::text::body(fl!(
+                            details = details.push(widget::button::link(fl!(
                                 "item-media-actor",
                                 text = l.to_string()
-                            )));
+                            )).on_press(crate::app::Message::LaunchSearch(ST::Actor, l.to_string()))
+                            .padding(0));
                         }
                         for l in video.chapters.iter() {
                             let start = crate::parsers::timecode_to_ffmpeg_time(l.start as u32);
@@ -1489,16 +1492,18 @@ impl Item {
                             text = seconds_to_runtime(audio.duration)
                         )));
                         for l in audio.artist.iter() {
-                            details = details.push(widget::text::body(fl!(
+                            details = details.push(widget::button::link(fl!(
                                 "item-media-artist",
                                 text = l.to_string()
-                            )));
+                            )).on_press(crate::app::Message::LaunchSearch(ST::Artist, l.to_string()))
+                            .padding(0));
                         }
                         for l in audio.albumartist.iter() {
-                            details = details.push(widget::text::body(fl!(
+                            details = details.push(widget::button::link(fl!(
                                 "item-media-albumartist",
                                 text = l.to_string()
-                            )));
+                            )).on_press(crate::app::Message::LaunchSearch(ST::AlbumArtist, l.to_string()))
+                            .padding(0));
                         }
                         for l in audio.chapters.iter() {
                             let start = crate::parsers::timecode_to_ffmpeg_time(l.start as u32);
@@ -1857,7 +1862,29 @@ impl Tab {
             Location::Recents => {
                 fl!("recents")
             }
-            Location::DBSearch(search) => format!("Search {}", search.search_id),
+            Location::DBSearch(search) => {
+                if search.from_string.len() > 0 && search.to_string.len() > 0 {
+                    format!("{} {}", search.from_string, search.to_string)
+                } else if search.from_value > 0 && search.to_value > 0 {
+                    format!("{} {}", search.from_value, search.to_value)
+                } else if search.from_date > 0 && search.to_date > 0 {
+                    if let Some(from) = DateTime::from_timestamp(search.from_date, 0) {
+                        if let Some(to) = DateTime::from_timestamp(search.to_date, 0) {
+                            format!("{} {}", from, to)
+                        } else {
+                            format!("Search {}", search.search_id)
+                        }
+                    } else {
+                        format!("Search {}", search.search_id)
+                    }
+                } else if search.from_string.len() > 0 {
+                    format!("{}", search.from_string)
+                } else if search.to_string.len() > 0 {
+                    format!("{}", search.to_string)
+                } else {
+                    format!("Search {}", search.search_id)
+                }
+            },
             Location::Network(_uri, display_name) => display_name.clone(),
         }
     }

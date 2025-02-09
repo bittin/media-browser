@@ -1547,9 +1547,6 @@ pub fn scan_videos(
     if meta_data.path.len() == 0 {
         return ControlFlow::Break(());
     }
-    if known_files.contains_key(&PathBuf::from(&meta_data.path)) {
-        return ControlFlow::Break(());
-    }
     let name;
     if let Some(bn) = path.file_name() {
         name = crate::parsers::osstr_to_string(bn.to_os_string());
@@ -1591,9 +1588,6 @@ pub fn scan_audiotags(
     };
     meta_data.path = osstr_to_string(audio.clone().into_os_string());
     if meta_data.path.len() == 0 {
-        return ControlFlow::Break(());
-    }
-    if known_files.contains_key(&PathBuf::from(&meta_data.path)) {
         return ControlFlow::Break(());
     }
     let statdata = match std::fs::metadata(&meta_data.path) {
@@ -1640,9 +1634,6 @@ pub fn scan_exif(
     };
     meta_data.path = osstr_to_string(path.clone().into_os_string());
     if meta_data.path.len() == 0 {
-        return ControlFlow::Break(());
-    }
-    if known_files.contains_key(&PathBuf::from(&meta_data.path)) {
         return ControlFlow::Break(());
     }
     let statdata = match std::fs::metadata(&meta_data.path) {
@@ -1781,9 +1772,6 @@ pub fn scan_single_nfo_dir(
         justdirs.push(dp.clone());
         return ControlFlow::Break(());
     }
-    if known_files.contains_key(&PathBuf::from(&meta_data.path)) {
-        return ControlFlow::Break(());
-    }
     if meta_data.poster.len() == 0 {
         create_screenshots(&mut meta_data);
         if meta_data.poster.len() == 0 {
@@ -1863,9 +1851,6 @@ pub fn scan_nfos_in_dir(
         }
     }
     if meta_data.path.len() == 0 {
-        return ControlFlow::Break(());
-    }
-    if known_files.contains_key(&PathBuf::from(&meta_data.path)) {
         return ControlFlow::Break(());
     }
     if !nfo_file.exists() {

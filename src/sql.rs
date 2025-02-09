@@ -9,6 +9,29 @@ use std::path::PathBuf;
 use std::collections::BTreeMap;
 use chrono::{NaiveDate, Timelike};
 
+#[derive(Clone, Debug, Hash)]
+pub enum SearchType {
+    FilePath,
+    Title,
+    Description,
+    Actor,
+    Director,
+    Producer,
+    Artist,
+    AlbumArtist,
+    Duration,
+    CreationDate,
+    ModificationDate,
+    ReleaseDate,
+    LenseModel,
+    FocalLength,
+    ExposureTime,
+    FNumber,
+    GPSLatitude,
+    GPSLongitude,
+    GPSAltitude,
+}
+
 #[derive(Clone, Debug, Eq, PartialOrd, Hash)]
 pub struct SearchData {
     pub search_id: u32,

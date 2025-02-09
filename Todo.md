@@ -49,6 +49,8 @@ Positions ended with a ? are *stretch goals*. If it is possible AND somebody doe
 
 - check creation date newer than modification date
 - Automatically close Popup GUI after 5 Seconds of no activity?
+- key bindings only work in browsewr mode
+- Check that updates to the database actually work
 
 ### Features
 
@@ -75,6 +77,8 @@ Positions ended with a ? are *stretch goals*. If it is possible AND somebody doe
 - disable the NavBar by default
 - get the bread-crumb navigation in the tab back
 - manage previous searches in the search context menu
+- make the details page information clickable - on click it will search for the value (for example: "Director: Quentin Tarantino)
+- make the search text appear in the search tab title
 
 #### Open Features
 
