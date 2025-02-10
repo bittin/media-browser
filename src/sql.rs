@@ -1105,6 +1105,7 @@ pub fn fill_chapters(chapters: Vec<crate::sql::Chapter>, duration: u32) -> (Vec<
 
 #[derive(Clone, Debug, PartialEq, PartialOrd)]
 pub struct VideoMetadata {
+    pub id : u32,
     pub name: String,
     pub title: String,
     pub date: NaiveDate,
@@ -1127,6 +1128,7 @@ pub struct VideoMetadata {
 impl Default for VideoMetadata {
     fn default() -> VideoMetadata {
         VideoMetadata {
+            id: 0,
             name: String::new(),
             title: String::new(),
             date: NaiveDate::from_ymd_opt(1970, 1,1).unwrap(),
@@ -1155,9 +1157,11 @@ pub fn insert_video(
     statdata: &std::fs::Metadata,
     known_files: &mut std::collections::BTreeMap<PathBuf, crate::sql::FileMetadata>,
 ) {
+    let video_id = insert_file(connection, &metadata.path, statdata, 2, known_files);
+    metadata.id = video_id;
     match connection.execute(
-        "INSERT INTO video_metadata (name, title, released, poster, thumb, duration, width, height, framerate, description) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
-        params![&metadata.name, &metadata.title, &metadata.date, &metadata.poster, &metadata.thumb, &metadata.duration, &metadata.width, &metadata.height, &metadata.framerate, &metadata.description],
+        "INSERT INTO video_metadata (video_id, name, title, released, poster, thumb, duration, width, height, framerate, description) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
+        params![&metadata.id, &metadata.name, &metadata.title, &metadata.date, &metadata.poster, &metadata.thumb, &metadata.duration, &metadata.width, &metadata.height, &metadata.framerate, &metadata.description],
     ) {
         Ok(_retval) => {}, //log::warn!("Inserted {} video with ID {} and location {} into candidates.", video.id, video.index, candidate_id),
         Err(error) => {
@@ -1188,7 +1192,6 @@ pub fn insert_video(
             return;
         }
     }
-    insert_file(connection, &metadata.path, statdata, 2, video_id, known_files);
     for i in 0..metadata.subtitles.len() {
         match connection.execute(
             "INSERT INTO subtitles (video_id, subpath) VALUES (?1, ?2)",
@@ -2100,6 +2103,7 @@ pub fn video(
 
 #[derive(Clone, Debug, PartialEq, PartialOrd)]
 pub struct AudioMetadata {
+    pub id: u32,
     pub name: String,
     pub title: String,
     pub date: NaiveDate,
@@ -2118,6 +2122,7 @@ pub struct AudioMetadata {
 impl Default for AudioMetadata {
     fn default() -> AudioMetadata {
         AudioMetadata {
+            id: 0,
             name: String::new(),
             title: String::new(),
             date: NaiveDate::from_ymd_opt(1970, 1, 1).unwrap(),
@@ -2141,9 +2146,11 @@ pub fn insert_audio(
     statdata: &std::fs::Metadata,
     known_files: &mut std::collections::BTreeMap<PathBuf, crate::sql::FileMetadata>,
 ) {
+    let audio_id = insert_file(connection, &metadata.path, statdata, 3, known_files);
+    metadata.id = audio_id;
     match connection.execute(
-        "INSERT INTO audio_metadata (name, title, released, poster, thumb, duration, bitrate) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
-        params![&metadata.name, &metadata.title, &metadata.date, &metadata.poster, &metadata.thumb, &metadata.duration, &metadata.bitrate],
+        "INSERT INTO audio_metadata (audio_id, name, title, released, poster, thumb, duration, bitrate) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+        params![&metadata.id, &metadata.name, &metadata.title, &metadata.date, &metadata.poster, &metadata.thumb, &metadata.duration, &metadata.bitrate],
     ) {
         Ok(_retval) => {}, //log::warn!("Inserted {} video with ID {} and location {} into candidates.", video.id, video.index, candidate_id),
         Err(error) => {
@@ -2151,32 +2158,6 @@ pub fn insert_audio(
             return;
         }
     }
-    let mut audio_id = 0;
-    let query = "SELECT last_insert_rowid()";
-    match connection.prepare(query) {
-        Ok(mut statement) => {
-            match statement.query(params![]) {
-                Ok(mut rows) => {
-                    while let Ok(Some(row)) = rows.next() {
-                        let s_opt = row.get(0);
-                        if s_opt.is_ok() {
-                            audio_id = s_opt.unwrap();
-                        }
-                    }
-                },
-                Err(err) => {
-                    log::error!("could not read line from audio_metadata database: {}", err);
-                }
-            }
-        },
-        Err(error) => {
-            log::error!("Failed to get audio_id for from database: {}", error);
-            return;
-        }
-    }
-
-    insert_file(connection, &metadata.path, statdata, 3, audio_id, known_files);
-
     for i in 0..metadata.artist.len() {
         let albumartist_id = insert_artist(connection, metadata.artist[i].clone());
         if albumartist_id == -1 {
@@ -3061,6 +3042,7 @@ pub fn audio(
 
 #[derive(Clone, Debug, PartialEq, PartialOrd)]
 pub struct ImageMetadata {
+    pub id: u32,
     pub name: String,
     pub title: String,
     pub date: NaiveDate,
@@ -3083,6 +3065,7 @@ pub struct ImageMetadata {
 impl Default for ImageMetadata {
     fn default() -> ImageMetadata {
         ImageMetadata {
+            id: 0,
             name: String::new(),
             title: String::new(),
             date: NaiveDate::from_ymd_opt(1970, 1, 1).unwrap(),
@@ -3110,9 +3093,11 @@ pub fn insert_image(
     statdata: &std::fs::Metadata,
     known_files: &mut std::collections::BTreeMap<PathBuf, crate::sql::FileMetadata>,
 ) {
+    let image_id = insert_file(connection, &metadata.path, statdata, 1, known_files);
+    metadata.id = image_id;
     match connection.execute(
-        "INSERT INTO image_metadata (name, path, created, resized, thumb, width, height, photographer, LenseModel, Focallength, Exposuretime, FNumber, gpsstring, gpslatitude, gpslongitude, gpsaltitude) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16)",
-        params![&metadata.name, &metadata.path, &metadata.date, &metadata.resized, &metadata.thumb, &metadata.width, &metadata.height, &metadata.photographer, &metadata.lense_model, &metadata.focal_length, &metadata.exposure_time, &metadata.fnumber, &metadata.gps_string, &metadata.gps_latitude, &metadata.gps_longitude, &metadata.gps_altitude],
+        "INSERT INTO image_metadata (image_id, name, path, created, resized, thumb, width, height, photographer, LenseModel, Focallength, Exposuretime, FNumber, gpsstring, gpslatitude, gpslongitude, gpsaltitude) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17)",
+        params![&metadata.id, &metadata.name, &metadata.path, &metadata.date, &metadata.resized, &metadata.thumb, &metadata.width, &metadata.height, &metadata.photographer, &metadata.lense_model, &metadata.focal_length, &metadata.exposure_time, &metadata.fnumber, &metadata.gps_string, &metadata.gps_latitude, &metadata.gps_longitude, &metadata.gps_altitude],
     ) {
         Ok(_retval) => {}, //log::warn!("Inserted {} image with ID {} and location {} into candidates.", video.id, video.index, candidate_id),
         Err(error) => {
@@ -3120,32 +3105,6 @@ pub fn insert_image(
             return;
         }
     }
-    let mut image_id = 0;
-    let query = "SELECT last_insert_rowid()";
-    match connection.prepare(query) {
-        Ok(mut statement) => {
-            match statement.query(params![]) {
-                Ok(mut rows) => {
-                    while let Ok(Some(row)) = rows.next() {
-                        let s_opt = row.get(0);
-                        if s_opt.is_ok() {
-                            image_id = s_opt.unwrap();
-                        }
-                    }
-                },
-                Err(err) => {
-                    log::error!("could not read line from audio_metadata database: {}", err);
-                }
-            }
-        },
-        Err(error) => {
-            log::error!("Failed to get audio_id for from database: {}", error);
-            return;
-        }
-    }
-
-    insert_file(connection, &metadata.path, statdata, 1, image_id, known_files);
-
 }
 
 pub fn delete_image(
@@ -3207,6 +3166,7 @@ pub fn image_by_id(
 ) -> ImageMetadata {
     let mut v = ImageMetadata {..Default::default()};
     v.path = filepath.to_string();
+    v.id = image_id as u32;
     // fill v from all tables
     let query = "SELECT name, path, created, resized, thumb, width, height, Photographer, LenseModel, Focallength, Exposuretime, FNumber, GPSLatitude, GPSLongitude, GPSAltitude FROM image_metadata WHERE image_id = ?1";
     match connection.prepare(query) {
@@ -3353,9 +3313,11 @@ pub fn image(
     let mut v = ImageMetadata {..Default::default()};
     // fill v from all tables
     v.path = filepath.to_string();
+    
     let filedata = file(connection, filepath);
     let image_id = filedata.metadata_id;
-    let query = "SELECT name, path, created, resized, thumb, width, height, Photographer, LenseModel, Focallength, Exposuretime, FNumber, GPSLatitude, GPSLongitude, GPSAltitude FROM image_metadata WHERE image_id = ?1";
+    v.id = image_id as u32;
+    let query = "SELECT image_id, name, created, resized, thumb, width, height, Photographer, LenseModel, Focallength, Exposuretime, FNumber, GPSLatitude, GPSLongitude, GPSAltitude FROM image_metadata WHERE image_id = ?1";
     match connection.prepare(query) {
         Ok(mut statement) => {
             match statement.query(params![&image_id]) {
@@ -3770,9 +3732,8 @@ pub fn insert_file(
     path: &str,
     metadata: &std::fs::Metadata,
     file_type: i32,
-    metadata_id: i64,
     known_files: &mut std::collections::BTreeMap<PathBuf, crate::sql::FileMetadata>,
-) {
+) -> u32 {
     let mut creation_time: u64 = 0;
     if let Ok(created) = metadata.created() {
         match created.duration_since(std::time::UNIX_EPOCH) {
@@ -3789,15 +3750,39 @@ pub fn insert_file(
     }
     match connection.execute(
         "INSERT INTO file_metadata (filepath, creation_time, modification_time, 
-            file_type, metadata_id) VALUES (?1, ?2, ?3, ?4, ?5)",
-        params![&path, &creation_time, &modification_time, &file_type, &metadata_id],
+            file_type) VALUES (?1, ?2, ?3, ?4)",
+        params![&path, &creation_time, &modification_time, &file_type],
     ) {
         Ok(_retval) => {}, //log::warn!("Inserted {} video with ID {} and location {} into candidates.", video.id, video.index, candidate_id),
         Err(error) => {
             log::error!("Failed to insert file into  database: {}", error);
-            return;
+            return 0;
         }
     }
+    let mut metadata_id = 0;
+    let query = "SELECT last_insert_rowid()";
+    match connection.prepare(query) {
+        Ok(mut statement) => {
+            match statement.query(params![]) {
+                Ok(mut rows) => {
+                    while let Ok(Some(row)) = rows.next() {
+                        let s_opt = row.get(0);
+                        if s_opt.is_ok() {
+                            metadata_id = s_opt.unwrap();
+                        }
+                    }
+                },
+                Err(err) => {
+                    log::error!("could not read line from audio_metadata database: {}", err);
+                }
+            }
+        },
+        Err(error) => {
+            log::error!("Failed to get audio_id for from database: {}", error);
+            return 0;
+        }
+    }
+
     let meta = FileMetadata {
         filepath: PathBuf::from(&path),
         creation_time,
@@ -3829,6 +3814,7 @@ pub fn insert_file(
             known_files.insert(thumbpath, meta);
         }
     }
+    metadata_id as u32
 }
 
 pub fn delete_file(    
@@ -3848,11 +3834,10 @@ pub fn update_file(
     path: &str,
     metadata: &std::fs::Metadata,
     file_type: i32,
-    metadata_id: i64,
     known_files: &mut std::collections::BTreeMap<PathBuf, crate::sql::FileMetadata>,
 ) {
     delete_file(connection, path, known_files);
-    insert_file(connection, path, metadata, file_type, metadata_id, known_files);
+    insert_file(connection, path, metadata, file_type, known_files);
 }   
 
 
@@ -4209,11 +4194,12 @@ pub fn connect() -> Result<rusqlite::Connection, rusqlite::Error> {
         // file_type: 0 other file, 1 image, 2, video, 3 audio
         match connection.execute(
             "CREATE TABLE file_metadata (
-                filepath TEXT NOT NULL unique PRIMARY KEY NOT NULL, 
+                filepath TEXT NOT NULL unique NOT NULL, 
                 creation_time UNSIGNED BIG INT, 
                 modification_time UNSIGNED BIG INT, 
                 file_type INT,   
-                metadata_id BIG INT
+                metadata_id INTEGER,
+                PRIMARY KEY(metadata_id AUTOINCREMENT)
             )", (),
         ) {
             Ok(_ret) => {},
@@ -4223,7 +4209,7 @@ pub fn connect() -> Result<rusqlite::Connection, rusqlite::Error> {
             }
         }
         match connection.execute(
-            "CREATE INDEX index_file_metadata_metadata_id ON file_metadata (metadata_id)", (),
+            "CREATE INDEX index_file_metadata_filename ON file_metadata (filepath)", (),
         ) {
             Ok(_ret) => {},
             Err(error) => {
@@ -4233,6 +4219,7 @@ pub fn connect() -> Result<rusqlite::Connection, rusqlite::Error> {
         }
         match connection.execute("
             CREATE TABLE video_metadata (
+                id INTEGER,
                 video_id INTEGER,
                 name  TEXT NOT NULL, 
                 title  TEXT NOT NULL, 
@@ -4245,7 +4232,7 @@ pub fn connect() -> Result<rusqlite::Connection, rusqlite::Error> {
                 height INT,
                 framerate FLOAT,
                 description TEXT,
-                PRIMARY KEY(video_id AUTOINCREMENT)
+                PRIMARY KEY(id AUTOINCREMENT)
             )", [],
         ) {
             Ok(_ret) => {},
@@ -4428,6 +4415,7 @@ pub fn connect() -> Result<rusqlite::Connection, rusqlite::Error> {
 
         match connection.execute("
             CREATE TABLE audio_metadata (
+                id INTEGER,
                 audio_id INTEGER,
                 name  TEXT NOT NULL, 
                 title  TEXT NOT NULL, 
@@ -4436,7 +4424,7 @@ pub fn connect() -> Result<rusqlite::Connection, rusqlite::Error> {
                 thumb   TEXT,
                 duration INT,
                 bitrate FLOAT,
-                PRIMARY KEY(audio_id AUTOINCREMENT)
+                PRIMARY KEY(id AUTOINCREMENT)
             )", [],
         ) {
             Ok(_ret) => {},
@@ -4611,6 +4599,7 @@ pub fn connect() -> Result<rusqlite::Connection, rusqlite::Error> {
 
         match connection.execute("
             CREATE TABLE image_metadata (
+                id       INTEGER,
                 image_id INTEGER,
                 name     TEXT NOT NULL, 
                 path     TEXT NOT NULL, 
@@ -4628,7 +4617,7 @@ pub fn connect() -> Result<rusqlite::Connection, rusqlite::Error> {
                 GPSLatitude DOUBLE,
                 GPSLongitude DOUBLE,
                 GPSAltitude DOUBLE,
-                PRIMARY KEY(image_id AUTOINCREMENT)
+                PRIMARY KEY(id AUTOINCREMENT)
             )", [],
         ) {
             Ok(_ret) => {},
