@@ -2,24 +2,46 @@
 
 Media browser with database backend for the COSMIC desktop environment. It manages media, makes it searchable by internal or external metadata and displays / plays them.
 
-![media-browser](res/media-browsewr.png)
+Infuse (MacOS/IOS video player) was an inspiration. Wanted to write that program for Linux for a while. But if I had to write the metadata browsing and display engine anyway, why restrict the app to video content only? So we ended up with an Image viewer, video and audio player with a database backend.
 
 EXIF metadata for images, NFO files for videos (XBMC/Kodi style) and ID3/MP4tag metadata for audio files are stored in a database and can be searched to produce a list of files matching, regardless where they are stored.
 
 Search results and existing directories are navigatable with keyboard or picking files in preview.
 
-The GUI of the file manager part is a clone of COSMIC files with a few modifications.
+![media-browser preview](res/media-browsewr.png)
 
-The GUI of the video / audio player is a clone of COSMIC player. The player itself is a modification of iced-video-player.
+Directory navigation displays media in the local directory. Detail information is available in the Preview. Some entries are directly searchable.
 
-The Image viewer GUI is inspired by gthumb.
+![media-browser search](res/media-browsesr.png)
 
-The backend is a genuine creation.
+A search mask with all the options is also available. Previous searches are listed in the top and can be selected. The play button in the bottom starts the search.
+
+![media-browser preview](res/media-browsear.png)
+
+Search results present the same view as the directory view. And they behave just the same.
+
+![media-browser search](res/media-browsepr.png)
+
+The player can navigate by chapters (if available) or seek by button or mouse-wheel. The mouse can also pick the scrubber and navigate that way. The home key will jump to the beginning.
+
+![media-browser search](res/media-browseor.png)
+
+The image viewer, video and audio player each provide a navigation strip to prewiew the other files besides the current one. Be it from a diretory or a search result. the file can be navigated by seleting via mouse or by Previous/Next button or PageUp/PageDown Keys. The media type selected changes the viewer.
 
 This project is developed and tested on Linux using Wayland and Pipewire. Gstreamer supports any audio and video pipeline. But the GUI is libcosmic, which is a Wayland only framework. It should be possible to run this on any Linux/Wayland desktop. And also WSL2 on Windows 11. I just will not test it.
 
 > [!NOTE]
 > The current Status is feature complete for the 1.0 release. We are in beta mode for the release.
+
+## Many thanks to the projects used here
+
+The file manager part is a clone of [COSMIC files](https://github.com/pop-os/cosmic-files) with a few modifications.
+
+The GUI of the video / audio player is a clone of [COSMIC player](https://github.com/pop-os/cosmic-player). The player itself is a modification of [iced-video-player](https://github.com/jazzfool/iced_video_player).
+
+The Image viewer GUI is inspired by [gthumb](https://gitlab.gnome.org/GNOME/gthumb). The viewer component is the image viewer provided by the [iced](https://github.com/iced-rs/iced) project.
+
+The backend is a genuine creation.
 
 ## Required dependencies
 
@@ -29,7 +51,7 @@ Gstreamer is modular. Depending on what formats you want to playback (mp3, m4a, 
 
 [Installing Gstreamer on Linux](https://gstreamer.freedesktop.org/documentation/installing/on-linux.html?gi-language=c)
 
-Creation of video thumbnails and metadata extraction from video and audio require an installation of ffmpeg in available to execute from the command line. Most linux distributions install that or at least have a copy available in the repositories.
+Creation of video thumbnails and metadata extraction from video and audio require an installation of [ffmpeg](https://www.ffmpeg.org/) in available to execute from the command line. Most linux distributions install that or at least have a copy available in the repositories.
 
 ```sh
 sudo apt install ffmpeg
