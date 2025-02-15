@@ -19,6 +19,9 @@ pub enum SearchType {
     Producer,
     Artist,
     AlbumArtist,
+    Album,
+    Composer,
+    Genre,
     Duration,
     CreationDate,
     ModificationDate,
@@ -54,6 +57,9 @@ pub struct SearchData {
     pub director: bool,
     pub artist: bool,
     pub album_artist: bool,
+    pub album: bool,
+    pub composer: bool,
+    pub genre: bool,
     pub duration: bool,
     pub creation_date: bool,
     pub modification_date: bool,
@@ -90,6 +96,9 @@ impl Default for SearchData {
             director: false,
             artist: false,
             album_artist: false,
+            album: false,
+            composer: false,
+            genre: false,
             duration: false,
             creation_date: false,
             modification_date: false,
@@ -1380,51 +1389,6 @@ pub fn delete_video(
     }    
     // clear the entry in the candidates list without deleting it
     let ret = connection.execute(
-        "DELETE FROM subtitles WHERE video_id = ?1",
-        params![&video_id],
-    );
-    if ret.is_err() {
-        log::error!("Failed to delete subtitles {}!", video_id);
-        return;
-    }    
-    // clear the entry in the candidates list without deleting it
-    let ret = connection.execute(
-        "DELETE FROM audiolangs WHERE video_id = ?1",
-        params![&video_id],
-    );
-    if ret.is_err() {
-        log::error!("Failed to delete candidate {}!", video_id);
-        return;
-    }    
-    // clear the entry in the candidates list without deleting it
-    let ret = connection.execute(
-        "DELETE FROM sublangs WHERE video_id = ?1",
-        params![&video_id],
-    );
-    if ret.is_err() {
-        log::error!("Failed to delete candidate {}!", video_id);
-        return;
-    }    
-    // clear the entry in the candidates list without deleting it
-    let ret = connection.execute(
-        "DELETE FROM director WHERE video_id = ?1",
-        params![&video_id],
-    );
-    if ret.is_err() {
-        log::error!("Failed to delete candidate {}!", video_id);
-        return;
-    }    
-    // clear the entry in the candidates list without deleting it
-    let ret = connection.execute(
-        "DELETE FROM actors WHERE video_id = ?1",
-        params![&video_id],
-    );
-    if ret.is_err() {
-        log::error!("Failed to delete candidate {}!", video_id);
-        return;
-    }    
-    // clear the entry in the candidates list without deleting it
-    let ret = connection.execute(
         "DELETE FROM file_metadata WHERE filepath = ?1",
         params![&metadata.path],
     );
@@ -2110,6 +2074,9 @@ pub struct AudioMetadata {
     pub path: String,
     pub poster: String,
     pub thumb: String,
+    pub genre: String,
+    pub composer: String,
+    pub track_id: u32,
     pub duration: u32,
     pub bitrate: f32,
     pub album: String,
@@ -2129,6 +2096,9 @@ impl Default for AudioMetadata {
             path: String::new(),
             poster: String::new(),
             thumb: String::new(),
+            genre: String::new(),
+            composer: String::new(),
+            track_id: 0,
             duration: 0,
             bitrate: 0.0,
             album: String::new(),
@@ -2149,8 +2119,8 @@ pub fn insert_audio(
     let audio_id = insert_file(connection, &metadata.path, statdata, 3, known_files);
     metadata.id = audio_id;
     match connection.execute(
-        "INSERT INTO audio_metadata (audio_id, name, title, released, poster, thumb, duration, bitrate) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
-        params![&metadata.id, &metadata.name, &metadata.title, &metadata.date, &metadata.poster, &metadata.thumb, &metadata.duration, &metadata.bitrate],
+        "INSERT INTO audio_metadata (audio_id, name, title, released, poster, thumb, genre, composer, track_id, duration, bitrate) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
+        params![&metadata.id, &metadata.name, &metadata.title, &metadata.date, &metadata.poster, &metadata.thumb, &metadata.genre, &metadata.composer, &metadata.track_id, &metadata.duration, &metadata.bitrate],
     ) {
         Ok(_retval) => {}, //log::warn!("Inserted {} video with ID {} and location {} into candidates.", video.id, video.index, candidate_id),
         Err(error) => {
@@ -2158,36 +2128,49 @@ pub fn insert_audio(
             return;
         }
     }
-    for i in 0..metadata.artist.len() {
-        let albumartist_id = insert_artist(connection, metadata.artist[i].clone());
-        if albumartist_id == -1 {
-            continue;
-        }
+
+    let _album_id = insert_album(connection, metadata.album.clone());
+
+    if _album_id != -1 {
         match connection.execute(
-            "INSERT INTO actors (actor_id, video_id) VALUES (?1, ?2)",
-            params![&albumartist_id, &audio_id],
+            "INSERT INTO album_audio_map (audio_id, album_id) VALUES (?1, ?2)",
+            params![&audio_id, &_album_id],
         ) {
             Ok(_retval) => {}, //log::warn!("Inserted {} video with ID {} and location {} into candidates.", video.id, video.index, candidate_id),
             Err(error) => {
-                log::error!("Failed to insert actor into  database: {}", error);
+                log::error!("Failed to insert album into  database: {}", error);
                 return;
             }
         }
     }
-
-    let _album_id = insert_album(connection, metadata.album.clone());
+    for i in 0..metadata.artist.len() {
+        let artist_id = insert_artist(connection, metadata.artist[i].clone());
+        if artist_id == -1 {
+            continue;
+        }
+        match connection.execute(
+            "INSERT INTO artist_audio_map (audio_id, artist_id) VALUES (?1, ?2)",
+            params![&audio_id, &artist_id],
+        ) {
+            Ok(_retval) => {}, //log::warn!("Inserted {} video with ID {} and location {} into candidates.", video.id, video.index, candidate_id),
+            Err(error) => {
+                log::error!("Failed to insert artist into  database: {}", error);
+                return;
+            }
+        }
+    }
     for i in 0..metadata.albumartist.len() {
         let albumartist_id = insert_artist(connection, metadata.albumartist[i].clone());
         if albumartist_id == -1 {
             continue;
         }
         match connection.execute(
-            "INSERT INTO actors (actor_id, video_id) VALUES (?1, ?2)",
-            params![&albumartist_id, &audio_id],
+            "INSERT INTO albumartist_audio_map (audio_id, albumartist_id) VALUES (?1, ?2)",
+            params![&audio_id, &albumartist_id],
         ) {
             Ok(_retval) => {}, //log::warn!("Inserted {} video with ID {} and location {} into candidates.", video.id, video.index, candidate_id),
             Err(error) => {
-                log::error!("Failed to insert actor into  database: {}", error);
+                log::error!("Failed to insert albumartist_id into  database: {}", error);
                 return;
             }
         }
@@ -2227,7 +2210,7 @@ fn insert_album(connection: &mut rusqlite::Connection, name: String) -> i32 {
             match statement.query(params![&name]) {
                 Ok(mut rows) => {
                     while let Ok(Some(row)) = rows.next() {
-                        let s_opt = row.get(1);
+                        let s_opt = row.get(0);
                         if s_opt.is_ok() {
                             album_id = s_opt.unwrap();
                             return album_id;
@@ -2290,7 +2273,7 @@ fn insert_artist(connection: &mut rusqlite::Connection, name: String) -> i32 {
             match statement.query(params![&name]) {
                 Ok(mut rows) => {
                     while let Ok(Some(row)) = rows.next() {
-                        let s_opt = row.get(1);
+                        let s_opt = row.get(0);
                         if s_opt.is_ok() {
                             artist_id = s_opt.unwrap();
                             return artist_id;
@@ -2381,50 +2364,7 @@ pub fn delete_audio(
         params![&audio_id],
     );
     if ret.is_err() {
-        log::error!("Failed to delete candidate {}!", audio_id);
-        return;
-    }    
-    // clear the entry in the candidates list without deleting it
-    let ret = connection.execute(
-        "DELETE FROM artists WHERE audio_id = ?1",
-        params![&audio_id],
-    );
-    if ret.is_err() {
-        log::error!("Failed to delete subtitles {}!", audio_id);
-        return;
-    }    
-    let ret = connection.execute(
-        "DELETE FROM artist_audio_map WHERE audio_id = ?1",
-        params![&audio_id],
-    );
-    if ret.is_err() {
-        log::error!("Failed to delete artist_audio_map {}!", audio_id);
-        return;
-    }    
-    // clear the entry in the candidates list without deleting it
-    let ret = connection.execute(
-        "DELETE FROM albums WHERE audio_id = ?1",
-        params![&audio_id],
-    );
-    if ret.is_err() {
-        log::error!("Failed to delete albums {}!", audio_id);
-        return;
-    }    
-    let ret = connection.execute(
-        "DELETE FROM album_audio_map WHERE audio_id = ?1",
-        params![&audio_id],
-    );
-    if ret.is_err() {
-        log::error!("Failed to delete albums {}!", audio_id);
-        return;
-    }    
-    // clear the entry in the candidates list without deleting it
-    let ret = connection.execute(
-        "DELETE FROM albumartist_audio_map WHERE audio_id = ?1",
-        params![&audio_id],
-    );
-    if ret.is_err() {
-        log::error!("Failed to delete albumartist_audio_map {}!", audio_id);
+        log::error!("Failed to delete audio file {}!", audio_id);
         return;
     }    
     // clear the entry in the candidates list without deleting it
@@ -2457,6 +2397,7 @@ pub fn audio_by_id(
     let mut v = AudioMetadata {..Default::default()};
     v.path = filepath.to_string();
     // fill v from all tables
+    v.id = audio_id as u32;
     let query = "SELECT name, title, released, poster, thumb, duration FROM audio_metadata WHERE audio_id = ?1";
     match connection.prepare(query) {
         Ok(mut statement) => {
@@ -2502,6 +2443,27 @@ pub fn audio_by_id(
                                 }
                                 match row.get(5) {
                                     Ok(val) => v.duration = val,
+                                    Err(error) => {
+                                        log::error!("Failed to read duration for audio: {}", error);
+                                        continue;
+                                    }
+                                }
+                                match row.get(6) {
+                                    Ok(val) => v.genre = val,
+                                    Err(error) => {
+                                        log::error!("Failed to read poster for audio: {}", error);
+                                        continue;
+                                    }
+                                }
+                                match row.get(7) {
+                                    Ok(val) => v.composer = val,
+                                    Err(error) => {
+                                        log::error!("Failed to read bitrate for audio: {}", error);
+                                        continue;
+                                    }
+                                }
+                                match row.get(8) {
+                                    Ok(val) => v.track_id = val,
                                     Err(error) => {
                                         log::error!("Failed to read duration for audio: {}", error);
                                         continue;
@@ -2752,7 +2714,8 @@ pub fn audio(
     v.path = filepath.to_string();
     let filedata = file(connection, filepath);
     let audio_id = filedata.metadata_id;
-    let query = "SELECT name, title, released, poster, thumb, duration FROM audio_metadata WHERE audio_id = ?1";
+    v.id = audio_id as u32;
+    let query = "SELECT name, title, released, poster, thumb, duration, genre, composer, track_id FROM audio_metadata WHERE audio_id = ?1";
     match connection.prepare(query) {
         Ok(mut statement) => {
             match statement.query(params![&audio_id]) {
@@ -2797,6 +2760,27 @@ pub fn audio(
                                 }
                                 match row.get(5) {
                                     Ok(val) => v.duration = val,
+                                    Err(error) => {
+                                        log::error!("Failed to read duration for audio: {}", error);
+                                        continue;
+                                    }
+                                }
+                                match row.get(6) {
+                                    Ok(val) => v.genre = val,
+                                    Err(error) => {
+                                        log::error!("Failed to read poster for audio: {}", error);
+                                        continue;
+                                    }
+                                }
+                                match row.get(7) {
+                                    Ok(val) => v.composer = val,
+                                    Err(error) => {
+                                        log::error!("Failed to read bitrate for audio: {}", error);
+                                        continue;
+                                    }
+                                }
+                                match row.get(8) {
+                                    Ok(val) => v.track_id = val,
                                     Err(error) => {
                                         log::error!("Failed to read duration for audio: {}", error);
                                         continue;
@@ -3317,7 +3301,7 @@ pub fn image(
     let filedata = file(connection, filepath);
     let image_id = filedata.metadata_id;
     v.id = image_id as u32;
-    let query = "SELECT image_id, name, created, resized, thumb, width, height, Photographer, LenseModel, Focallength, Exposuretime, FNumber, GPSLatitude, GPSLongitude, GPSAltitude FROM image_metadata WHERE image_id = ?1";
+    let query = "SELECT name, created, resized, thumb, width, height, Photographer, LenseModel, Focallength, Exposuretime, FNumber, GPSLatitude, GPSLongitude, GPSAltitude, image_id FROM image_metadata WHERE image_id = ?1";
     match connection.prepare(query) {
         Ok(mut statement) => {
             match statement.query(params![&image_id]) {
@@ -3425,6 +3409,13 @@ pub fn image(
                                 }
                                 match row.get(14) {
                                     Ok(val) => v.gps_altitude = val,
+                                    Err(error) => {
+                                        log::error!("Failed to read gps_altitude for image: {}", error);
+                                        continue;
+                                    }
+                                }
+                                match row.get(15) {
+                                    Ok(val) => v.id = val,
                                     Err(error) => {
                                         log::error!("Failed to read gps_altitude for image: {}", error);
                                         continue;
@@ -4135,6 +4126,27 @@ pub fn searches(
                                         continue;
                                     }
                                 }
+                                match row.get(28) {
+                                    Ok(val) => v.album = val,
+                                    Err(error) => {
+                                        log::error!("Failed to read gps_altitude for searches: {}", error);
+                                        continue;
+                                    }
+                                }
+                                match row.get(29) {
+                                    Ok(val) => v.genre = val,
+                                    Err(error) => {
+                                        log::error!("Failed to read gps_altitude for searches: {}", error);
+                                        continue;
+                                    }
+                                }
+                                match row.get(30) {
+                                    Ok(val) => v.composer = val,
+                                    Err(error) => {
+                                        log::error!("Failed to read gps_altitude for searches: {}", error);
+                                        continue;
+                                    }
+                                }
                                 searches.push(v);
                             },
                             Ok(None) => {
@@ -4219,8 +4231,7 @@ pub fn connect() -> Result<rusqlite::Connection, rusqlite::Error> {
         }
         match connection.execute("
             CREATE TABLE video_metadata (
-                id INTEGER,
-                video_id INTEGER,
+                video_id INTEGER PRIMARY KEY,
                 name  TEXT NOT NULL, 
                 title  TEXT NOT NULL, 
                 released UNSIGNED BIG INT NOT NULL, 
@@ -4231,8 +4242,7 @@ pub fn connect() -> Result<rusqlite::Connection, rusqlite::Error> {
                 width INT,
                 height INT,
                 framerate FLOAT,
-                description TEXT,
-                PRIMARY KEY(id AUTOINCREMENT)
+                description TEXT
             )", [],
         ) {
             Ok(_ret) => {},
@@ -4415,16 +4425,17 @@ pub fn connect() -> Result<rusqlite::Connection, rusqlite::Error> {
 
         match connection.execute("
             CREATE TABLE audio_metadata (
-                id INTEGER,
-                audio_id INTEGER,
+                audio_id INTEGER PRIMARY KEY,
                 name  TEXT NOT NULL, 
                 title  TEXT NOT NULL, 
                 released UNSIGNED BIG INT NOT NULL, 
                 poster  TEXT, 
                 thumb   TEXT,
+                genre   TEXT,
+                composer TEXT,
+                track_id INT,
                 duration INT,
-                bitrate FLOAT,
-                PRIMARY KEY(id AUTOINCREMENT)
+                bitrate FLOAT
             )", [],
         ) {
             Ok(_ret) => {},
@@ -4599,8 +4610,7 @@ pub fn connect() -> Result<rusqlite::Connection, rusqlite::Error> {
 
         match connection.execute("
             CREATE TABLE image_metadata (
-                id       INTEGER,
-                image_id INTEGER,
+                image_id INTEGER PRIMARY KEY,
                 name     TEXT NOT NULL, 
                 path     TEXT NOT NULL, 
                 created  UNSIGNED BIG INT NOT NULL, 
@@ -4616,8 +4626,7 @@ pub fn connect() -> Result<rusqlite::Connection, rusqlite::Error> {
                 GPSString  TEXT,
                 GPSLatitude DOUBLE,
                 GPSLongitude DOUBLE,
-                GPSAltitude DOUBLE,
-                PRIMARY KEY(id AUTOINCREMENT)
+                GPSAltitude DOUBLE
             )", [],
         ) {
             Ok(_ret) => {},

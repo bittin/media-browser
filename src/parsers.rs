@@ -189,6 +189,22 @@ fn parse_audiotags(file: &PathBuf, metadata: &mut crate::sql::AudioMetadata) {
         Some(value) => metadata.title = value.to_string(),
         None => {}
     };
+    match tag.album_title() {
+        Some(value) => metadata.album = value.to_string(),
+        None => {}
+    };
+    match tag.track_number() {
+        Some(value) => metadata.track_id = value.into(),
+        None => {}
+    };
+    match tag.genre() {
+        Some(value) => metadata.genre = value.to_string(),
+        None => {}
+    };
+    match tag.composer() {
+        Some(value) => metadata.composer = value.to_string(),
+        None => {}
+    };
     match tag.artists() {
         Some(value) => {
             for s in value {

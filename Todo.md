@@ -127,6 +127,7 @@ Positions ended with a ? are *stretch goals*. If it is possible AND somebody doe
 - stop playback when switching to Browser view
 - add chapter navigation
 - make the player zoom a video that is smaller than the display area
+- make the primary metadata directly searchable form the preview
 
 #### Video Open Features
 
@@ -149,6 +150,8 @@ Positions ended with a ? are *stretch goals*. If it is possible AND somebody doe
 - stop playback when opening new file
 - stop playback when switching to Browser view
 - add chapter navigation
+- parse more audio metadata and display them in preview
+- make the primary metadata directly searchable form the preview
 
 #### Audio Open Features
 

@@ -1491,6 +1491,27 @@ impl Item {
                             "item-media-runtime",
                             text = seconds_to_runtime(audio.duration)
                         )));
+                        if audio.album.len() > 0 {
+                            details = details.push(widget::button::link(fl!(
+                                "item-media-album",
+                                text = audio.album.clone()
+                            )).on_press(crate::app::Message::LaunchSearch(ST::Album, audio.album.clone()))
+                            .padding(0));
+                        }
+                        if audio.composer.len() > 0 {
+                            details = details.push(widget::button::link(fl!(
+                                "item-media-composer",
+                                text = audio.composer.clone()
+                            )).on_press(crate::app::Message::LaunchSearch(ST::Composer, audio.composer.clone()))
+                            .padding(0));
+                        }
+                        if audio.genre.len() > 0 {
+                            details = details.push(widget::button::link(fl!(
+                                "item-media-genre",
+                                text = audio.genre.clone()
+                            )).on_press(crate::app::Message::LaunchSearch(ST::Genre, audio.genre.clone()))
+                            .padding(0));
+                        }
                         for l in audio.artist.iter() {
                             details = details.push(widget::button::link(fl!(
                                 "item-media-artist",

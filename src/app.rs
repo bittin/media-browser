@@ -395,6 +395,9 @@ pub enum Message {
     SearchDirector(bool),
     SearchArtist(bool),
     SearchAlbumartist(bool),
+    SearchAlbum(bool),
+    SearchComposer(bool),
+    SearchGenre(bool),
     SearchDuration(bool),
     SearchCreationDate(bool),
     SearchModificationDate(bool),
@@ -1334,6 +1337,19 @@ impl App {
             widget::horizontal_space().into(),
             widget::checkbox(fl!("search-director"), self.search.director)
                 .on_toggle(move |value| Message::SearchDirector(value))
+                .into(),
+        ]));
+        column = column.push(widget::row::with_children(vec![
+            widget::checkbox(fl!("search-album"), self.search.album)
+                .on_toggle(move |value| Message::SearchAlbum(value))
+                .into(),
+            widget::horizontal_space().into(),
+            widget::checkbox(fl!("search-composer"), self.search.composer)
+                .on_toggle(move |value| Message::SearchComposer(value))
+                .into(),
+            widget::horizontal_space().into(),
+            widget::checkbox(fl!("search-genre"), self.search.genre)
+                .on_toggle(move |value| Message::SearchGenre(value))
                 .into(),
         ]));
         column = column.push(widget::row::with_children(vec![
@@ -3753,6 +3769,21 @@ impl Application for App {
                         self.search.audio = true;
                         self.search.from_string = search_term;
                     },
+                    ST::Album => {
+                        self.search.album = true;
+                        self.search.audio = true;
+                        self.search.from_string = search_term;
+                    },
+                    ST::Composer => {
+                        self.search.composer = true;
+                        self.search.audio = true;
+                        self.search.from_string = search_term;
+                    },
+                    ST::Genre => {
+                        self.search.genre = true;
+                        self.search.audio = true;
+                        self.search.from_string = search_term;
+                    },
 
                     _ => return Task::none(),
                 }
@@ -4189,7 +4220,7 @@ impl Application for App {
                     Mode::Desktop => {
                         let selected_paths = self.selected_paths(entity_opt);
                         let mut commands = Vec::with_capacity(selected_paths.len());
-                        for path in selected_paths {
+                        for _path in selected_paths {
                             let mut settings = window::Settings::default();
                             settings.decorations = true;
                             settings.min_size = Some(Size::new(360.0, 180.0));
@@ -4204,7 +4235,7 @@ impl Application for App {
                                     "com.system76.CosmicFilesDialog".to_string();
                             }
 
-                            let (id, command) = window::open(settings);
+                            let (_id, command) = window::open(settings);
                             commands.push(command.map(|_id| message::none()));
                         }
                         return Task::batch(commands);
@@ -4511,6 +4542,27 @@ impl Application for App {
             Message::SearchAlbumartist(is_checked) => {
                 self.search.search_id = 0;
                 self.search.album_artist = is_checked;
+                if !self.search.audio {
+                    self.search.audio = true;
+                }
+            }
+            Message::SearchAlbum(is_checked) => {
+                self.search.search_id = 0;
+                self.search.album = is_checked;
+                if !self.search.video {
+                    self.search.video = true;
+                }
+            }
+            Message::SearchComposer(is_checked) => {
+                self.search.search_id = 0;
+                self.search.composer = is_checked;
+                if !self.search.audio {
+                    self.search.audio = true;
+                }
+            }
+            Message::SearchGenre(is_checked) => {
+                self.search.search_id = 0;
+                self.search.genre = is_checked;
                 if !self.search.audio {
                     self.search.audio = true;
                 }
