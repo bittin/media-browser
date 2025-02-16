@@ -33,7 +33,7 @@ This project is developed and tested on Linux using Wayland and Pipewire. Gstrea
 > [!NOTE]
 > The current Status is feature complete for the 1.0 release. We are in beta mode for the release.
 
-## Many thanks to the projects used here
+## Many thanks to the projects this software is based on
 
 The file manager part is a clone of [COSMIC files](https://github.com/pop-os/cosmic-files) with a few modifications.
 
@@ -45,13 +45,13 @@ The backend is a genuine creation.
 
 ## Required dependencies
 
-Video and audio playback requires GStreamer.
+Video and audio playback requires [GStreamer](https://gstreamer.freedesktop.org/).
 
 Gstreamer is modular. Depending on what formats you want to playback (mp3, m4a, aiff, flac, mp4, mkv, wmv, av1, vp9, h264, hevc, ...) and what backend you want to use (pipewire, pulseaudio, alsa, jack, ...) specific gst-plugin-`format` have to be installed.
 
 [Installing Gstreamer on Linux](https://gstreamer.freedesktop.org/documentation/installing/on-linux.html?gi-language=c)
 
-Creation of video thumbnails and metadata extraction from video and audio require an installation of [ffmpeg](https://www.ffmpeg.org/) in available to execute from the command line. Most linux distributions install that or at least have a copy available in the repositories.
+Creation of video thumbnails and metadata extraction from video and audio require an installation of [ffmpeg](https://www.ffmpeg.org/) available to execute from the command line. Most linux distributions install that or at least have it available in the repositories. In some special cases it might be necessary to get ffmpeg from another source to support the media codecs in your media. But simple playback should be possible for a lot of codecs, which is good enough for what we need of it.
 
 ```sh
 sudo apt install ffmpeg
