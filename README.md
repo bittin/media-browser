@@ -26,7 +26,7 @@ The player can navigate by chapters (if available) or seek by button or mouse-wh
 
 ![media-browser search](res/media-browseor.png)
 
-The image viewer, video and audio player each provide a navigation strip to prewiew the other files besides the current one. Be it from a diretory or a search result. the file can be navigated by seleting via mouse or by Previous/Next button or PageUp/PageDown Keys. The media type selected changes the viewer.
+The image viewer, video and audio player each provide a navigation strip to prewiew the other files besides the current one. Be it from a diretory or a search result. The file preview can be navigated by seleting via mouse or by Previous/Next buttons on the left or PageUp/PageDown Keys. If there are different media types selected, the viewer changes with the selected file.
 
 This project is developed and tested on Linux using Wayland and Pipewire. Gstreamer supports any audio and video pipeline. But the GUI is libcosmic, which is a Wayland only framework. It should be possible to run this on any Linux/Wayland desktop. And also WSL2 on Windows 11. I just will not test it.
 

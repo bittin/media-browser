@@ -3301,7 +3301,7 @@ pub fn image(
     let filedata = file(connection, filepath);
     let image_id = filedata.metadata_id;
     v.id = image_id as u32;
-    let query = "SELECT name, created, resized, thumb, width, height, Photographer, LenseModel, Focallength, Exposuretime, FNumber, GPSLatitude, GPSLongitude, GPSAltitude, image_id FROM image_metadata WHERE image_id = ?1";
+    let query = "SELECT name, path, created, resized, thumb, width, height, Photographer, LenseModel, Focallength, Exposuretime, FNumber, GPSLatitude, GPSLongitude, GPSAltitude, image_id FROM image_metadata WHERE image_id = ?1";
     match connection.prepare(query) {
         Ok(mut statement) => {
             match statement.query(params![&image_id]) {
