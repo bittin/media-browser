@@ -43,8 +43,7 @@ use cosmic::{
     Element,
 };
 
-use chrono::{DateTime, NaiveDateTime, Utc};
-use i18n_embed::LanguageLoader;
+use chrono::{DateTime, Utc};
 use mime_guess::{mime, Mime};
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
@@ -67,12 +66,12 @@ use walkdir::WalkDir;
 use crate::{
     app::{self, Action, PreviewItem, PreviewKind},
     clipboard::{ClipboardCopy, ClipboardKind, ClipboardPaste},
-    config::{DesktopConfig, IconSizes, TabConfig, ICON_SCALE_MAX, ICON_SIZE_GRID},
+    config::{IconSizes, TabConfig},
     dialog::DialogKind,
     fl,
     localize::{LANGUAGE_CHRONO, LANGUAGE_SORTER},
     menu,
-    mime_app::{mime_apps, MimeApp},
+    mime_app::MimeApp,
     mime_icon::{mime_for_path, mime_icon},
     mounter::MOUNTERS,
     mouse_area,
@@ -87,7 +86,7 @@ pub const HOVER_DURATION: Duration = Duration::from_millis(1600);
 const MAX_SEARCH_LATENCY: Duration = Duration::from_millis(20);
 const MAX_SEARCH_RESULTS: usize = 200;
 //TODO: configurable thumbnail size?
-const THUMBNAIL_SIZE: u32 = (ICON_SIZE_GRID as u32) * (ICON_SCALE_MAX as u32);
+//const THUMBNAIL_SIZE: u32 = (ICON_SIZE_GRID as u32) * (ICON_SCALE_MAX as u32);
 
 //TODO: adjust for locales?
 const DATE_TIME_FORMAT: &'static str = "%b %-d, %-Y, %-I:%M %p";
@@ -1225,7 +1224,7 @@ impl Item {
     }
 
     fn preview<'a>(&'a self, sizes: IconSizes) -> Element<'a, app::Message> {
-        let spacing = cosmic::theme::active().cosmic().spacing;
+        //let spacing = cosmic::theme::active().cosmic().spacing;
         // This loads the image only if thumbnailing worked
         let icon = widget::icon::icon(self.icon_handle_grid.clone())
             .content_fit(ContentFit::Contain)
@@ -1812,7 +1811,7 @@ fn folder_name<P: AsRef<Path>>(path: P) -> (String, bool) {
 }
 
 // parse .hidden file and return files path
-fn parse_hidden_file(path: &PathBuf) -> Vec<String> {
+fn _parse_hidden_file(path: &PathBuf) -> Vec<String> {
     let file = match File::open(path) {
         Ok(f) => f,
         Err(_) => return Vec::new(),
@@ -4468,7 +4467,7 @@ impl Tab {
         let mut subscriptions = Vec::with_capacity(jobs + 1);
 
         //TODO: move to function
-        let visible_rect = {
+        let _visible_rect = {
             let point = match self.scroll_opt {
                 Some(offset) => Point::new(0.0, offset.y),
                 None => Point::new(0.0, 0.0),
@@ -5157,7 +5156,7 @@ impl<Message: 'static> From<ArcElementWrapper<Message>> for Element<'static, Mes
     }
 }
 
-fn text_editor_class(
+fn _text_editor_class(
     theme: &cosmic::Theme,
     status: cosmic::widget::text_editor::Status,
 ) -> cosmic::iced_widget::text_editor::Style {

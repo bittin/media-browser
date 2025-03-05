@@ -116,7 +116,7 @@ impl Default for SearchData {
 
 impl SearchData {
     pub fn display(&self) -> String {
-        let mut s = String::new();
+        let mut s;
         s = format!("{}", self.search_id);
         if self.image {
             s = format!("{} Image", s);

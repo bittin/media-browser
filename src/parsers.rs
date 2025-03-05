@@ -10,7 +10,6 @@ use crate::tab::{hidden_attribute, DirSize, Item, ItemMetadata, ItemThumbnail, L
 
 use chrono::{DateTime, Datelike, NaiveDate};
 use cosmic::widget;
-use mime_guess::mime;
 use std::cell::Cell;
 use std::ops::ControlFlow;
 use std::path::PathBuf;
@@ -48,7 +47,6 @@ fn parse_nfo(nfo_file: &PathBuf, metadata: &mut crate::sql::VideoMetadata) {
                     //println!("EndDocument");
                     break;
                 }
-                XmlEvent::ProcessingInstruction { name, data } => {}
                 XmlEvent::StartElement {
                     name,  ..
                 } => {
