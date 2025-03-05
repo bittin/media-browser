@@ -1439,6 +1439,13 @@ impl Item {
                             "item-media-runtime",
                             text = seconds_to_runtime(video.duration)
                         )));
+                        for l in video.tags.iter() {
+                            details = details.push(widget::button::link(fl!(
+                                "item-media-tag",
+                                text = l.tag.clone()
+                            )).on_press(crate::app::Message::LaunchSearch(ST::Tag, l.tag.clone()))
+                            .padding(0));
+                        }
                         for l in video.audiolangs.iter() {
                             details = details.push(widget::text::body(fl!(
                                 "item-audio-languange",
@@ -1497,6 +1504,13 @@ impl Item {
                             )).on_press(crate::app::Message::LaunchSearch(ST::Album, audio.album.clone()))
                             .padding(0));
                         }
+                        for l in audio.tags.iter() {
+                            details = details.push(widget::button::link(fl!(
+                                "item-media-tag",
+                                text = l.tag.clone()
+                            )).on_press(crate::app::Message::LaunchSearch(ST::Tag, l.tag.clone()))
+                            .padding(0));
+                        }
                         if audio.composer.len() > 0 {
                             details = details.push(widget::button::link(fl!(
                                 "item-media-composer",
@@ -1551,6 +1565,13 @@ impl Item {
                             width = image.width,
                             height = image.height
                         )));
+                        for l in image.tags.iter() {
+                            details = details.push(widget::button::link(fl!(
+                                "item-media-tag",
+                                text = l.tag.clone()
+                            )).on_press(crate::app::Message::LaunchSearch(ST::Tag, l.tag.clone()))
+                            .padding(0));
+                        }
                         if image.lense_model.len() > 0 {
                             details = details.push(widget::text::body(fl!(
                                 "item-image-lense-model",

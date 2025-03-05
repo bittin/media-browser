@@ -79,14 +79,16 @@ Positions ended with a ? are *stretch goals*. If it is possible AND somebody doe
 - manage previous searches in the search context menu
 - make the details page information clickable - on click it will search for the value (for example: "Director: Quentin Tarantino)
 - make the search text appear in the search tab title
+- user defined tags
+- search for user defined tags
+- display user defined tags in detail view (search by clicking)
 
 #### Open Features
 
-- user defined tags
-- search for user defined tags
-- sort by user defined tags
-- display user defined tags in detail view (search by clicking)
 - add user defined tags to the navigation panel like locations
+- assign user defined tags by menu and context menu
+- assign user defined tags by dragging files onto a tag in the navigation panel?
+- sort by user defined tags
 - display size of metadata in settings panel
 - display location of metadata in settings panel
 - settings option to delete metadata
