@@ -116,6 +116,7 @@ pub enum Action {
     OpenAudio,
     About,
     AddToSidebar,
+    AddTagToSidebar,
     AudioMuteToggle,
     Copy,
     Cut,
@@ -178,6 +179,7 @@ impl Action {
         match self {
             Action::About => Message::ToggleContextPage(ContextPage::About),
             Action::AddToSidebar => Message::AddToSidebar(entity_opt),
+            Action::AddTagToSidebar => Message::AddTagToSidebar(entity_opt),
             Action::AudioMuteToggle => Message::AudioMuteToggle,
             Action::OpenBrowser => Message::Browser,
             Action::OpenImage => Message::Image(crate::image::image_view::Message::ToImage),
@@ -300,6 +302,7 @@ pub enum Message {
     Video(crate::video::video_view::Message),
     Audio(crate::audio::audio_view::Message),
     AddToSidebar(Option<Entity>),
+    AddTagToSidebar(Option<Entity>),
     AppTheme(AppTheme),
     AudioMessage(crate::audio::audio_view::Message),
     AudioMuteToggle,
@@ -492,6 +495,9 @@ pub enum DialogPage {
         parent: PathBuf,
         name: String,
         dir: bool,
+    },
+    NewTag {
+        tag: String,
     },
     OpenWith {
         path: PathBuf,
@@ -3045,6 +3051,10 @@ impl Application for App {
                 config_set!(favorites, favorites);
                 return self.update_config();
             }
+            Message::AddTagToSidebar(_entity_opt) => {
+                self.dialog_pages.push_back(DialogPage::NewTag {tag: "unnamed".to_string()});
+                return widget::text_input::focus(self.dialog_text_input.clone());
+            }
             Message::AppTheme(app_theme) => {
                 config_set!(app_theme, app_theme);
                 return self.update_config();
@@ -3611,6 +3621,28 @@ impl Application for App {
                             } else {
                                 Operation::NewFolder { path }
                             });
+                        }
+                        DialogPage::NewTag {tag} => {
+                            let mut connection;
+                            match crate::sql::connect() {
+                                Ok(ok) => connection = ok,
+                                Err(error) => {
+                                    log::error!("Could not open SQLite DB connection: {}", error);
+                                    return Task::none();
+                                }
+                            }
+                            let tag_id = crate::sql::insert_tag(&mut connection, 0, tag.clone()) as u32;
+                            let t = crate::sql::Tag {
+                                tag_id,
+                                tag: tag.clone(),
+                            };
+                            let mut tags = self.config.tags.clone();
+                            //let taglocation = Location::Tag(t);
+                            if !tags.iter().any(|f| f == &t) {
+                                tags.push(t);
+                            }
+                            config_set!(tags, tags);
+                            return self.update_config();
                         }
                         DialogPage::OpenWith {
                             path,
@@ -5834,6 +5866,49 @@ impl Application for App {
                                         parent: parent.clone(),
                                         name,
                                         dir: *dir,
+                                    })
+                                })
+                                .on_submit_maybe(complete_maybe)
+                                .into(),
+                        ])
+                        .spacing(space_xxs),
+                    )
+            }
+            DialogPage::NewTag { tag} => {
+                let mut dialog = widget::dialog().title(fl!("create-new-tag"));
+
+                let complete_maybe = if tag.is_empty() {
+                    None
+                } else if tag.starts_with(".") {
+                    dialog = dialog.tertiary_action(widget::text::body(fl!(
+                        "name-invalid",
+                        filename = tag.as_str()
+                    )));
+                    None
+                } else if tag.contains('/') || tag.contains('.') {
+                    dialog = dialog.tertiary_action(widget::text::body(fl!("name-no-slashes")));
+                    None
+                } else {
+                    Some(Message::DialogComplete)
+                };
+
+                dialog
+                    .primary_action(
+                        widget::button::suggested(fl!("save"))
+                            .on_press_maybe(complete_maybe.clone()),
+                    )
+                    .secondary_action(
+                        widget::button::standard(fl!("cancel")).on_press(Message::DialogCancel),
+                    )
+                    .control(
+                        widget::column::with_children(vec![
+                            widget::text::body(fl!("tag-name"))
+                            .into(),
+                            widget::text_input("", tag.as_str())
+                                .id(self.dialog_text_input.clone())
+                                .on_input(move |tag| {
+                                    Message::DialogUpdate(DialogPage::NewTag {
+                                        tag:tag.to_string(),
                                     })
                                 })
                                 .on_submit_maybe(complete_maybe)

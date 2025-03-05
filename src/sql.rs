@@ -8,6 +8,7 @@ use rusqlite::{Connection, Result, params};
 use std::path::PathBuf;
 use std::collections::BTreeMap;
 use chrono::{NaiveDate, Timelike};
+use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Hash)]
 pub enum SearchType {
@@ -1118,7 +1119,7 @@ pub fn search_items(
     items
 }
 
-#[derive(Clone, Debug, Default, PartialEq, Eq, Hash, PartialOrd)]
+#[derive(Clone, Debug, Default, Deserialize, Eq, Hash, PartialEq, PartialOrd, Serialize)]
 pub struct Tag {
     pub tag_id: u32,
     pub tag: String,
@@ -1459,7 +1460,7 @@ pub fn tags(connection: &mut rusqlite::Connection) -> Vec<Tag> {
     tags
 }
 
-fn insert_tag(connection: &mut rusqlite::Connection, media_id: u32, tag: String) -> i32 {
+pub fn insert_tag(connection: &mut rusqlite::Connection, media_id: u32, tag: String) -> i32 {
     let mut tag_id= -1;
     let query = "SELECT tag_id FROM tags WHERE tag = ?1";
     match connection.prepare(query) {
@@ -1519,14 +1520,16 @@ fn insert_tag(connection: &mut rusqlite::Connection, media_id: u32, tag: String)
             }
         }
     }
-    match connection.execute(
-        "INSERT INTO tags_media_map (media_id, tag_id) VALUES (?1, ?2)",
-        params![&media_id, tag_id],
-    ) {
-        Ok(_retval) => {}, //log::warn!("Inserted {} video with ID {} and location {} into candidates.", video.id, video.index, candidate_id),
-        Err(error) => {
-            log::error!("Failed to insert media_id into tags_media_map database: {}", error);
-            return tag_id;
+    if media_id > 0 {
+        match connection.execute(
+            "INSERT INTO tags_media_map (media_id, tag_id) VALUES (?1, ?2)",
+            params![&media_id, tag_id],
+        ) {
+            Ok(_retval) => {}, //log::warn!("Inserted {} video with ID {} and location {} into candidates.", video.id, video.index, candidate_id),
+            Err(error) => {
+                log::error!("Failed to insert media_id into tags_media_map database: {}", error);
+                return tag_id;
+            }
         }
     }
 

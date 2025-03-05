@@ -54,6 +54,7 @@ pub fn key_binds(mode: &tab::Mode) -> HashMap<KeyBind, Action> {
     // App-only keys
     if matches!(mode, tab::Mode::App) {
         bind!([Ctrl], Key::Character("d".into()), AddToSidebar);
+        bind!([Ctrl], Key::Character("t".into()), AddTagToSidebar);
         bind!([Ctrl], Key::Character(",".into()), Settings);
         bind!([Ctrl], Key::Named(Named::Tab), TabNext);
         bind!([Ctrl, Shift], Key::Named(Named::Tab), TabPrev);

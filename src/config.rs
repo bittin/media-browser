@@ -98,6 +98,7 @@ pub struct Config {
     pub app_theme: AppTheme,
     pub desktop: DesktopConfig,
     pub favorites: Vec<Favorite>,
+    pub tags: Vec<crate::sql::Tag>,
     pub show_details: bool,
     pub tab: TabConfig,
 }
@@ -145,6 +146,7 @@ impl Default for Config {
                 Favorite::Pictures,
                 Favorite::Videos,
             ],
+            tags: Vec::new(),
             show_details: false,
             tab: TabConfig::default(),
         }

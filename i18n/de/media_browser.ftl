@@ -1,4 +1,4 @@
-media-browser = COSMIC Medien Betrachter
+media-browser = Medien Betrachter
 empty-folder = Leerer Ordner
 empty-folder-hidden = Leerer Ordner (mit versteckten Dateien)
 no-results = No results found
@@ -274,6 +274,9 @@ light = Hell
 
 # Context menu
 add-to-sidebar = Zur Seitenleiste hinzufügen
+add-new-tag = Add tag to sidebar
+create-new-tag = Neue Gruppe anlegen
+tag-name = Gruppenname
 compress = Komprimieren
 extract-here = Auspacken
 new-file = Neue Datei...

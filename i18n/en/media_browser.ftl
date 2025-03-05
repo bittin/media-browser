@@ -274,6 +274,9 @@ light = Light
 
 # Context menu
 add-to-sidebar = Add to sidebar
+add-new-tag = Add tag to sidebar
+create-new-tag = Create new tag
+tag-name = Tag name
 compress = Compress
 extract-here = Extract
 new-file = New file...

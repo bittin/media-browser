@@ -99,12 +99,17 @@ pub fn context_menu<'a>(
     match (&tab.mode, &tab.location) {
         (
             tab::Mode::Audio | tab::Mode::Image | tab::Mode::Video,
-            Location::DBSearch(_) | Location::Path(_) | Location::Search(_, _, _, _) | Location::Recents,
+            Location::DBSearch(_) | Location::Tag(_) | Location::Path(_) | Location::Search(_, _, _, _) | Location::Recents,
         ) => {
         }
         (
             tab::Mode::App | tab::Mode::Desktop | tab::Mode::Browser,
             Location::DBSearch(_),
+        ) => {
+        }
+        (
+            tab::Mode::App | tab::Mode::Desktop | tab::Mode::Browser,
+            Location::Tag(_),
         ) => {
         }
         (
@@ -136,6 +141,7 @@ pub fn context_menu<'a>(
                 children.push(divider::horizontal::light().into());
                 //TODO: Print?
                 children.push(menu_item(fl!("add-to-sidebar"), Action::AddToSidebar).into());
+                children.push(menu_item(fl!("add-new-tag"), Action::AddTagToSidebar).into());
                 children.push(divider::horizontal::light().into());
                 children.push(menu_item(fl!("move-to-trash"), Action::MoveToTrash).into());
             } else {
@@ -156,7 +162,7 @@ pub fn context_menu<'a>(
         }
         (
             tab::Mode::Dialog(dialog_kind),
-            Location::DBSearch(_) | Location::Path(_) | Location::Search(_, _, _, _) | Location::Recents,
+            Location::DBSearch(_) | Location::Tag(_) | Location::Path(_) | Location::Search(_, _, _, _) | Location::Recents,
         ) => {
             if selected > 0 {
                 if selected_dir == 1 && selected == 1 || selected_dir == 0 {
