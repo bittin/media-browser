@@ -390,6 +390,7 @@ pub enum Message {
     SearchSearchToValueSubmit,
     SearchFilepath(bool),
     SearchTitle(bool),
+    SearchTag(bool),
     SearchDescription(bool),
     SearchActor(bool),
     SearchDirector(bool),
@@ -1325,7 +1326,11 @@ impl App {
             widget::checkbox(fl!("search-title"), self.search.title)
                 .on_toggle(move |value| Message::SearchTitle(value))
                 .into(),
-        ]));
+            widget::horizontal_space().into(),
+            widget::checkbox(fl!("search-tag"), self.search.tags)
+                .on_toggle(move |value| Message::SearchTag(value))
+                .into(),
+            ]));
         column = column.push(widget::row::with_children(vec![
             widget::checkbox(fl!("search-description"), self.search.description)
                 .on_toggle(move |value| Message::SearchDescription(value))
@@ -4510,6 +4515,10 @@ impl Application for App {
             Message::SearchTitle(is_checked) => {
                 self.search.search_id = 0;
                 self.search.title = is_checked;
+            }
+            Message::SearchTag(is_checked) => {
+                self.search.search_id = 0;
+                self.search.tags = is_checked;
             }
             Message::SearchDescription(is_checked) => {
                 self.search.search_id = 0;
