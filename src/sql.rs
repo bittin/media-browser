@@ -33,6 +33,7 @@ pub enum SearchType {
     GPSLatitude,
     GPSLongitude,
     GPSAltitude,
+    Tag,
 }
 
 #[derive(Clone, Debug, Eq, PartialOrd, Hash)]
@@ -71,6 +72,7 @@ pub struct SearchData {
     pub gps_latitude: bool,
     pub gps_longitude: bool,
     pub gps_altitude: bool,
+    pub tags: bool,
 }
 
 impl Default for SearchData {
@@ -110,6 +112,7 @@ impl Default for SearchData {
             gps_latitude: false,
             gps_longitude: false,
             gps_altitude: false,
+            tags: false,
         }
     }
 }
@@ -185,7 +188,8 @@ impl PartialEq for SearchData {
             && self.gps_latitude == other.gps_latitude
             && self.gps_longitude == other.gps_longitude
             && self.gps_longitude == other.gps_longitude
-            && self.gps_altitude == other.gps_altitude;
+            && self.gps_altitude == other.gps_altitude
+            && self.tags == other.tags;
         if !res {
             return false;
         }
@@ -343,6 +347,20 @@ pub fn search_video(
         } else {
             query = format!("SELECT video_id FROM video_metadata WHERE released > {}", search.from_date);
         }
+        let (newvideos, newfiles) = search_video_metadata(
+            connection, 
+            query, 
+        );
+        for i in 0..newfiles.len() {
+            if !used_files.contains(&newfiles[i].filepath) {
+                used_files.insert(newfiles[i].filepath.clone());
+                files.push(newfiles[i].clone());
+                videos.push(newvideos[i].clone());
+            }
+        }
+    }
+    if search.tags {
+        let query = format!("SELECT media_id FROM tags_media_map INNER JOIN tags ON tags_media_map.tag_id = tags.tag_id WHERE tags.tag LIKE '%{}%'", search.from_string);
         let (newvideos, newfiles) = search_video_metadata(
             connection, 
             query, 
@@ -518,6 +536,20 @@ pub fn search_audio(
                 used_files.insert(newfiles[i].filepath.clone());
                 files.push(newfiles[i].clone());
                 audios.push(newvideos[i].clone());
+            }
+        }
+    }
+    if search.tags {
+        let query = format!("SELECT media_id FROM tags_media_map INNER JOIN tags ON tags_media_map.tag_id = tags.tag_id WHERE tags.tag LIKE '%{}%'", search.from_string);
+        let (newaudios, newfiles) = search_audio_metadata(
+            connection, 
+            query, 
+        );
+        for i in 0..newfiles.len() {
+            if !used_files.contains(&newfiles[i].filepath) {
+                used_files.insert(newfiles[i].filepath.clone());
+                files.push(newfiles[i].clone());
+                audios.push(newaudios[i].clone());
             }
         }
     }
@@ -737,6 +769,20 @@ pub fn search_image(
                 used_files.insert(newfiles[i].filepath.clone());
                 files.push(newfiles[i].clone());
                 images.push(newvideos[i].clone());
+            }
+        }
+    }
+    if search.tags {
+        let query = format!("SELECT media_id FROM tags_media_map INNER JOIN tags ON tags_media_map.tag_id = tags.tag_id WHERE tags.tag LIKE '%{}%'", search.from_string);
+        let (newimages, newfiles) = search_image_metadata(
+            connection, 
+            query, 
+        );
+        for i in 0..newfiles.len() {
+            if !used_files.contains(&newfiles[i].filepath) {
+                used_files.insert(newfiles[i].filepath.clone());
+                files.push(newfiles[i].clone());
+                images.push(newimages[i].clone());
             }
         }
     }
@@ -1073,6 +1119,12 @@ pub fn search_items(
 }
 
 #[derive(Clone, Debug, Default, PartialEq, PartialOrd)]
+pub struct Tag {
+    pub tag_id: u32,
+    pub tag: String,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, PartialOrd)]
 pub struct Chapter {
     pub title: String,
     pub start: f32,
@@ -1132,6 +1184,7 @@ pub struct VideoMetadata {
     pub director: Vec<String>,
     pub actors: Vec<String>,
     pub chapters: Vec<Chapter>,
+    pub tags: Vec<Tag>,
 }
 
 impl Default for VideoMetadata {
@@ -1156,6 +1209,7 @@ impl Default for VideoMetadata {
             director: Vec::new(),
             actors: Vec::new(),
             chapters: Vec::new(),
+            tags: Vec::new(),
         }
     }
 }
@@ -1282,6 +1336,12 @@ pub fn insert_video(
             }
         }
     }
+    for i in 0..metadata.tags.len() {
+        let tag_id = insert_tag(connection, metadata.id, metadata.tags[i].tag.clone());
+        if tag_id == -1 {
+            continue;
+        }
+    }
 
 }
 
@@ -1346,6 +1406,131 @@ fn insert_person(connection: &mut rusqlite::Connection, name: String) -> i32 {
         }
     }
     person_id
+}
+
+pub fn tags(connection: &mut rusqlite::Connection) -> Vec<Tag> {
+    let mut tags = Vec::new();
+    let query = "SELECT * FROM tags";
+    match connection.prepare(query) {
+        Ok(mut statement) => {
+            match statement.query(params![]) {
+                Ok(mut rows) => {
+                    loop {
+                        match rows.next() {
+                            Ok(Some(row)) => {
+                                let mut s = Tag {..Default::default()};
+                                match row.get(0) {
+                                    Ok(val) => s.tag_id = val,
+                                    Err(error) => {
+                                        log::error!("Failed to read id for video: {}", error);
+                                        continue;
+                                    }
+                                }
+                                match row.get(1) {
+                                    Ok(val) => s.tag = val,
+                                    Err(error) => {
+                                        log::error!("Failed to read video_id for video: {}", error);
+                                        continue;
+                                    }
+                                }
+                                tags.push(s);
+                            },
+                            Ok(None) => {
+                                //log::warn!("No data read from indices.");
+                                break;
+                            },
+                            Err(error) => {
+                                log::error!("Failed to read a row from indices: {}", error);
+                                break;
+                            }
+                        }
+                    }
+                },
+                Err(err) => {
+                    log::error!("could not read line from videostore_indices database: {}", err);
+                }
+            }
+        },
+        Err(err) => {
+            log::error!("could not prepare SQL statement: {}", err);
+        }
+    }
+
+    tags
+}
+
+fn insert_tag(connection: &mut rusqlite::Connection, media_id: u32, tag: String) -> i32 {
+    let mut tag_id= -1;
+    let query = "SELECT tag_id FROM tags WHERE tag = ?1";
+    match connection.prepare(query) {
+        Ok(mut statement) => {
+            match statement.query(params![&tag]) {
+                Ok(mut rows) => {
+                    while let Ok(Some(row)) = rows.next() {
+                        let s_opt = row.get(1);
+                        if s_opt.is_ok() {
+                            tag_id = s_opt.unwrap();
+                            return tag_id;
+                        }
+                    }
+                },
+                Err(err) => {
+                    log::error!("could not read line from tags database: {}", err);
+                }
+            }
+        },
+        Err(error) => {
+            log::error!("Failed to get tag_id for {} from database: {}", tag, error);
+            return tag_id;
+        }
+    }
+    if tag_id == -1 {
+        match connection.execute(
+            "INSERT INTO tags (tag) VALUES (?1)",
+            params![&tag],
+        ) {
+            Ok(_retval) => {}, //log::warn!("Inserted {} video with ID {} and location {} into candidates.", video.id, video.index, candidate_id),
+            Err(error) => {
+                log::error!("Failed to insert tag into  database: {}", error);
+                return tag_id;
+            }
+        }
+
+        let query = "SELECT last_insert_rowid()";
+        match connection.prepare(query) {
+            Ok(mut statement) => {
+                match statement.query(params![]) {
+                    Ok(mut rows) => {
+                        while let Ok(Some(row)) = rows.next() {
+                            let s_opt = row.get(0);
+                            if s_opt.is_ok() {
+                                tag_id = s_opt.unwrap();
+                            }
+                        }
+                    },
+                    Err(err) => {
+                        log::error!("could not read last generated id from database: {}", err);
+                    }
+                }
+            },
+            Err(error) => {
+                log::error!("Failed to get tag_id for from database: {}", error);
+                return tag_id;
+            }
+        }
+    }
+    match connection.execute(
+        "INSERT INTO tags_media_map (media_id, tag_id) VALUES (?1, ?2)",
+        params![&media_id, tag_id],
+    ) {
+        Ok(_retval) => {}, //log::warn!("Inserted {} video with ID {} and location {} into candidates.", video.id, video.index, candidate_id),
+        Err(error) => {
+            log::error!("Failed to insert media_id into tags_media_map database: {}", error);
+            return tag_id;
+        }
+    }
+
+    tag_id
 }
 
 pub fn delete_video(
@@ -1698,6 +1883,54 @@ pub fn video_by_id(
                 },
                 Err(err) => {
                     log::error!("could not read line from actors database: {}", err);
+                }
+            }
+        },
+        Err(err) => {
+            log::error!("could not prepare SQL statement: {}", err);
+        }
+    }
+    let query = "SELECT tag_id, tag FROM tags 
+                        INNER JOIN tags_media_map 
+                        ON tags_media_map.tag_id = tags.tag_id 
+                        WHERE tags_media_map.media_id = ?1";
+    match connection.prepare(query) {
+        Ok(mut statement) => {
+            match statement.query(params![&video_id]) {
+                Ok(mut rows) => {
+                    loop {
+                        match rows.next() {
+                            Ok(Some(row)) => {
+                                let mut tag = Tag {..Default::default()};
+                                match row.get::<usize, u32>(0) {
+                                    Ok(val) => tag.tag_id = val,
+                                    Err(error) => {
+                                        log::error!("Failed to read tags for video: {}", error);
+                                        continue;
+                                    }
+                                }
+                                match row.get::<usize, String>(1) {
+                                    Ok(val) => tag.tag = val,
+                                    Err(error) => {
+                                        log::error!("Failed to read tags for video: {}", error);
+                                        continue;
+                                    }
+                                }
+                                v.tags.push(tag);
+                            }
+                            Ok(None) => {
+                                //log::warn!("No data read from indices.");
+                                break;
+                            },
+                            Err(error) => {
+                                log::error!("Failed to read a row from tags: {}", error);
+                                break;
+                            }
+                        }
+                    }
+                },
+                Err(err) => {
+                    log::error!("could not read line from tags database: {}", err);
                 }
             }
         },
@@ -2058,6 +2291,54 @@ pub fn video(
             log::error!("could not prepare SQL statement: {}", err);
         }
     }
+    let query = "SELECT tag_id, tag FROM tags 
+                        INNER JOIN tags_media_map 
+                        ON tags_media_map.tag_id = tags.tag_id 
+                        WHERE tags_media_map.media_id = ?1";
+    match connection.prepare(query) {
+        Ok(mut statement) => {
+            match statement.query(params![&video_id]) {
+                Ok(mut rows) => {
+                    loop {
+                        match rows.next() {
+                            Ok(Some(row)) => {
+                                let mut tag = Tag {..Default::default()};
+                                match row.get::<usize, u32>(0) {
+                                    Ok(val) => tag.tag_id = val,
+                                    Err(error) => {
+                                        log::error!("Failed to read tags for video: {}", error);
+                                        continue;
+                                    }
+                                }
+                                match row.get::<usize, String>(1) {
+                                    Ok(val) => tag.tag = val,
+                                    Err(error) => {
+                                        log::error!("Failed to read tags for video: {}", error);
+                                        continue;
+                                    }
+                                }
+                                v.tags.push(tag);
+                            }
+                            Ok(None) => {
+                                //log::warn!("No data read from indices.");
+                                break;
+                            },
+                            Err(error) => {
+                                log::error!("Failed to read a row from tags: {}", error);
+                                break;
+                            }
+                        }
+                    }
+                },
+                Err(err) => {
+                    log::error!("could not read line from tags database: {}", err);
+                }
+            }
+        },
+        Err(err) => {
+            log::error!("could not prepare SQL statement: {}", err);
+        }
+    }
     if !known_files.contains_key(&PathBuf::from(&v.path)) {
         known_files.insert(PathBuf::from(&v.path), filedata.clone());
     }
@@ -2084,6 +2365,7 @@ pub struct AudioMetadata {
     pub albumartist: Vec<String>,
     pub chapters: Vec<Chapter>,
     pub lyrics: Vec<String>,
+    pub tags: Vec<Tag>,
 }
 
 impl Default for AudioMetadata {
@@ -2106,6 +2388,7 @@ impl Default for AudioMetadata {
             albumartist: Vec::new(),
             chapters: Vec::new(),
             lyrics: Vec::new(),
+            tags: Vec::new(),
         }
     }
 }
@@ -2197,6 +2480,12 @@ pub fn insert_audio(
                 log::error!("Failed to insert video into  database: {}", error);
                 return;
             }
+        }
+    }
+    for i in 0..metadata.tags.len() {
+        let tag_id = insert_tag(connection, metadata.id, metadata.tags[i].tag.clone());
+        if tag_id == -1 {
+            continue;
         }
     }
 }
@@ -2701,6 +2990,54 @@ pub fn audio_by_id(
             log::error!("could not prepare SQL statement: {}", err);
         }
     }
+    let query = "SELECT tag_id, tag FROM tags 
+                        INNER JOIN tags_media_map 
+                        ON tags_media_map.tag_id = tags.tag_id 
+                        WHERE tags_media_map.media_id = ?1";
+    match connection.prepare(query) {
+        Ok(mut statement) => {
+            match statement.query(params![&audio_id]) {
+                Ok(mut rows) => {
+                    loop {
+                        match rows.next() {
+                            Ok(Some(row)) => {
+                                let mut tag = Tag {..Default::default()};
+                                match row.get::<usize, u32>(0) {
+                                    Ok(val) => tag.tag_id = val,
+                                    Err(error) => {
+                                        log::error!("Failed to read tags for video: {}", error);
+                                        continue;
+                                    }
+                                }
+                                match row.get::<usize, String>(1) {
+                                    Ok(val) => tag.tag = val,
+                                    Err(error) => {
+                                        log::error!("Failed to read tags for video: {}", error);
+                                        continue;
+                                    }
+                                }
+                                v.tags.push(tag);
+                            }
+                            Ok(None) => {
+                                //log::warn!("No data read from indices.");
+                                break;
+                            },
+                            Err(error) => {
+                                log::error!("Failed to read a row from tags: {}", error);
+                                break;
+                            }
+                        }
+                    }
+                },
+                Err(err) => {
+                    log::error!("could not read line from tags database: {}", err);
+                }
+            }
+        },
+        Err(err) => {
+            log::error!("could not prepare SQL statement: {}", err);
+        }
+    }
     v
 }
 
@@ -3018,6 +3355,54 @@ pub fn audio(
             log::error!("could not prepare SQL statement: {}", err);
         }
     }
+    let query = "SELECT tag_id, tag FROM tags 
+                        INNER JOIN tags_media_map 
+                        ON tags_media_map.tag_id = tags.tag_id 
+                        WHERE tags_media_map.media_id = ?1";
+    match connection.prepare(query) {
+        Ok(mut statement) => {
+            match statement.query(params![&audio_id]) {
+                Ok(mut rows) => {
+                    loop {
+                        match rows.next() {
+                            Ok(Some(row)) => {
+                                let mut tag = Tag {..Default::default()};
+                                match row.get::<usize, u32>(0) {
+                                    Ok(val) => tag.tag_id = val,
+                                    Err(error) => {
+                                        log::error!("Failed to read tags for video: {}", error);
+                                        continue;
+                                    }
+                                }
+                                match row.get::<usize, String>(1) {
+                                    Ok(val) => tag.tag = val,
+                                    Err(error) => {
+                                        log::error!("Failed to read tags for video: {}", error);
+                                        continue;
+                                    }
+                                }
+                                v.tags.push(tag);
+                            }
+                            Ok(None) => {
+                                //log::warn!("No data read from indices.");
+                                break;
+                            },
+                            Err(error) => {
+                                log::error!("Failed to read a row from tags: {}", error);
+                                break;
+                            }
+                        }
+                    }
+                },
+                Err(err) => {
+                    log::error!("could not read line from tags database: {}", err);
+                }
+            }
+        },
+        Err(err) => {
+            log::error!("could not prepare SQL statement: {}", err);
+        }
+    }
     if !known_files.contains_key(&PathBuf::from(&v.path)) {
         known_files.insert(PathBuf::from(&v.path), filedata.clone());
     }
@@ -3044,6 +3429,7 @@ pub struct ImageMetadata {
     pub gps_latitude: f32,
     pub gps_longitude: f32,
     pub gps_altitude: f32,
+    pub tags: Vec<Tag>,
 }
 
 impl Default for ImageMetadata {
@@ -3067,6 +3453,7 @@ impl Default for ImageMetadata {
             gps_latitude: 0.0,
             gps_longitude: 0.0,
             gps_altitude: 0.0,
+            tags: Vec::new(),
         }
     }
 }
@@ -3087,6 +3474,12 @@ pub fn insert_image(
         Err(error) => {
             log::error!("Failed to insert image into  database: {}", error);
             return;
+        }
+    }
+    for i in 0..metadata.tags.len() {
+        let tag_id = insert_tag(connection, metadata.id, metadata.tags[i].tag.clone());
+        if tag_id == -1 {
+            continue;
         }
     }
 }
@@ -3286,6 +3679,54 @@ pub fn image_by_id(
             log::error!("could not prepare SQL statement: {}", err);
         }
     }
+    let query = "SELECT tag_id, tag FROM tags 
+                        INNER JOIN tags_media_map 
+                        ON tags_media_map.tag_id = tags.tag_id 
+                        WHERE tags_media_map.media_id = ?1";
+    match connection.prepare(query) {
+        Ok(mut statement) => {
+            match statement.query(params![&image_id]) {
+                Ok(mut rows) => {
+                    loop {
+                        match rows.next() {
+                            Ok(Some(row)) => {
+                                let mut tag = Tag {..Default::default()};
+                                match row.get::<usize, u32>(0) {
+                                    Ok(val) => tag.tag_id = val,
+                                    Err(error) => {
+                                        log::error!("Failed to read tags for video: {}", error);
+                                        continue;
+                                    }
+                                }
+                                match row.get::<usize, String>(1) {
+                                    Ok(val) => tag.tag = val,
+                                    Err(error) => {
+                                        log::error!("Failed to read tags for video: {}", error);
+                                        continue;
+                                    }
+                                }
+                                v.tags.push(tag);
+                            }
+                            Ok(None) => {
+                                //log::warn!("No data read from indices.");
+                                break;
+                            },
+                            Err(error) => {
+                                log::error!("Failed to read a row from tags: {}", error);
+                                break;
+                            }
+                        }
+                    }
+                },
+                Err(err) => {
+                    log::error!("could not read line from tags database: {}", err);
+                }
+            }
+        },
+        Err(err) => {
+            log::error!("could not prepare SQL statement: {}", err);
+        }
+    }
     v
 }
 
@@ -3435,6 +3876,54 @@ pub fn image(
                 },
                 Err(err) => {
                     log::error!("could not read line from videostore_indices database: {}", err);
+                }
+            }
+        },
+        Err(err) => {
+            log::error!("could not prepare SQL statement: {}", err);
+        }
+    }
+    let query = "SELECT tag_id, tag FROM tags 
+                        INNER JOIN tags_media_map 
+                        ON tags_media_map.tag_id = tags.tag_id 
+                        WHERE tags_media_map.media_id = ?1";
+    match connection.prepare(query) {
+        Ok(mut statement) => {
+            match statement.query(params![&image_id]) {
+                Ok(mut rows) => {
+                    loop {
+                        match rows.next() {
+                            Ok(Some(row)) => {
+                                let mut tag = Tag {..Default::default()};
+                                match row.get::<usize, u32>(0) {
+                                    Ok(val) => tag.tag_id = val,
+                                    Err(error) => {
+                                        log::error!("Failed to read tags for video: {}", error);
+                                        continue;
+                                    }
+                                }
+                                match row.get::<usize, String>(1) {
+                                    Ok(val) => tag.tag = val,
+                                    Err(error) => {
+                                        log::error!("Failed to read tags for video: {}", error);
+                                        continue;
+                                    }
+                                }
+                                v.tags.push(tag);
+                            }
+                            Ok(None) => {
+                                //log::warn!("No data read from indices.");
+                                break;
+                            },
+                            Err(error) => {
+                                log::error!("Failed to read a row from tags: {}", error);
+                                break;
+                            }
+                        }
+                    }
+                },
+                Err(err) => {
+                    log::error!("could not read line from tags database: {}", err);
                 }
             }
         },
@@ -3845,19 +4334,19 @@ pub fn insert_search(
                 actor, director, artist, album_artist,
                 duration, creation_date, modification_date, release_date, 
                 lense_model, focal_length, exposure_time, fnumber,
-                gps_latitude, gps_longitude, gps_altitude) VALUES 
+                gps_latitude, gps_longitude, gps_altitude, tags) VALUES 
                 (?1, ?2, ?3, ?4, ?5, ?6, 
                 ?7, ?8, ?9, ?10, ?11, ?12, 
                 ?13, ?14, ?15, ?16, 
                 ?17, ?18, ?19, ?20, 
                 ?21, ?22, ?23, ?24, 
-                ?25, ?26, ?27)",
+                ?25, ?26, ?27, ?28)",
         params![&s.from_string.to_ascii_lowercase(), &fromvalue, &s.from_date, &s.to_string.to_ascii_lowercase(), &tovalue, &s.to_date, 
                 &s.image, &s.video, &s.audio, &s.filepath, &s.title, &s.description, 
                 &s.actor, &s.director, &s.artist, &s.album_artist,
                 &s.duration, &s.creation_date, &s.modification_date, &s.release_date,
                 &s.lense_model, &s.focal_length, &s.exposure_time, &s.fnumber,
-                &s.gps_latitude, &s.gps_longitude, &s.gps_altitude],
+                &s.gps_latitude, &s.gps_longitude, &s.gps_altitude, &s.tags],
     ) {
         Ok(_retval) => {}, //log::warn!("Inserted {} video with ID {} and location {} into candidates.", video.id, video.index, candidate_id),
         Err(error) => {
@@ -4147,6 +4636,14 @@ pub fn searches(
                                         continue;
                                     }
                                 }
+                                match row.get(31) {
+                                    Ok(val) => v.tags = val,
+                                    Err(error) => {
+                                        log::error!("Failed to read gps_altitude for searches: {}", error);
+                                        continue;
+                                    }
+                                }
+
                                 searches.push(v);
                             },
                             Ok(None) => {
@@ -4653,6 +5150,52 @@ pub fn connect() -> Result<rusqlite::Connection, rusqlite::Error> {
                 return Err(error);
             }
         }
+
+        match connection.execute("
+            CREATE TABLE tags (
+                tag_id INTEGER, 
+                tag TEXT, 
+                PRIMARY KEY(tag_id AUTOINCREMENT)
+            )", [],
+        ) {
+            Ok(_ret) => {},
+            Err(error) => {
+                log::error!("Failed to create table parameters: {}", error);
+                return Err(error);
+            }
+        }
+        match connection.execute(
+            "CREATE INDEX index_tags_tag ON tags (tag)", (),
+        ) {
+            Ok(_ret) => {},
+            Err(error) => {
+                log::error!("Failed to create index on tags: {}", error);
+                return Err(error);
+            }
+        }
+
+        match connection.execute("
+            CREATE TABLE tags_media_map (
+                media_id INTEGER PRIMARY KEY, 
+                tag_id INTEGER, 
+            )", [],
+        ) {
+            Ok(_ret) => {},
+            Err(error) => {
+                log::error!("Failed to create table parameters: {}", error);
+                return Err(error);
+            }
+        }
+        match connection.execute(
+            "CREATE INDEX index_tagsmediamap_media_id ON tags_media_map (tag_id)", (),
+        ) {
+            Ok(_ret) => {},
+            Err(error) => {
+                log::error!("Failed to create index on tags_media_map: {}", error);
+                return Err(error);
+            }
+        }
+
         match connection.execute("
             CREATE TABLE searches (
                 search_id INTEGER,
@@ -4683,6 +5226,7 @@ pub fn connect() -> Result<rusqlite::Connection, rusqlite::Error> {
                 gps_latitude  INTEGER, 
                 gps_longitude  INTEGER, 
                 gps_altitude  INTEGER, 
+                tags  INTEGER, 
                 PRIMARY KEY(search_id AUTOINCREMENT)
             )", [],
         ) {
