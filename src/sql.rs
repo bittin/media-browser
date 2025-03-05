@@ -1118,7 +1118,7 @@ pub fn search_items(
     items
 }
 
-#[derive(Clone, Debug, Default, PartialEq, PartialOrd)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, Hash, PartialOrd)]
 pub struct Tag {
     pub tag_id: u32,
     pub tag: String,

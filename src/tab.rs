@@ -667,6 +667,32 @@ fn scan_search_db(search: &crate::sql::SearchData) -> Vec<Item> {
     items
 }
 
+fn scan_tags(t: crate::sql::Tag) -> Vec<Item> {
+    let mut connection;
+    match crate::sql::connect() {
+        Ok(ok) => connection = ok,
+        Err(error) => {
+            log::error!("Could not open SQLite DB connection: {}", error);
+            return Vec::new();
+        }
+    }
+    log::warn!("Searching database for tag {}", t.tag);
+    let search = crate::sql::SearchData {
+        from_string: t.tag.clone(),
+        tags: true,
+        ..Default::default()
+    };
+    let mut items = crate::sql::search_items(&mut connection, &search);
+
+    items.sort_by(|a, b| match (a.metadata.is_dir(), b.metadata.is_dir()) {
+        (true, false) => core::cmp::Ordering::Less,
+        (false, true) => core::cmp::Ordering::Greater,
+        _ => LANGUAGE_SORTER.compare(&a.display_name, &b.display_name),
+    });
+    items
+}
+
+
 pub fn scan_search<F: Fn(&Path, &str, Metadata) -> bool + Sync>(
     tab_path: &PathBuf,
     term: &str,
@@ -921,6 +947,7 @@ pub fn scan_network(uri: &str, sizes: IconSizes) -> Vec<Item> {
 pub enum Location {
     Network(String, String),
     Path(PathBuf),
+    Tag(crate::sql::Tag),
     Recents,
     Search(PathBuf, String, bool, Instant),
     DBSearch(crate::sql::SearchData),
@@ -933,6 +960,7 @@ impl std::fmt::Display for Location {
             Self::Network(uri, ..) => write!(f, "{}", uri),
             Self::Path(path) => write!(f, "{}", path.display()),
             Self::Recents => write!(f, "recents"),
+            Self::Tag(t) => write!(f, "{}", &t.tag),
             Self::Search(path, term, ..) => write!(f, "search {} for {}", path.display(), term),
             Self::DBSearch(search) => {
                 write!(
@@ -972,6 +1000,7 @@ impl Location {
                 // Search is done incrementally
                 Vec::new()
             }
+            Self::Tag(t) => scan_tags(t.clone()),
             Self::Trash => scan_trash(sizes),
             Self::Recents => scan_recents(sizes),
             Self::Network(uri, _) => scan_network(uri, sizes),
@@ -1897,6 +1926,7 @@ impl Tab {
                 let (name, _) = folder_name(path);
                 format!("Search \"{}\": {}", term, name)
             }
+            Location::Tag(t) => t.tag.clone(),
             Location::Trash => {
                 fl!("trash")
             }
@@ -3612,6 +3642,15 @@ impl Tab {
                     widget::button::custom(widget::text::heading(fl!("search-context")))
                         .padding(space_xxxs)
                         .on_press(Message::Location(Location::DBSearch(search.clone())))
+                        .class(theme::Button::Text)
+                        .into(),
+                );
+            }
+            Location::Tag(t)  => {
+                children.push(
+                    widget::button::custom(widget::text::heading(t.tag.clone()))
+                        .padding(space_xxxs)
+                        .on_press(Message::Location(Location::Tag(t.clone())))
                         .class(theme::Button::Text)
                         .into(),
                 );
