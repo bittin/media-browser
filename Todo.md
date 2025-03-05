@@ -49,7 +49,7 @@ Positions ended with a ? are *stretch goals*. If it is possible AND somebody doe
 
 - check creation date newer than modification date
 - Automatically close Popup GUI after 5 Seconds of no activity?
-- key bindings only work in browsewr mode
+- key bindings only work in browser mode
 - Check that updates to the database actually work
 
 ### Features
@@ -82,6 +82,14 @@ Positions ended with a ? are *stretch goals*. If it is possible AND somebody doe
 
 #### Open Features
 
+- user defined tags
+- search for user defined tags
+- sort by user defined tags
+- display user defined tags in detail view (search by clicking)
+- add user defined tags to the navigation panel like locations
+- display size of metadata in settings panel
+- display location of metadata in settings panel
+- settings option to delete metadata
 - optionally skip different media types in navigation?
 - sort by release date / creation / modification time
   - adjust the sort options when just one type is displayed and more details are available?
