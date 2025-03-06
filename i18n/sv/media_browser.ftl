@@ -107,8 +107,6 @@ connect-anonymously = Anslut anonymt
 connecting = Ansluter...
 domain = Domän
 enter-server-address = Ange server address
-try-again = Försök igen
-username = Användarnamn
 network-drive-description =
     Serveradresser inkluderar ett protokollprefix och en adress.
  Exempel: ssh://192.168.0.1, ftp://[2001:db8::1]
@@ -138,14 +136,6 @@ progress-cancelled = {$percent}%, avbruten
 progress-paused = {$percent}%, pausad
 failed = Misslyckades
 complete = Färdig
-compressing = Komprimerar {$items} {$items ->
-        [one] item
-        *[other] items
-    } from "{$from}" to "{$to}" ({$progress})...
-compressed = Komprimerade {$items} {$items ->
-        [one] item
-        *[other] items
-    } from "{$from}" to "{$to}"
 copy_noun = Koperia
 creating = Skapar "{$name}" i "{$parent}"
 created = Skapade "{$name}" i "{$parent}"
@@ -159,14 +149,6 @@ copied = Kopierade {$items} {$items ->
     } från "{$from}" till "{$to}"
 emptying-trash = Tömmer {trash} ({$progress})...
 emptied-trash = Tömde {trash}
-extracting = Packar upp {$items} {$items ->
-        [one] objekt
-        *[other] flera objekt
-    } från "{$from}" till "{$to}" ({$progress})...
-extracted = Packade upp {$items} {$items ->
-        [one] objekt
-        *[other] flera objekt
-    } från "{$from}" till "{$to}"
 setting-executable-and-launching = Ställer in "{$name}" som exekverbar och startar
 set-executable-and-launched = Ställ in "{$name}" som exekverbar och startar
 moving = Flyttar {$items} {$items ->
@@ -193,7 +175,6 @@ unknown-folder = okänd katalog
 menu-open-with = Öppna med...
 default-app = {$name} (default)
 
-
 ## Visa detaljer
 show-details = Visa detaljer
 type = Typ: {$mime}
@@ -210,6 +191,7 @@ item-audio-languange = Språk: {$text}
 item-subtitle-language = Undertexter: {$text}
 item-media-actor = Skådespelare: {$text}
 item-media-director = Regissör: {$text}
+item-media-tag = Tagg: {$text}
 item-media-album = Album: {$text}
 item-media-composer = Kompositör: {$text}
 item-media-genre = Genre: {$text}
@@ -249,6 +231,7 @@ search-tooltip-date =
 search-tooltip-value = Numeriskt värde
 search-filepath = Filsökväg
 search-title = Titel
+item-media-tag = Tagg: {$text}
 search-description = Beskrivning
 search-actor = Skådespelare/skådespelerska
 search-director = Regissör
@@ -291,6 +274,9 @@ light = Ljust
 
 # Kontext meny
 add-to-sidebar = Lägg till i sidofält
+add-new-tag = Lägg till tagg i  sidofält
+create-new-tag = Skapa ny tagg
+tag-name = Taggnamn
 compress = Komprimera
 extract-here = Packa upp
 new-file = Ny fil...
@@ -330,7 +316,6 @@ grid-view = Rutnätsvy
 list-view = Listvy
 show-hidden-files = Visa dolda filer
 list-directories-first = Lista kataloger först
-gallery-preview = Galleri förhandsvisning
 menu-settings = Inställningar...
 menu-about = Om Mediabläddrare
 
@@ -342,7 +327,6 @@ sort-newest-first = Nyaste först
 sort-oldest-first = Äldst först
 sort-smallest-to-largest = Minsta till största
 sort-largest-to-smallest = Största till minsta
-
 
 # Knappar
 button-back = Tillbaka
