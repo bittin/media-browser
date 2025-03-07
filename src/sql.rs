@@ -1460,6 +1460,51 @@ pub fn tags(connection: &mut rusqlite::Connection) -> Vec<Tag> {
     tags
 }
 
+pub fn delete_tag(connection: &mut rusqlite::Connection, tag: String) {
+    let mut tag_id= -1;
+    let query = "SELECT tag_id FROM tags WHERE tag = ?1";
+    match connection.prepare(query) {
+        Ok(mut statement) => {
+            match statement.query(params![&tag]) {
+                Ok(mut rows) => {
+                    while let Ok(Some(row)) = rows.next() {
+                        let s_opt = row.get(1);
+                        if s_opt.is_ok() {
+                            tag_id = s_opt.unwrap();
+                            return;
+                        }
+                    }
+                },
+                Err(err) => {
+                    log::error!("could not read line from tags database: {}", err);
+                }
+            }
+        },
+        Err(error) => {
+            log::error!("Failed to get tag_id for {} from database: {}", tag, error);
+            return;
+        }
+    }
+    if tag_id == -1 {
+        let ret = connection.execute(
+            "DELETE FROM tags WHERE video_id = ?1",
+            params![&tag_id],
+        );
+        if ret.is_err() {
+            log::error!("Failed to delete candidate {}!", tag_id);
+            return;
+        }    
+        let ret = connection.execute(
+            "DELETE FROM tags_media_map WHERE tag_id = ?1",
+            params![&tag_id],
+        );
+        if ret.is_err() {
+            log::error!("Failed to delete candidate {}!", tag_id);
+            return;
+        }    
+    }
+}
+
 pub fn insert_tag(connection: &mut rusqlite::Connection, media_id: u32, tag: String) -> i32 {
     let mut tag_id= -1;
     let query = "SELECT tag_id FROM tags WHERE tag = ?1";
@@ -5180,7 +5225,7 @@ pub fn connect() -> Result<rusqlite::Connection, rusqlite::Error> {
         match connection.execute("
             CREATE TABLE tags_media_map (
                 media_id INTEGER PRIMARY KEY, 
-                tag_id INTEGER, 
+                tag_id INTEGER
             )", [],
         ) {
             Ok(_ret) => {},

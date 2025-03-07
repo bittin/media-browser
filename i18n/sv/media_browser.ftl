@@ -285,6 +285,7 @@ open-in-terminal = Öppna i terminal
 move-to-trash = Move to trash
 restore-from-trash = Flytta till papperskorg
 remove-from-sidebar = Ta bort från sidofält
+remove-tag-from-sidebar = Ta bort tagg från sidofält
 sort-by-name = Sortera efter namn
 sort-by-modified = Sortera efter modifierad
 sort-by-size = Sortera efter storlek

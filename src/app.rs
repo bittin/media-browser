@@ -27,7 +27,7 @@ use cosmic::{
         keyboard::{Event as KeyEvent, Key, Modifiers},
         stream,
         window::{self, Event as WindowEvent, Id as WindowId},
-        Alignment, Event, Length, Point, Rectangle, Size, Subscription,
+        Alignment, Event, Length, Rectangle, Size, Subscription,
     },
     iced_runtime::clipboard,
     style, theme,
@@ -50,7 +50,7 @@ use slotmap::Key as SlotMapKey;
 use std::{
     any::TypeId,
     collections::{BTreeMap, BTreeSet, HashMap, HashSet, VecDeque},
-    env, fmt, fs, io,
+    env, fmt, fs,
     num::NonZeroU16,
     path::PathBuf,
     process,
@@ -283,6 +283,7 @@ pub enum NavMenuAction {
     Open(segmented_button::Entity),
     Preview(segmented_button::Entity),
     RemoveFromSidebar(segmented_button::Entity),
+    RemoveTagFromSidebar(segmented_button::Entity),
     EmptyTrash,
 }
 
@@ -933,6 +934,17 @@ impl App {
                 b
             });
         }
+        for (tag_i, tag) in self.config.tags.iter().enumerate() {
+            if tag.tag.len() > 0 {
+                let name = tag.tag.clone();
+                nav_model = nav_model.insert(move |b| {
+                    b.text(name.clone())
+                        .data(Location::Tag(tag.to_owned()))
+                        .data(FavoriteIndex(tag_i))
+                });
+            }
+        }
+
 
         self.nav_model = nav_model.build();
 
@@ -2772,32 +2784,54 @@ impl Application for App {
         let location_opt = self.nav_model.data::<Location>(entity);
 
         let mut items = Vec::new();
-
-        if location_opt
-            .and_then(|x| x.path_opt())
-            .map_or(false, |x| x.is_file())
-        {
-            items.push(cosmic::widget::menu::Item::Button(
-                fl!("open"),
-                None,
-                NavMenuAction::Open(entity),
-            ));
-            items.push(cosmic::widget::menu::Item::Button(
-                fl!("open-with"),
-                None,
-                NavMenuAction::Open(entity),
-            ));
-        } else {
-            items.push(cosmic::widget::menu::Item::Button(
-                fl!("open-in-new-tab"),
-                None,
-                NavMenuAction::Open(entity),
-            ));
-            items.push(cosmic::widget::menu::Item::Button(
-                fl!("open-in-new-window"),
-                None,
-                NavMenuAction::Open(entity),
-            ));
+        
+        if let Some(location) = location_opt {
+            match location {
+                Location::Path(path) => {
+                    if path.is_file()
+                    {
+                        items.push(cosmic::widget::menu::Item::Button(
+                            fl!("open"),
+                            None,
+                            NavMenuAction::Open(entity),
+                        ));
+                        items.push(cosmic::widget::menu::Item::Button(
+                            fl!("open-with"),
+                            None,
+                            NavMenuAction::Open(entity),
+                        ));
+                    } else {
+                        items.push(cosmic::widget::menu::Item::Button(
+                            fl!("open-in-new-tab"),
+                            None,
+                            NavMenuAction::Open(entity),
+                        ));
+                    }
+                    if favorite_index_opt.is_some() {
+                        items.push(cosmic::widget::menu::Item::Button(
+                            fl!("remove-from-sidebar"),
+                            None,
+                            NavMenuAction::RemoveFromSidebar(entity),
+                        ));
+                    }
+                },
+                Location::Tag(t) => {
+                    items.push(cosmic::widget::menu::Item::Button(
+                        fl!("open-in-new-tab"),
+                        None,
+                        NavMenuAction::Open(entity),
+                    ));
+                    items.push(cosmic::widget::menu::Item::Divider);
+                    if favorite_index_opt.is_some() {
+                        items.push(cosmic::widget::menu::Item::Button(
+                            fl!("remove-tag-from-sidebar"),
+                            None,
+                            NavMenuAction::RemoveTagFromSidebar(entity),
+                        ));
+                    }            
+                },
+                _ => {},
+            }
         }
         items.push(cosmic::widget::menu::Item::Divider);
         items.push(cosmic::widget::menu::Item::Button(
@@ -2805,14 +2839,6 @@ impl Application for App {
             None,
             NavMenuAction::Preview(entity),
         ));
-        items.push(cosmic::widget::menu::Item::Divider);
-        if favorite_index_opt.is_some() {
-            items.push(cosmic::widget::menu::Item::Button(
-                fl!("remove-from-sidebar"),
-                None,
-                NavMenuAction::RemoveFromSidebar(entity),
-            ));
-        }
         if matches!(location_opt, Some(Location::Trash)) {
             items.push(cosmic::widget::menu::Item::Button(
                 fl!("empty-trash"),
@@ -5435,6 +5461,25 @@ impl Application for App {
                         let mut favorites = self.config.favorites.clone();
                         favorites.remove(*favorite_i);
                         config_set!(favorites, favorites);
+                        return self.update_config();
+                    }
+                }
+                NavMenuAction::RemoveTagFromSidebar(entity) => {
+                    if let Some(FavoriteIndex(tag_i)) =
+                        self.nav_model.data::<FavoriteIndex>(entity)
+                    {
+                        let mut tags = self.config.tags.clone();
+                        let mut connection;
+                        match crate::sql::connect() {
+                            Ok(ok) => connection = ok,
+                            Err(error) => {
+                                log::error!("Could not open SQLite DB connection: {}", error);
+                                return Task::none();
+                            }
+                        }
+                        crate::sql::delete_tag(&mut connection, tags[*tag_i].tag.clone());
+                        tags.remove(*tag_i);
+                        config_set!(tags, tags);
                         return self.update_config();
                     }
                 }
