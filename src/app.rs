@@ -281,6 +281,7 @@ pub enum PreviewKind {
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub enum NavMenuAction {
     Open(segmented_button::Entity),
+    OpenTag(segmented_button::Entity),
     Preview(segmented_button::Entity),
     RemoveFromSidebar(segmented_button::Entity),
     RemoveTagFromSidebar(segmented_button::Entity),
@@ -2864,7 +2865,7 @@ impl Application for App {
                         ));
                     } else {
                         items.push(cosmic::widget::menu::Item::Button(
-                            fl!("open-in-new-tab"),
+                            fl!("open"),
                             None,
                             NavMenuAction::Open(entity),
                         ));
@@ -2879,9 +2880,9 @@ impl Application for App {
                 },
                 Location::Tag(_t) => {
                     items.push(cosmic::widget::menu::Item::Button(
-                        fl!("open-in-new-tab"),
+                        fl!("open"),
                         None,
-                        NavMenuAction::Open(entity),
+                        NavMenuAction::OpenTag(entity),
                     ));
                     items.push(cosmic::widget::menu::Item::Divider);
                     if favorite_index_opt.is_some() {
@@ -5537,7 +5538,19 @@ impl Application for App {
                         None => {}
                     }
                 }
-
+                NavMenuAction::OpenTag(entity) => {
+                    if let Some(location) = self.nav_model.data::<Location>(entity) {
+                        match location {
+                            Location::Tag(t) => {
+                                self.search = crate::sql::SearchData {..Default::default()};
+                                self.search.tags = true;
+                                self.search.from_string = t.tag.clone();
+                                self.update(Message::SearchCommit);
+                            },
+                            _ => {},
+                        }
+                    }
+                }
                 NavMenuAction::RemoveFromSidebar(entity) => {
                     if let Some(FavoriteIndex(favorite_i)) =
                         self.nav_model.data::<FavoriteIndex>(entity)

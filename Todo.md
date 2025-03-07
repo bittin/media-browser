@@ -84,6 +84,7 @@ Positions ended with a ? are *stretch goals*. If it is possible AND somebody doe
 - display user defined tags in detail view (search by clicking)
 - add user defined tags to the navigation panel like locations and add them to the database
 - remove user defined tags from the navigation panel and remove them and their entries from the database
+- open a search with all elements that have a user defined tag assigned to them
 - display size of metadata in settings panel
 - display location of metadata in settings panel
 - settings option to delete metadata
