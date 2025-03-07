@@ -264,6 +264,10 @@ sorting-name = Sortieren nach
 direction = Richtung
 ascending = Aufsteigend
 descending = Absteigend
+metadata = Metadaten / Datenbank
+metadata-delete = Metadaten / Datenbank löschen
+metadata-details = {$items} Dateien mit insgesamt {$size} MB
+    im Verzeichnis {$location}
 
 ### Appearance
 appearance = Aussehen

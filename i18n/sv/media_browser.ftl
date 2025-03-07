@@ -264,6 +264,10 @@ sorting-name = Sort efter
 direction = Riktning
 ascending = Stigande
 descending = Fallande
+metadata = Metadata / Database
+metadata-delete = Delete Metadata / Database
+metadata-details = {$items} Files with size {$size} MB
+    at {$location}
 
 ### Utseende
 appearance = Utseende

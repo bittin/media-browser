@@ -82,16 +82,17 @@ Positions ended with a ? are *stretch goals*. If it is possible AND somebody doe
 - user defined tags
 - search for user defined tags
 - display user defined tags in detail view (search by clicking)
-
-#### Open Features
-
-- add user defined tags to the navigation panel like locations
-- assign user defined tags by menu and context menu
-- assign user defined tags by dragging files onto a tag in the navigation panel?
-- sort by user defined tags
+- add user defined tags to the navigation panel like locations and add them to the database
+- remove user defined tags from the navigation panel and remove them and their entries from the database
 - display size of metadata in settings panel
 - display location of metadata in settings panel
 - settings option to delete metadata
+
+#### Open Features
+
+- assign user defined tags by menu and context menu
+- assign user defined tags by dragging files onto a tag in the navigation panel?
+- sort by user defined tags
 - optionally skip different media types in navigation?
 - sort by release date / creation / modification time
   - adjust the sort options when just one type is displayed and more details are available?

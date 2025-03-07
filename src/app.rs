@@ -334,6 +334,7 @@ pub enum Message {
     LaunchUrl(String),
     LaunchSearch(crate::sql::SearchType, String),
     MaybeExit,
+    MetadataDelete,
     Modifiers(Modifiers),
     MoveToTrash(Option<Entity>),
     MounterItems(MounterKey, MounterItems),
@@ -1451,14 +1452,30 @@ impl App {
 
     fn settings(&self) -> Element<Message> {
         // TODO: Should dialog be updated here too?
-        widget::column::with_children(vec![widget::settings::section()
+        let app_theme_selected = match self.config.app_theme {
+            AppTheme::Dark => 1,
+            AppTheme::Light => 2,
+            AppTheme::System => 0,
+        };
+        let mut metadata_path;
+        match dirs::data_local_dir() {
+            Some(pb) => {
+                metadata_path = pb;
+                if !metadata_path.exists() {
+                    let ret = std::fs::create_dir_all(metadata_path.clone());
+                    if ret.is_err() {
+                        log::warn!("Failed to create directory {}", metadata_path.display());
+                        metadata_path = dirs::home_dir().unwrap();
+                    }
+                }
+            }
+            None => {
+                metadata_path = dirs::home_dir().unwrap();
+            },
+        }
+        let appearance_section = widget::settings::section()
             .title(fl!("appearance"))
-            .add({
-                let app_theme_selected = match self.config.app_theme {
-                    AppTheme::Dark => 1,
-                    AppTheme::Light => 2,
-                    AppTheme::System => 0,
-                };
+            .add(
                 widget::settings::item::builder(fl!("theme")).control(widget::dropdown(
                     &self.app_themes,
                     Some(app_theme_selected),
@@ -1470,9 +1487,54 @@ impl App {
                         })
                     },
                 ))
-            })
-            .into()])
-        .into()
+            );
+
+        if let Ok(metadata_item) = crate::parsers::item_from_path(metadata_path, IconSizes::default()) {
+            let metadata_items;
+            let metadata_size;
+            let metadata_location;
+            match &metadata_item.metadata {
+                ItemMetadata::Path { metadata, children } => {
+                    if metadata.is_dir() {
+                        if let Some(path) = metadata_item.path_opt() {
+                            metadata_items = children;
+                            let metadata_size = match &metadata_item.dir_size {
+                                crate::tab::DirSize::Calculating(_) => fl!("calculating"),
+                                crate::tab::DirSize::Directory(size) => crate::tab::format_size(*size),
+                                crate::tab::DirSize::NotDirectory => String::new(),
+                                crate::tab::DirSize::Error(err) => err.clone(),
+                            };
+                            let metadata_section = widget::settings::section()
+                                .title(fl!("metadata"))
+                                .add(widget::text::body(fl!("metadata-details", items = metadata_items, size = metadata_size, location = metadata_item)))
+                                .add(widget::settings::item::builder(fl!("metadata-delete"))
+                                    .control(widget::button::custom(widget::icon::from_name("user-trash-symbolic").size(16))
+                                        .on_press(Message::MetadataDelete))
+                                    );
+                            widget::column::with_children(vec![
+                                appearance_section.into(),
+                                metadata_section.into(),
+                            ]).into()
+                        } else {
+                            widget::column::with_children(vec![
+                                appearance_section.into(),
+                            ]).into()
+                        }
+                    } else {
+                        widget::column::with_children(vec![
+                            appearance_section.into(),
+                        ]).into()
+                    }
+                },
+                _ => widget::column::with_children(vec![
+                    appearance_section.into(),
+                ]).into(),
+            }
+         } else {
+            widget::column::with_children(vec![
+                appearance_section.into(),
+            ]).into()
+        } 
     }
 
     fn view_image_view(&self) -> Element<<App as cosmic::Application>::Message> {
@@ -2815,7 +2877,7 @@ impl Application for App {
                         ));
                     }
                 },
-                Location::Tag(t) => {
+                Location::Tag(_t) => {
                     items.push(cosmic::widget::menu::Item::Button(
                         fl!("open-in-new-tab"),
                         None,
@@ -3798,6 +3860,28 @@ impl Application for App {
                     process::exit(0);
                 }
             }
+            Message::MetadataDelete => {
+                let mut metadata_path;
+                match dirs::data_local_dir() {
+                    Some(pb) => {
+                        metadata_path = pb;
+                        if !metadata_path.exists() {
+                            let ret = std::fs::create_dir_all(metadata_path.clone());
+                            if ret.is_err() {
+                                log::warn!("Failed to create directory {}", metadata_path.display());
+                                metadata_path = dirs::home_dir().unwrap();
+                            }
+                        }
+                    }
+                    None => {
+                        metadata_path = dirs::home_dir().unwrap();
+                    },
+                }
+                let paths = vec![metadata_path];
+                if !paths.is_empty() {
+                    self.operation(Operation::Delete { paths });
+                }
+            }
             Message::LaunchUrl(url) => match open::that_detached(&url) {
                 Ok(()) => {}
                 Err(err) => {
@@ -4295,7 +4379,7 @@ impl Application for App {
                             {
                                 // Use the dialog ID to make it float
                                 settings.platform_specific.application_id =
-                                    "com.system76.CosmicFilesDialog".to_string();
+                                    "eu.fangornsrealm.MediaBrowserDialog".to_string();
                             }
 
                             let (_id, command) = window::open(settings);

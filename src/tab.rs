@@ -281,7 +281,7 @@ pub fn trash_icon_symbolic(icon_size: u16) -> widget::icon::Handle {
 }
 
 //TODO: translate, add more levels?
-fn format_size(size: u64) -> String {
+pub fn format_size(size: u64) -> String {
     const KB: u64 = 1000;
     const MB: u64 = 1000 * KB;
     const GB: u64 = 1000 * MB;
