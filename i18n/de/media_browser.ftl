@@ -197,7 +197,6 @@ item-media-album = Albumname: {$text}
 item-media-composer = Komponist: {$text}
 item-media-genre = Genre: {$text}
 item-media-albumartist = Album Künstler: {$text}
-item-media-composer = Komponist: {$text}
 item-image-lense-model = Linsenmodel: {$text}
 item-image-focal-length = Brennweite: {$text}
 item-image-exposure-time = Belichtungszeit: {$text}
