@@ -679,6 +679,9 @@ fn scan_tags(t: crate::sql::Tag) -> Vec<Item> {
     log::warn!("Searching database for tag {}", t.tag);
     let search = crate::sql::SearchData {
         from_string: t.tag.clone(),
+        audio: true,
+        video: true,
+        image: true,
         tags: true,
         ..Default::default()
     };

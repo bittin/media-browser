@@ -16,15 +16,25 @@ Directory navigation displays media in the local directory. Detail information i
 
 A search mask with all the options is also available. Previous searches are listed in the top and can be selected. The play button in the bottom starts the search.
 
-![media-browser preview](res/media-browsear.png)
+![media-browser Metadata search preview](res/media-browsear.png)
 
 Search results present the same view as the directory view. And they behave just the same.
 
-![media-browser search](res/media-browsepr.png)
+![media-browser Tags preview](res/media-browseat.png)
+
+You can add tags to the navigation panel.
+
+You can add media to a tag by selecting them in the in any of the open tabs and dragging them onto the tag.
+
+Clicking on a tag will search for all media that you added to it. Right-clicking on it gives the option to open the media with this tag in a new tab.
+
+Right clicking on a tag gives you the option to remove the tag and all its entries from the database.
+
+![media-browser player controls](res/media-browsepr.png)
 
 The player can navigate by chapters (if available) or seek by button or mouse-wheel. The mouse can also pick the scrubber and navigate that way. The home key will jump to the beginning.
 
-![media-browser search](res/media-browseor.png)
+![media-browser player navigation](res/media-browseor.png)
 
 The image viewer, video and audio player each provide a navigation strip to prewiew the other files besides the current one. Be it from a diretory or a search result. The file preview can be navigated by seleting via mouse or by Previous/Next buttons on the left or PageUp/PageDown Keys. If there are different media types selected, the viewer changes with the selected file.
 
