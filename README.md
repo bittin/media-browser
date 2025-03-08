@@ -20,7 +20,7 @@ A search mask with all the options is also available. Previous searches are list
 
 Search results present the same view as the directory view. And they behave just the same.
 
-![media-browser Tags preview](res/media-browseat.png)
+![media-browser Tags preview](res/media-browset.png)
 
 You can add tags to the navigation panel.
 
