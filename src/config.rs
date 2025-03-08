@@ -49,7 +49,7 @@ impl AppTheme {
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
-pub enum Favorite {
+pub enum MediaFavorite {
     Home,
     Documents,
     Downloads,
@@ -59,7 +59,7 @@ pub enum Favorite {
     Path(PathBuf),
 }
 
-impl Favorite {
+impl MediaFavorite {
     pub fn from_path(path: PathBuf) -> Self {
         // Ensure that special folders are handled properly
         for favorite in &[
@@ -97,10 +97,10 @@ impl Favorite {
 pub struct Config {
     pub app_theme: AppTheme,
     pub desktop: DesktopConfig,
-    pub favorites: Vec<Favorite>,
+    pub favorites: Vec<MediaFavorite>,
     pub tags: Vec<crate::sql::Tag>,
     pub show_details: bool,
-    pub tab: TabConfig,
+    pub tab: MediaTabConfig,
 }
 
 impl Config {
@@ -139,16 +139,16 @@ impl Default for Config {
             app_theme: AppTheme::System,
             desktop: DesktopConfig::default(),
             favorites: vec![
-                Favorite::Home,
-                Favorite::Documents,
-                Favorite::Downloads,
-                Favorite::Music,
-                Favorite::Pictures,
-                Favorite::Videos,
+                MediaFavorite::Home,
+                MediaFavorite::Documents,
+                MediaFavorite::Downloads,
+                MediaFavorite::Music,
+                MediaFavorite::Pictures,
+                MediaFavorite::Videos,
             ],
             tags: Vec::new(),
             show_details: false,
-            tab: TabConfig::default(),
+            tab: MediaTabConfig::default(),
         }
     }
 }
@@ -178,7 +178,7 @@ impl Default for DesktopConfig {
 /// locally. Local changes aren't saved to the main config.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, CosmicConfigEntry, Deserialize, Serialize)]
 #[serde(default)]
-pub struct TabConfig {
+pub struct MediaTabConfig {
     pub view: View,
     /// Show folders before files
     pub folders_first: bool,
@@ -188,7 +188,7 @@ pub struct TabConfig {
     pub icon_sizes: IconSizes,
 }
 
-impl Default for TabConfig {
+impl Default for MediaTabConfig {
     fn default() -> Self {
         Self {
             view: View::List,

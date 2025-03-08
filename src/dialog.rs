@@ -39,7 +39,7 @@ use std::{
 
 use crate::{
     app::{Action, ContextPage, Message as AppMessage, PreviewItem, PreviewKind},
-    config::{Config, Favorite, IconSizes, TabConfig},
+    config::{Config, MediaFavorite as Favorite, IconSizes, MediaTabConfig as TabConfig},
     fl, home_dir,
     key_bind::key_binds,
     localize::LANGUAGE_SORTER,

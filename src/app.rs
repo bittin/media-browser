@@ -79,7 +79,7 @@ use wayland_client::{protocol::wl_output::WlOutput, Proxy};
 
 use crate::{
     clipboard::{ClipboardCopy, ClipboardKind, ClipboardPaste},
-    config::{AppTheme, Config, Favorite, IconSizes, TabConfig},
+    config::{AppTheme, Config, MediaFavorite as Favorite, IconSizes, MediaTabConfig as TabConfig},
     fl, home_dir,
     key_bind::key_binds,
     localize::LANGUAGE_SORTER,
@@ -2670,7 +2670,7 @@ impl Application for App {
     type Message = Message;
 
     /// The unique application ID to supply to the window manager.
-    const APP_ID: &'static str = "com.system76.CosmicFiles";
+    const APP_ID: &'static str = "eu.fangornsrealm.MediaBrowser";
 
     fn core(&self) -> &Core {
         &self.core
@@ -3759,7 +3759,7 @@ impl Application for App {
                                             let _ = recently_used_xbel::update_recently_used(
                                                 &path,
                                                 App::APP_ID.to_string(),
-                                                "cosmic-files".to_string(),
+                                                "media-browser".to_string(),
                                                 None,
                                             );
                                         }
@@ -6907,8 +6907,8 @@ pub(crate) mod test_utils {
     use tempfile::{tempdir, TempDir};
 
     use crate::{
-        config::{IconSizes, TabConfig},
-        mounter::MounterMap,
+        config::{IconSizes, MediaTabConfig as TabConfig},
+        //mounter::MounterMap,
         tab::Item,
     };
 
