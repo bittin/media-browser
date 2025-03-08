@@ -22,11 +22,15 @@ Search results present the same view as the directory view. And they behave just
 
 ![media-browser Tags preview](res/media-browset.png)
 
+In the upper left corner you can activate the navigation panel. As the name implies it can be used to navigate the filesystem / the tab that opens at startup. By default you get the most recently visited locations as well as default locations like you home, Documents, Music, Videos, and so on. You can change this layout by deleting entries and adding different ones. Bookmark the currently selected directory with Ctrl-D or by right-clicking and "Add to sidebar". You can open a bookmark by clicking in the standard tab or by right-clicking and "Open in new tab".
+
 You can add tags to the navigation panel.
 
 You can add media to a tag by selecting them in the in any of the open tabs and dragging them onto the tag.
 
 Clicking on a tag will search for all media that you added to it. Right-clicking on it gives the option to open the media with this tag in a new tab.
+
+In the details view you will get a list of all the tags you defined for a media. Clicking on the link will open a new tab with all the media you assigned this tag.
 
 Right clicking on a tag gives you the option to remove the tag and all its entries from the database.
 
