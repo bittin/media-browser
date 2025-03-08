@@ -423,6 +423,7 @@ pub fn menu_bar<'a>(
                     menu::Item::Button(fl!("search-context"), None, Action::SearchDB),
                     menu::Item::Divider,
                     menu::Item::Button(fl!("add-to-sidebar"), None, Action::AddToSidebar),
+                    menu::Item::Button(fl!("add-new-tag"), None, Action::AddTagToSidebar),
                     menu::Item::Divider,
                     menu::Item::Button(fl!("move-to-trash"), None, Action::MoveToTrash),
                     menu::Item::Divider,

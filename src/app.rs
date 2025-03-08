@@ -304,6 +304,7 @@ pub enum Message {
     Video(crate::video::video_view::Message),
     Audio(crate::audio::audio_view::Message),
     AddToSidebar(Option<Entity>),
+    AddTagToContents(crate::sql::Tag, ClipboardPaste),
     AddTagToSidebar(Option<Entity>),
     AppTheme(AppTheme),
     AudioMessage(crate::audio::audio_view::Message),
@@ -1491,14 +1492,12 @@ impl App {
             );
 
         if let Ok(metadata_item) = crate::parsers::item_from_path(metadata_path, IconSizes::default()) {
-            let metadata_items;
-            let metadata_size;
-            let metadata_location;
             match &metadata_item.metadata {
                 ItemMetadata::Path { metadata, children } => {
                     if metadata.is_dir() {
                         if let Some(path) = metadata_item.path_opt() {
-                            metadata_items = children;
+                            let metadata_location = crate::parsers::osstr_to_string(path.clone().into_os_string());
+                            let metadata_items = children.to_owned();
                             let metadata_size = match &metadata_item.dir_size {
                                 crate::tab::DirSize::Calculating(_) => fl!("calculating"),
                                 crate::tab::DirSize::Directory(size) => crate::tab::format_size(*size),
@@ -1507,7 +1506,7 @@ impl App {
                             };
                             let metadata_section = widget::settings::section()
                                 .title(fl!("metadata"))
-                                .add(widget::text::body(fl!("metadata-details", items = metadata_items, size = metadata_size, location = metadata_item)))
+                                .add(widget::text::body(fl!("metadata-details", items = metadata_items, size = metadata_size, location = metadata_location)))
                                 .add(widget::settings::item::builder(fl!("metadata-delete"))
                                     .control(widget::button::custom(widget::icon::from_name("user-trash-symbolic").size(16))
                                         .on_press(Message::MetadataDelete))
@@ -2880,7 +2879,7 @@ impl Application for App {
                 },
                 Location::Tag(_t) => {
                     items.push(cosmic::widget::menu::Item::Button(
-                        fl!("open"),
+                        fl!("open-in-new-tab"),
                         None,
                         NavMenuAction::OpenTag(entity),
                     ));
@@ -3139,6 +3138,20 @@ impl Application for App {
                 }
                 config_set!(favorites, favorites);
                 return self.update_config();
+            }
+            Message::AddTagToContents(to, contents) => {
+                for p in contents.paths {
+                    let mut connection;
+                    match crate::sql::connect() {
+                        Ok(ok) => connection = ok,
+                        Err(error) => {
+                            log::error!("Could not open SQLite DB connection: {}", error);
+                            return Task::none();
+                        }
+                    }
+                    let file = crate::sql::file(&mut connection, &crate::parsers::osstr_to_string(p.clone().into_os_string()));
+                    crate::sql::insert_media_tag(&mut connection, file.metadata_id as u32, to.tag_id);
+                }
             }
             Message::AddTagToSidebar(_entity_opt) => {
                 self.dialog_pages.push_back(DialogPage::NewTag {tag: "unnamed".to_string()});
@@ -3930,6 +3943,13 @@ impl Application for App {
                     ST::Genre => {
                         self.search.genre = true;
                         self.search.audio = true;
+                        self.search.from_string = search_term;
+                    },
+                    ST::Tag => {
+                        self.search.tags = true;
+                        self.search.audio = true;
+                        self.search.video = true;
+                        self.search.image = true;
                         self.search.from_string = search_term;
                     },
 
@@ -5417,6 +5437,15 @@ impl Application for App {
                                 paths: data.paths,
                             },
                         )),
+                        Location::Tag(t) => {
+                            self.update(Message::AddTagToContents(
+                                t.clone(),
+                                ClipboardPaste {
+                                    kind: ClipboardKind::Copy,
+                                    paths: data.paths,
+                                },
+                            ))
+                        },
                         Location::Trash if matches!(action, DndAction::Move) => {
                             self.operation(Operation::Delete { paths: data.paths });
                             Task::none()
@@ -5523,29 +5552,27 @@ impl Application for App {
             // Applies selected nav bar context menu operation.
             Message::NavMenuAction(action) => match action {
                 NavMenuAction::Open(entity) => {
-                    match self
-                        .nav_model
-                        .data::<Location>(entity)
-                        .and_then(|x| x.path_opt())
-                        .map(|x| x.to_path_buf())
-                    {
-                        Some(path) => {
-                            let _ = self.update(Message::Open(
-                                Some(entity),
-                                crate::parsers::osstr_to_string(path.clone().into_os_string()),
-                            ));
-                        }
-                        None => {}
+                    if let Some(location) = self.nav_model.data::<Location>(entity) {
+                        match location 
+                        {
+                            Location::Path(path) => {
+                                let _ = self.update(Message::Open(
+                                    Some(entity),
+                                    crate::parsers::osstr_to_string(path.clone().into_os_string()),
+                                ));
+                            },
+                            Location::Tag(t) => {
+                                let _ = self.update(Message::LaunchSearch(crate::sql::SearchType::Tag, t.tag.clone()));
+                            }
+                            _ => {},
+                        }                            
                     }
                 }
                 NavMenuAction::OpenTag(entity) => {
                     if let Some(location) = self.nav_model.data::<Location>(entity) {
                         match location {
                             Location::Tag(t) => {
-                                self.search = crate::sql::SearchData {..Default::default()};
-                                self.search.tags = true;
-                                self.search.from_string = t.tag.clone();
-                                self.update(Message::SearchCommit);
+                                let _ = self.update(Message::LaunchSearch(crate::sql::SearchType::Tag, t.tag.clone()));
                             },
                             _ => {},
                         }
@@ -6050,7 +6077,7 @@ impl Application for App {
                                 .id(self.dialog_text_input.clone())
                                 .on_input(move |tag| {
                                     Message::DialogUpdate(DialogPage::NewTag {
-                                        tag:tag.to_string(),
+                                        tag: tag.to_string(),
                                     })
                                 })
                                 .on_submit_maybe(complete_maybe)
