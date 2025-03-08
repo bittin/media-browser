@@ -15,6 +15,7 @@ use std::ops::ControlFlow;
 use std::path::PathBuf;
 use std::time::UNIX_EPOCH;
 
+/// Read video metadata from XML files movie.nfo (XBMC/Kodi format)
 fn parse_nfo(nfo_file: &PathBuf, metadata: &mut crate::sql::VideoMetadata) {
     use std::fs::File;
     use std::io::BufReader;
@@ -170,6 +171,7 @@ fn parse_nfo(nfo_file: &PathBuf, metadata: &mut crate::sql::VideoMetadata) {
     }
 }
 
+/// Read audio metadata from supported audio formats
 fn parse_audiotags(file: &PathBuf, metadata: &mut crate::sql::AudioMetadata) {
     use audiotags::{MimeType, Tag};
 
@@ -322,6 +324,8 @@ fn parse_audiotags(file: &PathBuf, metadata: &mut crate::sql::AudioMetadata) {
     };
 }
 
+/// Read Image metadata form EXIF format
+/// 
 fn parse_exif(path: &PathBuf, metadata: &mut crate::sql::ImageMetadata) {
     use nom_exif::*;
     match imagesize::size(path.to_path_buf()) {
@@ -525,6 +529,8 @@ pub fn item_from_path<P: Into<PathBuf>>(path: P, sizes: IconSizes) -> Result<Ite
     Ok(item_from_entry(path, name, metadata, sizes))
 }
 
+/// convert a byte slice to a Vector of strings, split at newline characters
+/// Used to convert system command output into parseable Strings.
 pub fn slice_u8_to_vec_string(utfvec: Vec<u8>) -> Vec<String> {
     let mut v = Vec::new();
     let mut null_positions = Vec::new();
@@ -553,6 +559,9 @@ pub fn slice_u8_to_vec_string(utfvec: Vec<u8>) -> Vec<String> {
     v
 }
 
+/// Read video metadata directly from the video file. 
+/// Mainly used to get languages of internal streams and chapter information.
+/// Utilizes a local install of ffmpeg. The only requirement is that the ffmpeg can read the video files.
 fn video_metadata(meta: &mut crate::sql::VideoMetadata) {
     let basename;
     let fp = PathBuf::from(&meta.path);
@@ -668,6 +677,7 @@ pub fn string_to_float(mystring: &str) -> f32 {
     f
 }
 
+/// format time in seconds into hh:mm:ss.000 format
 pub fn timecode_to_ffmpeg_time(timecode: u32) -> String {
     let hours = timecode / 3600;
     let minutes = (timecode - hours * 3600) / 60;
@@ -675,6 +685,9 @@ pub fn timecode_to_ffmpeg_time(timecode: u32) -> String {
     format!("{:02}:{:02}:{:02}.000", hours, minutes, seconds)
 }
 
+/// for a video without external metadata create a screenshot
+/// and store it next to the video file.
+/// Utilizes a local install of ffmpeg. The only requirement is that the ffmpeg can read the video files.
 fn create_screenshots(meta: &mut crate::sql::VideoMetadata) {
     video_metadata(meta);
     let timecode = meta.duration / 10;
@@ -721,6 +734,7 @@ fn create_screenshots(meta: &mut crate::sql::VideoMetadata) {
     meta.poster = output;
 }
 
+/// create an item to put into our tabmodel from a video wihtout external metadata
 pub fn item_from_video(
     path: PathBuf,
     videometadata: &mut crate::sql::VideoMetadata,
@@ -895,6 +909,7 @@ pub fn item_from_video(
     item
 }
 
+/// create an item to put into our tabmodel from a video with NFO metadata
 pub fn item_from_nfo(
     nfo_file: PathBuf,
     metadata: &mut crate::sql::VideoMetadata,
@@ -1048,6 +1063,8 @@ pub fn item_from_nfo(
     item
 }
 
+/// try to find external metadata for audio files 
+/// Lyrics or coverart.
 fn audio_metadata(
     audio: PathBuf,
     special_files: &mut std::collections::BTreeSet<PathBuf>,
@@ -1092,6 +1109,7 @@ fn audio_metadata(
     }
 }
 
+/// create an item to put into our tabmodel from a audio file with internal metadata
 pub fn item_from_audiotags(
     audio: PathBuf,
     special_files: &mut std::collections::BTreeSet<PathBuf>,
@@ -1294,6 +1312,7 @@ pub fn item_from_audiotags(
     item
 }
 
+/// create an item to put into our tabmodel from an image
 pub fn item_from_exif(
     image_file: PathBuf,
     metadata: &mut crate::sql::ImageMetadata,
@@ -1480,6 +1499,7 @@ pub fn item_from_exif(
     item
 }
 
+/// convert an OsString (from PathBuf) to a usable String
 pub fn osstr_to_string(osstr: std::ffi::OsString) -> String {
     match osstr.to_str() {
         Some(str) => return str.to_string(),
@@ -1487,6 +1507,8 @@ pub fn osstr_to_string(osstr: std::ffi::OsString) -> String {
     }
     String::new()
 }
+
+/// Scanners to process the filesystem
 
 pub fn scan_files(
     special_files: &mut std::collections::BTreeSet<PathBuf>,
