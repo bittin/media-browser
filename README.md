@@ -12,6 +12,16 @@ Search results and existing directories are navigatable with keyboard or picking
 
 Directory navigation displays media in the local directory. Detail information is available in the Preview. Some entries are directly searchable.
 
+If you select a directory containing your media collection you can right-click *Scan All Subdirectories for media* or use *File->Scan All Subdirectories for*.
+
+**WARNING** While this is running the database is permanently written to. It is possible to use previously scanned data read-only (Search results). But while this is running you should not open directories that are not scanned yet, or create new tags or assign media files to existing ones.
+
+Depending on how many directories there are to scan and the number of media this can take a long time. You can monitor the progress as it is logged to the system.
+
+```Shell
+journalctl -f  /usr/bin/media-browser
+```
+
 ![media-browser search](res/media-browsesr.png)
 
 A search mask with all the options is also available. Previous searches are listed in the top and can be selected. The play button in the bottom starts the search.
@@ -22,9 +32,9 @@ Search results present the same view as the directory view. And they behave just
 
 ![media-browser Tags preview](res/media-browset.png)
 
-In the upper left corner you can activate the navigation panel. As the name implies it can be used to navigate the filesystem / the tab that opens at startup. By default you get the most recently visited locations as well as default locations like your home, Documents, Music, Videos, and so on. You can change this layout by deleting entries and adding different ones. Bookmark the currently selected directory with Ctrl-D or by right-clicking and "Add to sidebar". You can open a bookmark by clicking in the standard tab or by right-clicking and "Open in new tab".
+In the upper left corner you can activate the navigation panel. As the name implies it can be used to navigate the filesystem / the tab that opens at startup. By default you get the most recently visited locations as well as default locations like your home, Documents, Music, Videos, and so on. You can change this layout by deleting entries and adding different ones. Bookmark the currently selected directory with *Ctrl-D* or by right-clicking and *Add to sidebar*. You can open a bookmark by clicking in the standard tab or by right-clicking and *Open in new tab*.
 
-You can add tags to the navigation panel. Ctrl-T or File->Add Tag to sidebar will ask you to enter the name of the tag and will create it.
+You can add tags to the navigation panel. *Ctrl-T* or *File->Add Tag to sidebar* will ask you to enter the name of the tag and will create it.
 
 You can add media to a tag by selecting them in the in any of the open tabs and dragging them onto the tag.
 
@@ -32,7 +42,7 @@ Clicking on a tag will search for all media that you added to it. Right-clicking
 
 In the details view you will get a list of all the tags you defined for a media. Clicking on the link will open a new tab with all the media you assigned this tag.
 
-Right clicking on a tag gives you the option to remove the tag and all its entries from the database.
+Right-clicking on a tag gives you the option to remove the tag and all its entries from the database. This does not delete the media files. You can select media and *File->Move to Trash*. But this will currently only delete the media file. Not it's external metadata, the thumbnails or database entries.
 
 ![media-browser player controls](res/media-browsepr.png)
 
@@ -49,13 +59,13 @@ This project is developed and tested on Linux using Wayland and Pipewire. Gstrea
 
 ## Many thanks to the projects this software is based on
 
-The file manager part is a clone of [COSMIC files](https://github.com/pop-os/cosmic-files) with a few modifications.
+Thanks to Firecore not making [Infuse](https://firecore.com/infuse) available on Linux I was motivated to start this project. It is a tool I use all the time on iPad, iPhone and AppleTV. It makes Video you own and host somewhere a working concept in the Apple Ecosystem. They are developing this for a long time. MediaBrowser will never approach feature parity with Infuse. But over time, who knows what will be useful enough to implement.
 
-The GUI of the video / audio player is a clone of [COSMIC player](https://github.com/pop-os/cosmic-player). The player itself is a modification of [iced-video-player](https://github.com/jazzfool/iced_video_player).
+The file manager part is a modification of [COSMIC files](https://github.com/pop-os/cosmic-files).
 
-The Image viewer GUI is inspired by [gthumb](https://gitlab.gnome.org/GNOME/gthumb). The viewer component is the image viewer provided by the [iced](https://github.com/iced-rs/iced) project.
+The GUI of the video / audio player is a clone of [COSMIC player](https://github.com/pop-os/cosmic-player) with a few extra features. The player itself is a modification of [iced-video-player](https://github.com/jazzfool/iced_video_player).
 
-The backend is a genuine creation.
+The Image viewer GUI is inspired by [gthumb](https://gitlab.gnome.org/GNOME/gthumb). We ripped off their navigation strip and generalized it for all media types. The viewer component is the image viewer provided by the [iced](https://github.com/iced-rs/iced) project.
 
 ## Required dependencies
 
