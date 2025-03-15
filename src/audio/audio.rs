@@ -217,10 +217,17 @@ impl Audio {
                 .map(|duration| duration.nseconds())
                 .unwrap_or(0),
         );
-        let (v, width, height) = crate::audio::coverart::frame_from_image(posterpath.clone());
+        let realposterpath;
+        if posterpath.is_some() {
+            realposterpath = posterpath;
+        } else {
+            realposterpath = Some("res/audio_dummy.jpg".to_string());
+        }
+        
+        let (v, width, height) = crate::audio::coverart::frame_from_image(realposterpath.clone());
         let frame = Arc::new(Mutex::new(v));
         let alive = Arc::new(AtomicBool::new(true));
-
+        
         Ok(Audio(RwLock::new(Internal {
             id,
 
