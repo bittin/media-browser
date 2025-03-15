@@ -1536,6 +1536,12 @@ impl Item {
                             )).on_press(crate::app::Message::LaunchSearch(ST::Album, audio.album.clone()))
                             .padding(0));
                         }
+                        if audio.track_id != 0 {
+                            details = details.push(widget::text::body(format!(
+                                "Id:   {}",
+                                audio.track_id
+                            )));
+                        }
                         for l in audio.tags.iter() {
                             details = details.push(widget::button::link(fl!(
                                 "item-media-tag",
