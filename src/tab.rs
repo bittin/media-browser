@@ -3234,6 +3234,7 @@ impl Tab {
 
     pub(crate) fn sort_options(&self) -> (HeadingOptions, bool, bool) {
         match self.location {
+            Location::DBSearch(..) => (HeadingOptions::MediaSpecific, false, false),
             Location::Search(..) => (HeadingOptions::Modified, false, false),
             _ => (
                 self.sort_name,

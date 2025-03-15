@@ -155,6 +155,7 @@ pub fn context_menu<'a>(
                 children.push(menu_item(fl!("paste"), Action::Paste).into());
                 children.push(divider::horizontal::light().into());
                 // TODO: Nested menu
+                children.push(sort_item(fl!("media-browser"), HeadingOptions::MediaSpecific));
                 children.push(sort_item(fl!("sort-by-name"), HeadingOptions::Name));
                 children.push(sort_item(fl!("sort-by-modified"), HeadingOptions::Modified));
                 children.push(sort_item(fl!("sort-by-size"), HeadingOptions::Size));
@@ -185,6 +186,7 @@ pub fn context_menu<'a>(
                 if !children.is_empty() {
                     children.push(divider::horizontal::light().into());
                 }
+                children.push(sort_item(fl!("media-browser"), HeadingOptions::MediaSpecific));
                 children.push(sort_item(fl!("sort-by-name"), HeadingOptions::Name));
                 children.push(sort_item(fl!("sort-by-modified"), HeadingOptions::Modified));
                 children.push(sort_item(fl!("sort-by-size"), HeadingOptions::Size));
@@ -202,6 +204,7 @@ pub fn context_menu<'a>(
                 if !children.is_empty() {
                     children.push(divider::horizontal::light().into());
                 }
+                children.push(sort_item(fl!("media-browser"), HeadingOptions::MediaSpecific));
                 children.push(sort_item(fl!("sort-by-name"), HeadingOptions::Name));
                 children.push(sort_item(fl!("sort-by-modified"), HeadingOptions::Modified));
                 children.push(sort_item(fl!("sort-by-size"), HeadingOptions::Size));
@@ -220,6 +223,7 @@ pub fn context_menu<'a>(
                     .push(menu_item(fl!("restore-from-trash"), Action::RestoreFromTrash).into());
             } else {
                 // TODO: Nested menu
+                children.push(sort_item(fl!("media-browser"), HeadingOptions::MediaSpecific));
                 children.push(sort_item(fl!("sort-by-name"), HeadingOptions::Name));
                 children.push(sort_item(fl!("sort-by-modified"), HeadingOptions::Modified));
                 children.push(sort_item(fl!("sort-by-size"), HeadingOptions::Size));
@@ -305,6 +309,7 @@ pub fn dialog_menu<'a>(
             menu::items(
                 key_binds,
                 vec![
+                    sort_item(fl!("media-browser"), tab::HeadingOptions::MediaSpecific, true),
                     sort_item(fl!("sort-a-z"), tab::HeadingOptions::Name, true),
                     sort_item(fl!("sort-z-a"), tab::HeadingOptions::Name, false),
                     sort_item(
@@ -499,6 +504,7 @@ pub fn menu_bar<'a>(
             menu::items(
                 key_binds,
                 vec![
+                    sort_item(fl!("media-browser"), tab::HeadingOptions::MediaSpecific, true),
                     sort_item(fl!("sort-a-z"), tab::HeadingOptions::Name, true),
                     sort_item(fl!("sort-z-a"), tab::HeadingOptions::Name, false),
                     sort_item(
