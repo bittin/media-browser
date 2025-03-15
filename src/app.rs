@@ -4721,8 +4721,8 @@ impl Application for App {
             Message::SearchAlbum(is_checked) => {
                 self.search.search_id = 0;
                 self.search.album = is_checked;
-                if !self.search.video {
-                    self.search.video = true;
+                if !self.search.audio {
+                    self.search.audio = true;
                 }
             }
             Message::SearchComposer(is_checked) => {
