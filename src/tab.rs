@@ -647,6 +647,61 @@ pub fn scan_path_runner(
     }
 }
 
+fn sort_items_media_browser(items: Vec<Item>) -> Vec<Item> {
+    let mut items2 = items;
+    items2.sort_by(|a, b| match (a.metadata.is_dir(), b.metadata.is_dir()) {
+        (true, false) => core::cmp::Ordering::Less,
+        (false, true) => core::cmp::Ordering::Greater,
+        _ => LANGUAGE_SORTER.compare(&a.display_name, &b.display_name),
+    });
+    let mut sorted = Vec::new();
+    let mut albums: std::collections::BTreeMap<String, std::collections::BTreeMap<u32, Item>> = std::collections::BTreeMap::new();
+    // sort audio content from the same album in order of track id
+    for i in items2 {
+        if let Some(audio) = i.audio_opt.as_ref() {
+            //log::warn!("Processing audio {} which is track {} of {}", audio.title, audio.track_id, audio.album);
+            if audio.album.len() > 0 && audio.track_id > 0 {
+                if albums.contains_key(&audio.album) {
+                    let track_id = audio.track_id;
+                    albums.get_mut(&audio.album).unwrap().insert(track_id, i.clone());
+                } else {
+                    let mut album = std::collections::BTreeMap::new();
+                    let track_id = audio.track_id;
+                    album.insert(track_id, i.clone());
+                    albums.insert(audio.album.clone(), album);
+                }
+            } else {
+                sorted.push(i);
+            }
+        } else {
+            // not audio content, just sort as set in the app
+            sorted.push(i);
+        }
+    }
+    for (_album_name, album) in albums.iter() {
+        for (_track_id, item) in album.iter() {
+            sorted.push(item.clone());
+        }
+    }
+    sorted
+}
+
+fn sort_items_from_search(items: Vec<Item>, search: &crate::sql::SearchData) -> Vec<Item> {
+    let mut sorted = Vec::new();
+    if search.album {
+        // sort audio content from the same album in order of track id
+        sorted.extend(sort_items_media_browser(items));
+    } else {
+        sorted.extend(items);
+        sorted.sort_by(|a, b| match (a.metadata.is_dir(), b.metadata.is_dir()) {
+            (true, false) => core::cmp::Ordering::Less,
+            (false, true) => core::cmp::Ordering::Greater,
+            _ => LANGUAGE_SORTER.compare(&a.display_name, &b.display_name),
+        });
+    }
+    sorted
+}
+
 fn scan_search_db(search: &crate::sql::SearchData) -> Vec<Item> {
     let mut connection;
     match crate::sql::connect() {
@@ -657,14 +712,8 @@ fn scan_search_db(search: &crate::sql::SearchData) -> Vec<Item> {
         }
     }
     log::warn!("Searching database");
-    let mut items = crate::sql::search_items(&mut connection, search);
-
-    items.sort_by(|a, b| match (a.metadata.is_dir(), b.metadata.is_dir()) {
-        (true, false) => core::cmp::Ordering::Less,
-        (false, true) => core::cmp::Ordering::Greater,
-        _ => LANGUAGE_SORTER.compare(&a.display_name, &b.display_name),
-    });
-    items
+    let items = crate::sql::search_items(&mut connection, search);
+    sort_items_from_search(items, search)
 }
 
 fn scan_tags(t: crate::sql::Tag) -> Vec<Item> {
@@ -687,12 +736,7 @@ fn scan_tags(t: crate::sql::Tag) -> Vec<Item> {
     };
     let mut items = crate::sql::search_items(&mut connection, &search);
 
-    items.sort_by(|a, b| match (a.metadata.is_dir(), b.metadata.is_dir()) {
-        (true, false) => core::cmp::Ordering::Less,
-        (false, true) => core::cmp::Ordering::Greater,
-        _ => LANGUAGE_SORTER.compare(&a.display_name, &b.display_name),
-    });
-    items
+    sort_items_from_search(items, &search)
 }
 
 
@@ -1735,6 +1779,7 @@ pub enum HeadingOptions {
     Modified,
     Size,
     TrashedOn,
+    MediaSpecific,
 }
 
 impl fmt::Display for HeadingOptions {
@@ -1744,6 +1789,7 @@ impl fmt::Display for HeadingOptions {
             HeadingOptions::Modified => write!(f, "{}", fl!("modified")),
             HeadingOptions::Size => write!(f, "{}", fl!("size")),
             HeadingOptions::TrashedOn => write!(f, "{}", "trashed-on".to_string()),
+            HeadingOptions::MediaSpecific => write!(f, "{}", fl!("media-browser")),
         }
     }
 }
@@ -1754,6 +1800,7 @@ impl HeadingOptions {
             HeadingOptions::Name.to_string(),
             HeadingOptions::Modified.to_string(),
             HeadingOptions::Size.to_string(),
+            HeadingOptions::MediaSpecific.to_string(),
             HeadingOptions::TrashedOn.to_string(),
         ]
     }
@@ -1907,7 +1954,7 @@ impl Tab {
             history_i: 0,
             history,
             config,
-            sort_name: HeadingOptions::Name,
+            sort_name: HeadingOptions::MediaSpecific,
             sort_direction: true,
             gallery: false,
             parent_item_opt: None,
@@ -3253,6 +3300,52 @@ impl Tab {
                     )
                 }
             }),
+            HeadingOptions::MediaSpecific => {
+                items.sort_by(|a, b| {
+                    let a_modified = a.1.metadata.modified();
+                    let b_modified = b.1.metadata.modified();
+                    if folders_first {
+                        match (a.1.metadata.is_dir(), b.1.metadata.is_dir()) {
+                            (true, false) => Ordering::Less,
+                            (false, true) => Ordering::Greater,
+                            _ => check_reverse(a_modified.cmp(&b_modified), sort_direction),
+                        }
+                    } else {
+                        check_reverse(a_modified.cmp(&b_modified), sort_direction)
+                    }
+                });
+                let mut sorted = Vec::new();
+                let mut albums: std::collections::BTreeMap<String, std::collections::BTreeMap<u32, (usize, &Item)>> = std::collections::BTreeMap::new();
+                // sort audio content from the same album in order of track id
+                for (i, item) in items {
+                    if let Some(audio) = item.audio_opt.as_ref() {
+                        //log::warn!("Processing audio {} which is track {} of {}", audio.title, audio.track_id, audio.album);
+                        if audio.album.len() > 0 && audio.track_id > 0 {
+                            if albums.contains_key(&audio.album) {
+                                let track_id = audio.track_id;
+                                albums.get_mut(&audio.album).unwrap().insert(track_id, (i, item));
+                            } else {
+                                let mut album = std::collections::BTreeMap::new();
+                                let track_id = audio.track_id;
+                                album.insert(track_id, (i, item).clone());
+                                albums.insert(audio.album.clone(), album);
+                            }
+                        } else {
+                            sorted.push((i, item));
+                        }
+                    } else {
+                        // not audio content, just sort as set in the app
+                        sorted.push((i, item));
+                    }
+                }
+                for (_album_name, album) in albums.iter() {
+                    for (_track_id, item) in album.iter() {
+                        sorted.push(item.clone());
+                    }
+                }
+                items = Vec::new();
+                items.extend(sorted);
+            },
             HeadingOptions::Modified => {
                 items.sort_by(|a, b| {
                     let a_modified = a.1.metadata.modified();

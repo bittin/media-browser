@@ -89,6 +89,7 @@ Positions ended with a ? are *stretch goals*. If it is possible AND somebody doe
 - display size of metadata in settings panel
 - display location of metadata in settings panel
 - settings option to delete metadata
+- sort audio from one album by track id
 
 #### Open Features
 
