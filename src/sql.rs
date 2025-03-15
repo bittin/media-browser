@@ -521,6 +521,51 @@ pub fn search_audio(
             }
         }
     }
+    if search.album {
+        let query = format!("SELECT audio_id FROM album_audio_map 
+                        INNER JOIN albums
+                        ON album_audio_map.album_id = albums.album_id 
+                        WHERE albums.album_name LIKE '%{}%'", search.from_string);
+        let (newvideos, newfiles) = search_audio_metadata(
+            connection, 
+            query, 
+        );
+        for i in 0..newfiles.len() {
+            if !used_files.contains(&newfiles[i].filepath) {
+                used_files.insert(newfiles[i].filepath.clone());
+                files.push(newfiles[i].clone());
+                audios.push(newvideos[i].clone());
+            }
+        }
+    }
+    if search.composer {
+        let query = format!("SELECT audio_id FROM audio_metadata composer LIKE '%{}%'", search.from_string);
+        let (newvideos, newfiles) = search_audio_metadata(
+            connection, 
+            query, 
+        );
+        for i in 0..newfiles.len() {
+            if !used_files.contains(&newfiles[i].filepath) {
+                used_files.insert(newfiles[i].filepath.clone());
+                files.push(newfiles[i].clone());
+                audios.push(newvideos[i].clone());
+            }
+        }
+    }
+    if search.genre {
+        let query = format!("SELECT audio_id FROM audio_metadata genre LIKE '%{}%'", search.from_string);
+        let (newvideos, newfiles) = search_audio_metadata(
+            connection, 
+            query, 
+        );
+        for i in 0..newfiles.len() {
+            if !used_files.contains(&newfiles[i].filepath) {
+                used_files.insert(newfiles[i].filepath.clone());
+                files.push(newfiles[i].clone());
+                audios.push(newvideos[i].clone());
+            }
+        }
+    }
     if search.release_date {
         let query;
         if search.to_date != 0 {
@@ -2747,7 +2792,7 @@ pub fn audio_by_id(
     v.path = filepath.to_string();
     // fill v from all tables
     v.id = audio_id as u32;
-    let query = "SELECT name, title, released, poster, thumb, duration FROM audio_metadata WHERE audio_id = ?1";
+    let query = "SELECT name, title, released, poster, thumb, duration, genre, composer, track_id FROM audio_metadata WHERE audio_id = ?1";
     match connection.prepare(query) {
         Ok(mut statement) => {
             match statement.query(params![&audio_id]) {
@@ -2800,21 +2845,21 @@ pub fn audio_by_id(
                                 match row.get(6) {
                                     Ok(val) => v.genre = val,
                                     Err(error) => {
-                                        log::error!("Failed to read poster for audio: {}", error);
+                                        log::error!("Failed to read genre for audio: {}", error);
                                         continue;
                                     }
                                 }
                                 match row.get(7) {
                                     Ok(val) => v.composer = val,
                                     Err(error) => {
-                                        log::error!("Failed to read bitrate for audio: {}", error);
+                                        log::error!("Failed to read composer for audio: {}", error);
                                         continue;
                                     }
                                 }
                                 match row.get(8) {
                                     Ok(val) => v.track_id = val,
                                     Err(error) => {
-                                        log::error!("Failed to read duration for audio: {}", error);
+                                        log::error!("Failed to read track_id for audio: {}", error);
                                         continue;
                                     }
                                 }
@@ -3165,21 +3210,21 @@ pub fn audio(
                                 match row.get(6) {
                                     Ok(val) => v.genre = val,
                                     Err(error) => {
-                                        log::error!("Failed to read poster for audio: {}", error);
+                                        log::error!("Failed to read genre for audio: {}", error);
                                         continue;
                                     }
                                 }
                                 match row.get(7) {
                                     Ok(val) => v.composer = val,
                                     Err(error) => {
-                                        log::error!("Failed to read bitrate for audio: {}", error);
+                                        log::error!("Failed to read composer for audio: {}", error);
                                         continue;
                                     }
                                 }
                                 match row.get(8) {
                                     Ok(val) => v.track_id = val,
                                     Err(error) => {
-                                        log::error!("Failed to read duration for audio: {}", error);
+                                        log::error!("Failed to read track_id for audio: {}", error);
                                         continue;
                                     }
                                 }
