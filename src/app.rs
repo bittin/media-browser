@@ -583,7 +583,7 @@ pub struct App {
     network_drive_input: String,
     #[cfg(feature = "notify")]
     notification_opt: Option<Arc<Mutex<notify_rust::NotificationHandle>>>,
-    overlap: HashMap<String, (window::Id, Rectangle)>,
+    _overlap: HashMap<String, (window::Id, Rectangle)>,
     pending_operation_id: u64,
     pending_operations: BTreeMap<u64, (Operation, Controller)>,
     progress_operations: BTreeSet<u64>,
@@ -1111,7 +1111,7 @@ impl App {
         .into()
     }
 
-    fn open_with(&self) -> Element<Message> {
+    fn _open_with(&self) -> Element<Message> {
         let children = Vec::new();
         let entity = self.tab_model.active();
         if let Some(tab) = self.tab_model.data::<Tab>(entity) {
@@ -2752,7 +2752,7 @@ impl Application for App {
             network_drive_input: String::new(),
             #[cfg(feature = "notify")]
             notification_opt: None,
-            overlap: HashMap::new(),
+            _overlap: HashMap::new(),
             pending_operation_id: 0,
             pending_operations: BTreeMap::new(),
             progress_operations: BTreeSet::new(),
@@ -4495,7 +4495,7 @@ impl Application for App {
             Message::RenameWithPattern(entity_opt, pattern, start_val, numdigits) => {
                 let entity = entity_opt.unwrap_or_else(|| self.tab_model.active());
                 if let Some(tab) = self.tab_model.data_mut::<Tab>(entity) {
-                    if let Location::Path(parent) = &tab.location {
+                    if let Location::Path(_parent) = &tab.location {
                         if let Some(items) = tab.items_opt() {
                             let mut selected = Vec::new();
                             for item in items.iter() {
@@ -6574,7 +6574,7 @@ impl Application for App {
         struct TrashWatcherSubscription;
 
         let mut subscriptions = vec![
-            event::listen_with(|event, status, window_id| match event {
+            event::listen_with(|event, status, _| match event {
                 Event::Keyboard(KeyEvent::KeyPressed { key, modifiers, .. }) => match status {
                     event::Status::Ignored => Some(Message::Key(modifiers, key)),
                     event::Status::Captured => None,
@@ -7128,7 +7128,7 @@ pub(crate) mod test_utils {
     }
 
     /// Assert that tab's items are equal to a path's entries.
-    pub fn assert_eq_tab_path_contents(tab: &Tab, path: &Path) {
+    pub fn _assert_eq_tab_path_contents(tab: &Tab, path: &Path) {
         let Some(tab_path) = tab.location.path_opt() else {
             panic!("Expected tab's location to be a path");
         };

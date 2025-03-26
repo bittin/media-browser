@@ -8,11 +8,11 @@ use cosmic::{
     cosmic_config::{self},
     cosmic_theme,
     iced::keyboard::{Key, Modifiers},
-    iced::Subscription,
+    //iced::Subscription,
     widget::menu::action::MenuAction,
 };
 pub use gstreamer as gst;
-pub use gstreamer_app as gst_app;
+//pub use gstreamer_app as gst_app;
 use gstreamer::prelude::*;
 
 //use iced_video_player::{
@@ -51,13 +51,13 @@ fn language_name(code: &str) -> Option<String> {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Action {
-    FileClose,
-    FileOpen,
-    Fullscreen,
-    PlayPause,
-    SeekBackward,
-    SeekForward,
-    WindowClose,
+    _FileClose,
+    _FileOpen,
+    _Fullscreen,
+    _PlayPause,
+    _SeekBackward,
+    _SeekForward,
+    _WindowClose,
 }
 
 impl MenuAction for Action {
@@ -65,19 +65,19 @@ impl MenuAction for Action {
 
     fn message(&self) -> Message {
         match self {
-            Self::FileClose => Message::FileClose,
-            Self::FileOpen => Message::FileOpen,
-            Self::Fullscreen => Message::Fullscreen,
-            Self::PlayPause => Message::PlayPause,
-            Self::SeekBackward => Message::SeekRelative(-10.0),
-            Self::SeekForward => Message::SeekRelative(10.0),
-            Self::WindowClose => Message::WindowClose,
+            Self::_FileClose => Message::FileClose,
+            Self::_FileOpen => Message::FileOpen,
+            Self::_Fullscreen => Message::Fullscreen,
+            Self::_PlayPause => Message::PlayPause,
+            Self::_SeekBackward => Message::SeekRelative(-10.0),
+            Self::_SeekForward => Message::SeekRelative(10.0),
+            Self::_WindowClose => Message::WindowClose,
         }
     }
 }
 
 #[derive(Clone)]
-pub struct Flags {
+pub struct _Flags {
     config_handler: Option<cosmic_config::Config>,
     config: Config,
     url_opt: Option<url::Url>,
