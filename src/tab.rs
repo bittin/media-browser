@@ -734,7 +734,7 @@ fn scan_tags(t: crate::sql::Tag) -> Vec<Item> {
         tags: true,
         ..Default::default()
     };
-    let mut items = crate::sql::search_items(&mut connection, &search);
+    let items = crate::sql::search_items(&mut connection, &search);
 
     sort_items_from_search(items, &search)
 }
@@ -3303,16 +3303,20 @@ impl Tab {
             }),
             HeadingOptions::MediaSpecific => {
                 items.sort_by(|a, b| {
-                    let a_modified = a.1.metadata.modified();
-                    let b_modified = b.1.metadata.modified();
-                    if folders_first {
+                   if folders_first {
                         match (a.1.metadata.is_dir(), b.1.metadata.is_dir()) {
                             (true, false) => Ordering::Less,
                             (false, true) => Ordering::Greater,
-                            _ => check_reverse(a_modified.cmp(&b_modified), sort_direction),
+                            _ => check_reverse(
+                                LANGUAGE_SORTER.compare(&a.1.display_name, &b.1.display_name),
+                                sort_direction,
+                            ),
                         }
                     } else {
-                        check_reverse(a_modified.cmp(&b_modified), sort_direction)
+                        check_reverse(
+                            LANGUAGE_SORTER.compare(&a.1.display_name, &b.1.display_name),
+                            sort_direction,
+                        )
                     }
                 });
                 let mut sorted = Vec::new();
