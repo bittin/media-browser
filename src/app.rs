@@ -4051,6 +4051,7 @@ impl Application for App {
                     cosmic::iced_core::mouse::ScrollDelta::Pixels { y, .. } => y,
                 };
                 if self.active_view == Mode::Video {
+        
                     let seconds = self.video_view.position + delta_y as f64 * 10.0;
                     let _ = self.update(Message::VideoMessage(
                         crate::video::video_view::Message::Seek(seconds),
@@ -6885,7 +6886,7 @@ impl Application for App {
                 },
             ),
         );
-
+        
         Subscription::batch(subscriptions)
     }
 }

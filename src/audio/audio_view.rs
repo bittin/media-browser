@@ -325,8 +325,10 @@ impl AudioView {
                     audio.set_paused(true);
                     let duration = Duration::try_from_secs_f64(self.position).unwrap_or_default();
                     audio.seek(duration, true).expect("seek");
-                    self.update_controls(true);
+                    audio.set_paused(false);
+                    self.dragging = false;
                 }
+                self.update_controls(true);
             }
             Message::SeekRelative(secs) => {
                 if let Some(audio) = &mut self.audio_opt {

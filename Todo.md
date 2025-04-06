@@ -44,6 +44,7 @@ Positions ended with a ? are *stretch goals*. If it is possible AND somebody doe
 - unbounded searches will kill the machine. Make sanity checks!
 - fix release date 1970-01-01
 - recursive_scan needs to check if a file is already in the database
+- scroll-wheel sometimes starts seeking at the position it last operated, not the current playback position
 
 #### Open Bugs
 
