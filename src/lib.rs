@@ -86,7 +86,7 @@ pub fn desktop() -> Result<(), Box<dyn std::error::Error>> {
 /// Runs application with these settings
 #[rustfmt::skip]
 pub fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let daemonize = false;
+    let daemonize = true;
 
     if daemonize {
         #[cfg(all(unix, not(target_os = "redox")))]
