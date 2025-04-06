@@ -16,7 +16,7 @@ If you select a directory containing your media collection you can right-click *
 
 **WARNING** While this is running the database is permanently written to. It is possible to use previously scanned data read-only (Search results). But while this is running you should not open directories that are not scanned yet, or create new tags or assign media files to existing ones.
 
-Depending on how many directories there are to scan and the number of media this can take a long time. You can monitor the progress as it is logged to the system.
+Depending on how many directories there are to scan and the number of media this can take a long time. You can monitor the progress as it is logged to the system. When the process is done, it will say so in the log.
 
 ```Shell
 journalctl -f  /usr/bin/media-browser
@@ -104,6 +104,8 @@ sudo apt install just rustc libglvnd-dev libwayland-dev libseat-dev libxkbcommon
 git clone https://github.com/fangornsrealm/media-browser
 # Change to the directory that was created by `git`
 cd commander
+# Build an optimized version using `cargo`, this may take a while
+cargo build --release
 # install
 sudo just install
 ```
