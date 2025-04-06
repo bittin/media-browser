@@ -103,7 +103,7 @@ sudo apt install just rustc libglvnd-dev libwayland-dev libseat-dev libxkbcommon
 # Clone the project using `git`
 git clone https://github.com/fangornsrealm/media-browser
 # Change to the directory that was created by `git`
-cd commander
+cd media-browser
 # Build an optimized version using `cargo`, this may take a while
 cargo build --release
 # install
