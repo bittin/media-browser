@@ -3317,13 +3317,13 @@ impl Tab {
                             (false, true) => Ordering::Greater,
                             _ => check_reverse(
                                 LANGUAGE_SORTER.compare(&a.1.display_name, &b.1.display_name),
-                                false,
+                                sort_direction,
                             ),
                         }
                     } else {
                         check_reverse(
                             LANGUAGE_SORTER.compare(&a.1.display_name, &b.1.display_name),
-                            false,
+                            sort_direction,
                         )
                     }
                 });

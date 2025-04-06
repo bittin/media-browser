@@ -45,10 +45,11 @@ Positions ended with a ? are *stretch goals*. If it is possible AND somebody doe
 - fix release date 1970-01-01
 - recursive_scan needs to check if a file is already in the database
 - scroll-wheel sometimes starts seeking at the position it last operated, not the current playback position
+- Search Results have no context menu
+- Search results do not change sort order
 
 #### Open Bugs
 
-- check creation date newer than modification date
 - Automatically close Popup GUI after 5 Seconds of no activity?
 - key bindings only work in browser mode
 - Check that updates to the database actually work
