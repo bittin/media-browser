@@ -427,6 +427,7 @@ pub fn scan_path_recursive(tab_path: PathBuf) {
             return;
         }
     }
+    log::warn!("Scanning path {} recursively. This can take a long time. Only read operations should be done while this job is still running!", tab_path.display());
     let mut known_files: std::collections::BTreeMap<PathBuf, crate::sql::FileMetadata> =
         crate::sql::files(&mut connection);
     let mut special_files = std::collections::BTreeSet::new();
@@ -439,6 +440,7 @@ pub fn scan_path_recursive(tab_path: PathBuf) {
         &mut special_files,
         &mut items,
     );
+    log::warn!("Done Scanning path {} recursively.", tab_path.display());
 }
 
 pub fn scan_path(tab_path: &PathBuf, sizes: IconSizes, recursive: bool) -> Vec<Item> {
