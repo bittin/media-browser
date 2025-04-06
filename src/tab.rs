@@ -650,11 +650,18 @@ pub fn scan_path_runner(
 }
 
 fn sort_items_media_browser(items: Vec<Item>) -> Vec<Item> {
+    let check_reverse = |ord: Ordering, sort: bool| {
+        if sort {
+            ord
+        } else {
+            ord.reverse()
+        }
+    };
     let mut items2 = items;
     items2.sort_by(|a, b| match (a.metadata.is_dir(), b.metadata.is_dir()) {
         (true, false) => core::cmp::Ordering::Less,
         (false, true) => core::cmp::Ordering::Greater,
-        _ => LANGUAGE_SORTER.compare(&a.display_name, &b.display_name),
+        _ => check_reverse(LANGUAGE_SORTER.compare(&a.display_name, &b.display_name), true),
     });
     let mut sorted = Vec::new();
     let mut albums: std::collections::BTreeMap<String, std::collections::BTreeMap<u32, Item>> = std::collections::BTreeMap::new();
@@ -690,17 +697,17 @@ fn sort_items_media_browser(items: Vec<Item>) -> Vec<Item> {
 
 fn sort_items_from_search(items: Vec<Item>, search: &crate::sql::SearchData) -> Vec<Item> {
     let mut sorted = Vec::new();
-    if search.album {
+//    if search.album {
         // sort audio content from the same album in order of track id
         sorted.extend(sort_items_media_browser(items));
-    } else {
-        sorted.extend(items);
-        sorted.sort_by(|a, b| match (a.metadata.is_dir(), b.metadata.is_dir()) {
-            (true, false) => core::cmp::Ordering::Less,
-            (false, true) => core::cmp::Ordering::Greater,
-            _ => LANGUAGE_SORTER.compare(&a.display_name, &b.display_name),
-        });
-    }
+//    } else {
+//        sorted.extend(items);
+//        sorted.sort_by(|a, b| match (a.metadata.is_dir(), b.metadata.is_dir()) {
+//            (true, false) => core::cmp::Ordering::Less,
+//            (false, true) => core::cmp::Ordering::Greater,
+//            _ => LANGUAGE_SORTER.compare(&a.display_name, &b.display_name),
+//        });
+//    }
     sorted
 }
 
@@ -3236,7 +3243,6 @@ impl Tab {
 
     pub(crate) fn sort_options(&self) -> (HeadingOptions, bool, bool) {
         match self.location {
-            Location::DBSearch(..) => (HeadingOptions::MediaSpecific, false, false),
             Location::Search(..) => (HeadingOptions::Modified, false, false),
             _ => (
                 self.sort_name,
@@ -3311,13 +3317,13 @@ impl Tab {
                             (false, true) => Ordering::Greater,
                             _ => check_reverse(
                                 LANGUAGE_SORTER.compare(&a.1.display_name, &b.1.display_name),
-                                sort_direction,
+                                false,
                             ),
                         }
                     } else {
                         check_reverse(
                             LANGUAGE_SORTER.compare(&a.1.display_name, &b.1.display_name),
-                            sort_direction,
+                            false,
                         )
                     }
                 });

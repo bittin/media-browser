@@ -106,6 +106,16 @@ pub fn context_menu<'a>(
             tab::Mode::App | tab::Mode::Desktop | tab::Mode::Browser,
             Location::DBSearch(_),
         ) => {
+            children.push(menu_item(fl!("search-context"), Action::SearchDB).into());
+            children.push(divider::horizontal::light().into());
+            children.push(menu_item(fl!("zoom-in"), Action::ZoomIn).into());
+            children.push(menu_item(fl!("zoom-out"), Action::ZoomOut).into());
+            children.push(menu_item(fl!("default-size"), Action::ZoomDefault).into());
+            children.push(divider::horizontal::light().into());
+            children.push(sort_item(fl!("media-browser"), HeadingOptions::MediaSpecific));
+            children.push(sort_item(fl!("sort-by-name"), HeadingOptions::Name));
+            children.push(sort_item(fl!("sort-by-modified"), HeadingOptions::Modified));
+            children.push(sort_item(fl!("sort-by-size"), HeadingOptions::Size));
         }
         (
             tab::Mode::App | tab::Mode::Desktop | tab::Mode::Browser,
