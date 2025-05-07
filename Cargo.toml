@@ -3,7 +3,11 @@ name = "media-browser"
 version = "0.9.0"
 authors = ["Alexander Schwarzkopf <progs@fangornsrealm.eu>"]
 edition = "2021"
-license = "GPL-3.0-only"
+description = "Browse and play your media files, view your images, tag them and search for metadata."
+readme = "README.md"
+license = "GPL-3.0"
+homepage = "https://github.com/fangornsrealm/media-browser"
+repository = "https://github.com/fangornsrealm/media-browser.git"
 rust-version = "1.71"
 
 [build-dependencies]
@@ -142,3 +146,96 @@ filetime = { git = "https://github.com/jackpot51/filetime" }
 
 # [patch.'https://github.com/pop-os/smithay-clipboard']
 # smithay-clipboard = { path = "../smithay-clipboard" }
+
+[package.metadata.deb]
+license-file = "LICENSE"
+assets = [
+    [
+        "target/release/media-browser",
+        "usr/bin/",
+        "755",
+    ],
+    [
+        "res/eu.fangornsrealm.MediaBrowser.desktop",
+        "usr/share/applications/",
+        "644",
+    ],
+    [
+        "res/eu.fangornsrealm.MediaBrowser.metainfo.xml",
+        "usr/share/metainfo/",
+        "644",
+    ],
+    [
+        "res/eu.fangornsrealm.MediaBrowser.svg",
+        "usr/share/icons/hicolor/scalable/apps/",
+        "644",
+    ],
+]
+depends = [
+    "libc6", 
+    "libxkbcommon0", 
+    "build-essential", 
+    "cmake", 
+    "libxkbcommon-dev", 
+    "libgstreamer1.0-dev", 
+    "libgstreamer-plugins-base1.0-dev", 
+    "libgstreamer-plugins-bad1.0-dev", 
+    "gstreamer1.0-plugins-base", 
+    "gstreamer1.0-plugins-good", 
+    "gstreamer1.0-plugins-bad", 
+    "gstreamer1.0-plugins-ugly", 
+    "gstreamer1.0-libav", 
+    "gstreamer1.0-tools", 
+    "gstreamer1.0-x", 
+    "gstreamer1.0-alsa", 
+    "gstreamer1.0-gl", 
+    "gstreamer1.0-gtk3", 
+    "gstreamer1.0-qt5", 
+    "gstreamer1.0-pulseaudio", 
+    "just", 
+    "rustc", 
+    "libglvnd-dev", 
+    "libwayland-dev", 
+    "libseat-dev", 
+    "libinput-dev", 
+    "udev", 
+    "dbus", 
+    "libdbus-1-dev", 
+    "libsystemd-dev", 
+    "libpixman-1-dev", 
+    "libssl-dev", 
+    "libflatpak-dev", 
+    "libpulse-dev", 
+    "pop-launcher", 
+    "libexpat1-dev", 
+    "libfontconfig-dev", 
+    "libfreetype-dev", 
+    "mold", 
+    "cargo", 
+    "libgbm-dev", 
+    "libclang-dev", 
+    "libpipewire-0.3-dev", 
+    "libpam0g-dev",
+    ]
+
+[package.metadata.generate-rpm]
+assets = [
+    { source = "target/release/media-browser", dest = "/usr/bin/", mode = "755" },
+    { source = "LICENSE", dest = "/usr/share/doc/eu.fangornsrealm.MediaBrowser/LICENSE", doc = true, mode = "644" },
+    { source = "res/eu.fangornsrealm.MediaBrowser.desktop", dest = "/usr/share/applications/", mode = "644" },
+    { source = "res/eu.fangornsrealm.MediaBrowser.svg", dest = "/usr/share/icons/scalable/apps/", mode = "644" },
+]
+
+[package.metadata.generate-rpm.requires]
+glibc = "*"
+libxkbcommon = "*"
+gstreamer1-devel  = "*"
+gstreamer1-plugins-base-tools  = "*"
+gstreamer1-doc  = "*"
+gstreamer1-plugins-base-devel  = "*"
+gstreamer1-plugins-good  = "*"
+gstreamer1-plugins-good-extras  = "*"
+gstreamer1-plugins-ugly  = "*"
+gstreamer1-plugins-bad-free  = "*"
+gstreamer1-plugins-bad-free-devel  = "*"
+gstreamer1-plugins-bad-free-extras = "*"
