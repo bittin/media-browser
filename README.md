@@ -69,6 +69,8 @@ The Image viewer GUI is inspired by [gthumb](https://gitlab.gnome.org/GNOME/gthu
 
 ## Required dependencies
 
+The DEB and RPM packages built below should automatically pull in all dependencies when installing it.
+
 Video and audio playback requires [GStreamer](https://gstreamer.freedesktop.org/).
 
 Gstreamer is modular. Depending on what formats you want to playback (mp3, m4a, aiff, flac, mp4, mkv, wmv, av1, vp9, h264, hevc, ...) and what backend you want to use (pipewire, pulseaudio, alsa, jack, ...) specific gst-plugin-`format` have to be installed.
@@ -105,10 +107,27 @@ git clone https://github.com/fangornsrealm/media-browser
 # Change to the directory that was created by `git`
 cd media-browser
 # Build an optimized version using `cargo`, this may take a while
-cargo build --release
+just build-release
 # install
 sudo just install
 ```
+
+## Packaging media-browser
+
+```sh
+# Clone the project using `git`
+git clone https://github.com/fangornsrealm/media-browser
+# Change to the directory that was created by `git`
+cd media-browser
+# Build an optimized version using `cargo`, this may take a while
+just build-release
+# build Debian / Ubuntu package
+just build-deb
+
+# build Redhat / Fedora / Suse package 
+just build-rpm
+```
+
 
 ## Build the project from source
 
