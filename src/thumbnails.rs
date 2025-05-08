@@ -5,7 +5,7 @@
 
 use std::hash::{DefaultHasher, Hash, Hasher};
 
-fn calculate_hash<T: Hash>(t: &T) -> u64 {
+pub fn calculate_hash<T: Hash>(t: &T) -> u64 {
     let mut s = DefaultHasher::new();
     t.hash(&mut s);
     s.finish()
@@ -129,7 +129,11 @@ pub fn create_thumbnail(path: &std::path::PathBuf, max_size: u32) -> String {
                         return String::new();
                     }
                 },
-                Err(_error) => return thumbstring,
+                Err(error) => {
+                    log::error!("Failed to open original image {} for thumbnail creation! {}", path.display(), error);
+                    return thumbstring;
+                },
+
             }
         },
         Err(_error) => return thumbstring,

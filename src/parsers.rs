@@ -685,6 +685,34 @@ pub fn timecode_to_ffmpeg_time(timecode: u32) -> String {
     format!("{:02}:{:02}:{:02}.000", hours, minutes, seconds)
 }
 
+pub fn poster_path(path: &std::path::PathBuf) -> std::path::PathBuf {
+    let posterpath; 
+    let hashvalue: u64 = crate::thumbnails::calculate_hash(path);
+    let mut basename = String::from("poster");
+    if let Some(base) = path.file_stem() {
+        basename = osstr_to_string(base.to_os_string());
+    }
+    let filename = format!("{:016x}_{}-poster.jpeg", hashvalue, basename);
+    match dirs::data_local_dir() {
+        Some(pb) => {
+            let mut dir = pb.join("media-browser").join("thumbs");
+            if !dir.exists() {
+                let ret = std::fs::create_dir_all(dir.clone());
+                if ret.is_err() {
+                    log::warn!("Failed to create directory {}", dir.display());
+                    dir = dirs::home_dir().unwrap();
+                }
+            }
+            posterpath = dir.join(filename);
+        },
+        None => {
+            let dir = dirs::home_dir().unwrap().join(".thumbs").join("large");
+            posterpath = dir.join(filename);
+        },
+    }
+    posterpath
+}
+
 /// for a video without external metadata create a screenshot
 /// and store it next to the video file.
 /// Utilizes a local install of ffmpeg. The only requirement is that the ffmpeg can read the video files.
@@ -692,8 +720,11 @@ fn create_screenshots(meta: &mut crate::sql::VideoMetadata) {
     video_metadata(meta);
     let timecode = meta.duration / 10;
     let outputpattern = format!("{}_%03d.jpeg", meta.path);
-    let output = format!("{}_001.jpeg", meta.path);
-    let outputpath = PathBuf::from(&output);
+    let localoutput = format!("{}_001.jpeg", meta.path);
+    let localoutputpath = PathBuf::from(&localoutput);
+    let inputpath = PathBuf::from(&meta.path);
+    let outputpath = poster_path(&inputpath);
+    let output = osstr_to_string(outputpath.clone().into_os_string());
     let time = timecode_to_ffmpeg_time(timecode);
     if outputpath.is_file() {
         //let ret = std::fs::remove_file(&output);
@@ -701,6 +732,7 @@ fn create_screenshots(meta: &mut crate::sql::VideoMetadata) {
         //    log::error!("could not delete file {}", output);
         //}
         meta.poster = output.clone();
+        return;
     }
 
     match std::process::Command::new("ffmpeg")
@@ -724,12 +756,31 @@ fn create_screenshots(meta: &mut crate::sql::VideoMetadata) {
             }, 
             Err(error) => log::error!("Failed to generate Screenshot {}: {}", output, error),
     }
-    if !outputpath.is_file() {
+    if !localoutputpath.is_file() {
         log::error!(
             "Failed to create screenshot: {}",
             format!("ffmpeg -ss {} -i {} -frames:v 1 -q:v 2 ", time, meta.path)
         );
         return;
+    } else {
+        match std::fs::copy(&localoutputpath, &outputpath) {
+            Ok(bytes) => {
+                if bytes == 0 {
+                    log::error!("poster image {} had no data!", localoutput);
+                }
+            },
+            Err(error) => {
+                log::error!("could not write poster to metadata storage for file {}!: {}", meta.path, error);
+                return;
+            }
+        }
+        match std::fs::remove_file(&localoutputpath) {
+            Ok(()) => {},
+            Err(error) => {
+                log::error!("could not write poster to metadata storage for file {}!: {}", meta.path, error);
+                return;
+            }
+        }
     }
     meta.poster = output;
 }
