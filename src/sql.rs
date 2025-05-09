@@ -1275,7 +1275,8 @@ pub fn insert_video(
         Ok(_retval) => {}, //log::warn!("Inserted {} video with ID {} and location {} into candidates.", video.id, video.index, candidate_id),
         Err(error) => {
             log::error!("Failed to insert video into  database: {}", error);
-            return;
+            delete_video(connection, metadata, known_files);
+            insert_video(connection, metadata, statdata, known_files)
         }
     }
     let mut video_id = 0;
@@ -2512,8 +2513,9 @@ pub fn insert_audio(
     ) {
         Ok(_retval) => {}, //log::warn!("Inserted {} video with ID {} and location {} into candidates.", video.id, video.index, candidate_id),
         Err(error) => {
-            log::error!("Failed to insert audio into  database: {}", error);
-            return;
+            log::error!("Failed to insert audio into  database: {}\nUpdating the existing entry.", error);
+            delete_audio(connection, metadata, known_files);
+            insert_audio(connection, metadata, statdata, known_files);
         }
     }
 
@@ -3578,7 +3580,8 @@ pub fn insert_image(
         Ok(_retval) => {}, //log::warn!("Inserted {} image with ID {} and location {} into candidates.", video.id, video.index, candidate_id),
         Err(error) => {
             log::error!("Failed to insert image into  database: {}", error);
-            return;
+            delete_image(connection, metadata, known_files);
+            insert_image(connection, metadata, statdata, known_files)
         }
     }
     for i in 0..metadata.tags.len() {
@@ -4341,7 +4344,8 @@ pub fn insert_file(
         Ok(_retval) => {}, //log::warn!("Inserted {} video with ID {} and location {} into candidates.", video.id, video.index, candidate_id),
         Err(error) => {
             log::error!("Failed to insert file into  database: {}", error);
-            return 0;
+            delete_file(connection, path, known_files);
+            insert_file(connection, path, metadata, file_type, known_files);
         }
     }
     let mut metadata_id = 0;
