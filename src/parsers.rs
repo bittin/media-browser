@@ -1736,7 +1736,7 @@ pub fn scan_exif(
     };
     special_files.insert(path.clone());
     let (imagestr, thumbstr) = crate::thumbnails::create_thumbnail_downscale_if_necessary(
-            &path, 254, 9000);
+            &path, 254, 6000);
     meta_data.thumb = thumbstr.clone();
     if imagestr.len() > 0 {
         meta_data.resized = imagestr.clone();
