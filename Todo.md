@@ -50,6 +50,9 @@ Positions ended with a ? are *stretch goals*. If it is possible AND somebody doe
 
 #### Open Bugs
 
+- PNG crashes while reading PNG file it should not try to read.
+- Parsing directory structures of TV Series does not ignore unnecessary metadata
+- for single Movie directories thumbnails are generated for unused metadata images instead of just the poster
 - Automatically close Popup GUI after 5 Seconds of no activity?
 - key bindings only work in browser mode
 - Check that updates to the database actually work
@@ -140,7 +143,7 @@ Positions ended with a ? are *stretch goals*. If it is possible AND somebody doe
 - stop playback when switching to Browser view
 - add chapter navigation
 - make the player zoom a video that is smaller than the display area
-- make the primary metadata directly searchable form the preview
+- make the primary metadata directly searchable from the preview
 
 #### Video Open Features
 
@@ -169,3 +172,4 @@ Positions ended with a ? are *stretch goals*. If it is possible AND somebody doe
 #### Audio Open Features
 
 - add playback speed control?
+- add playback of lyrics files (.lrc) as subtitles

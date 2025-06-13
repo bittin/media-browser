@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-only
-// 
+//
 // Modifications:
 // Copyright 2024 Alexander Schwarzkopf
 
@@ -39,18 +39,14 @@ fn parse_nfo(nfo_file: &PathBuf, metadata: &mut crate::sql::VideoMetadata) {
     loop {
         match reader.next() {
             Ok(e) => match e {
-                XmlEvent::StartDocument {
-                      ..
-                } => {
+                XmlEvent::StartDocument { .. } => {
                     //println!("StartDocument({version}, {encoding})");
                 }
                 XmlEvent::EndDocument => {
                     //println!("EndDocument");
                     break;
                 }
-                XmlEvent::StartElement {
-                    name,  ..
-                } => {
+                XmlEvent::StartElement { name, .. } => {
                     tag = name.to_string().to_ascii_lowercase();
                     match &tag as &str {
                         "actor" => {
@@ -181,7 +177,11 @@ fn parse_audiotags(file: &PathBuf, metadata: &mut crate::sql::AudioMetadata) {
     match Tag::new().read_from_path(file) {
         Ok(ok) => tag = ok,
         Err(error) => {
-            log::error!("Failed to open audio file {} for reading metadata: {}", file.display(), error);
+            log::error!(
+                "Failed to open audio file {} for reading metadata: {}",
+                file.display(),
+                error
+            );
             return;
         }
     }
@@ -325,7 +325,7 @@ fn parse_audiotags(file: &PathBuf, metadata: &mut crate::sql::AudioMetadata) {
 }
 
 /// Read Image metadata form EXIF format
-/// 
+///
 fn parse_exif(path: &PathBuf, metadata: &mut crate::sql::ImageMetadata) {
     use nom_exif::*;
     match imagesize::size(path.to_path_buf()) {
@@ -333,7 +333,7 @@ fn parse_exif(path: &PathBuf, metadata: &mut crate::sql::ImageMetadata) {
             metadata.width = dim.width as u32;
             metadata.height = dim.height as u32;
         }
-        Err(why) => println!("Error getting size: {:?}", why)
+        Err(why) => println!("Error getting size: {:?}", why),
     }
     let mut parser = MediaParser::new();
     if let Some(ext) = path.extension() {
@@ -346,7 +346,6 @@ fn parse_exif(path: &PathBuf, metadata: &mut crate::sql::ImageMetadata) {
     match MediaSource::file_path(&pathstring) {
         Ok(ms) => {
             if ms.has_exif() {
-
                 let iterres = parser.parse(ms);
                 if iterres.is_err() {
                     return;
@@ -355,15 +354,21 @@ fn parse_exif(path: &PathBuf, metadata: &mut crate::sql::ImageMetadata) {
                 if let Ok(optres) = iter.parse_gps_info() {
                     if let Some(gps_info) = optres {
                         metadata.gps_string = gps_info.format_iso6709();
-                        metadata.gps_latitude = (gps_info.latitude.0.0 / gps_info.latitude.0.1) as f32;
-                        metadata.gps_latitude = (gps_info.latitude.1.0 / gps_info.latitude.1.1) as f32 / 60.0;
-                        metadata.gps_latitude = (gps_info.latitude.2.0 / gps_info.latitude.2.1) as f32 / 3600.0;
+                        metadata.gps_latitude =
+                            (gps_info.latitude.0 .0 / gps_info.latitude.0 .1) as f32;
+                        metadata.gps_latitude =
+                            (gps_info.latitude.1 .0 / gps_info.latitude.1 .1) as f32 / 60.0;
+                        metadata.gps_latitude =
+                            (gps_info.latitude.2 .0 / gps_info.latitude.2 .1) as f32 / 3600.0;
                         if gps_info.latitude_ref == 'S' {
                             metadata.gps_latitude *= -1.0;
                         }
-                        metadata.gps_longitude = (gps_info.longitude.0.0 / gps_info.longitude.0.1) as f32;
-                        metadata.gps_longitude = (gps_info.longitude.1.0 / gps_info.longitude.1.1) as f32 / 60.0;
-                        metadata.gps_longitude = (gps_info.longitude.2.0 / gps_info.longitude.2.1) as f32 / 3600.0;
+                        metadata.gps_longitude =
+                            (gps_info.longitude.0 .0 / gps_info.longitude.0 .1) as f32;
+                        metadata.gps_longitude =
+                            (gps_info.longitude.1 .0 / gps_info.longitude.1 .1) as f32 / 60.0;
+                        metadata.gps_longitude =
+                            (gps_info.longitude.2 .0 / gps_info.longitude.2 .1) as f32 / 3600.0;
                         if gps_info.longitude_ref == 'W' {
                             metadata.gps_longitude *= -1.0;
                         }
@@ -404,7 +409,7 @@ fn parse_exif(path: &PathBuf, metadata: &mut crate::sql::ImageMetadata) {
                     }
                 }
             }
-        },
+        }
         Err(error) => log::error!("Failed to open Media Source {}: {}", pathstring, error),
     }
 }
@@ -544,7 +549,7 @@ pub fn slice_u8_to_vec_string(utfvec: Vec<u8>) -> Vec<String> {
             Ok(string) => v.push(string),
             Err(error) => log::error!("failed to convert string: {}", error),
         }
-        return v
+        return v;
     }
     let mut start = 0;
     for end in null_positions {
@@ -559,7 +564,7 @@ pub fn slice_u8_to_vec_string(utfvec: Vec<u8>) -> Vec<String> {
     v
 }
 
-/// Read video metadata directly from the video file. 
+/// Read video metadata directly from the video file.
 /// Mainly used to get languages of internal streams and chapter information.
 /// Utilizes a local install of ffmpeg. The only requirement is that the ffmpeg can read the video files.
 fn video_metadata(meta: &mut crate::sql::VideoMetadata) {
@@ -578,7 +583,9 @@ fn video_metadata(meta: &mut crate::sql::VideoMetadata) {
     if meta.title.len() == 0 {
         meta.title = basename.clone();
     }
-    let mut cmd_runner = crate::cmd::CmdRunner::new(&format!("ffmpeg -i \"{}\"", meta.path));
+    let command = format!("ffmpeg -i \"{}\"", meta.path);
+    log::warn!("Executing command {}.", command);
+    let mut cmd_runner = crate::cmd::CmdRunner::new(&command);
     if let Ok((stdout, _stderr)) = cmd_runner.run_with_output() {
         // let ffmpeg_output = std::process::Command::new("ffmpeg")
         //    .args(["-i", filepath])
@@ -600,9 +607,7 @@ fn video_metadata(meta: &mut crate::sql::VideoMetadata) {
                     meta.duration = hours * 3600 + minutes * 60 + seconds;
                 }
             }
-            if let Ok(re_video) =
-            regex::Regex::new(r"(?i), (?P<width>\d+)x(?P<height>\d+)")
-            {
+            if let Ok(re_video) = regex::Regex::new(r"(?i), (?P<width>\d+)x(?P<height>\d+)") {
                 if re_video.is_match(&line) {
                     let caps = re_video.captures(&line).unwrap();
                     meta.width = string_to_uint(&caps["width"]);
@@ -610,17 +615,19 @@ fn video_metadata(meta: &mut crate::sql::VideoMetadata) {
                 }
             }
             if let Ok(re_chapter) =
-            regex::Regex::new(r"(?i)start (?P<start>\d+\.\d+), end (?P<end>\d+\.\d+)")
+                regex::Regex::new(r"(?i)start (?P<start>\d+\.\d+), end (?P<end>\d+\.\d+)")
             {
                 if re_chapter.is_match(&line) {
                     let caps = re_chapter.captures(&line).unwrap();
                     let start = string_to_float(&caps["start"]);
                     let end = string_to_float(&caps["end"]);
-                    let mut chapter = crate::sql::Chapter {..Default::default()};
+                    let mut chapter = crate::sql::Chapter {
+                        ..Default::default()
+                    };
                     chapter.start = start;
                     chapter.end = end;
                     if i + 2 < num_lines {
-                        let v: Vec<&str> = stdout[i+2].split(" : ").collect();
+                        let v: Vec<&str> = stdout[i + 2].split(" : ").collect();
                         if v.len() > 1 {
                             chapter.title = v[1].to_string();
                         }
@@ -686,7 +693,7 @@ pub fn timecode_to_ffmpeg_time(timecode: u32) -> String {
 }
 
 pub fn poster_path(path: &std::path::PathBuf) -> std::path::PathBuf {
-    let posterpath; 
+    let posterpath;
     let hashvalue: u64 = crate::thumbnails::calculate_hash(path);
     let mut basename = String::from("poster");
     if let Some(base) = path.file_stem() {
@@ -704,11 +711,11 @@ pub fn poster_path(path: &std::path::PathBuf) -> std::path::PathBuf {
                 }
             }
             posterpath = dir.join(filename);
-        },
+        }
         None => {
             let dir = dirs::home_dir().unwrap().join(".thumbs").join("large");
             posterpath = dir.join(filename);
-        },
+        }
     }
     posterpath
 }
@@ -747,14 +754,13 @@ fn create_screenshots(meta: &mut crate::sql::VideoMetadata) {
             "2",
             &outputpattern,
         ])
-        .output() {
-            Ok(out) => {
-                match String::from_utf8(out.stderr) {
-                    Ok(text) => log::warn!("{}", &text),
-                    Err(_error) => {},
-                }
-            }, 
-            Err(error) => log::error!("Failed to generate Screenshot {}: {}", output, error),
+        .output()
+    {
+        Ok(out) => match String::from_utf8(out.stderr) {
+            Ok(text) => log::warn!("{}", &text),
+            Err(_error) => {}
+        },
+        Err(error) => log::error!("Failed to generate Screenshot {}: {}", output, error),
     }
     if !localoutputpath.is_file() {
         log::error!(
@@ -768,16 +774,24 @@ fn create_screenshots(meta: &mut crate::sql::VideoMetadata) {
                 if bytes == 0 {
                     log::error!("poster image {} had no data!", localoutput);
                 }
-            },
+            }
             Err(error) => {
-                log::error!("could not write poster to metadata storage for file {}!: {}", meta.path, error);
+                log::error!(
+                    "could not write poster to metadata storage for file {}!: {}",
+                    meta.path,
+                    error
+                );
                 return;
             }
         }
         match std::fs::remove_file(&localoutputpath) {
-            Ok(()) => {},
+            Ok(()) => {}
             Err(error) => {
-                log::error!("could not write poster to metadata storage for file {}!: {}", meta.path, error);
+                log::error!(
+                    "could not write poster to metadata storage for file {}!: {}",
+                    meta.path,
+                    error
+                );
                 return;
             }
         }
@@ -813,13 +827,18 @@ pub fn item_from_video(
                     if videometadata.date.num_days_from_ce() < 100 {
                         if let Ok(created) = statdata.created() {
                             if let Ok(nsecs) = created.duration_since(UNIX_EPOCH) {
-                                if let Some(ndt) = chrono::DateTime::from_timestamp(nsecs.as_secs() as i64, 0) {
+                                if let Some(ndt) =
+                                    chrono::DateTime::from_timestamp(nsecs.as_secs() as i64, 0)
+                                {
                                     videometadata.date = ndt.date_naive();
-                                }                                
+                                }
                             }
                         }
                     }
-                    videometadata.thumb = crate::thumbnails::create_thumbnail(&PathBuf::from(&videometadata.poster), 254);
+                    videometadata.thumb = crate::thumbnails::create_thumbnail(
+                        &PathBuf::from(&videometadata.poster),
+                        254,
+                    );
                     crate::sql::update_video(connection, videometadata, statdata, known_files);
                 } else {
                     *videometadata = crate::sql::video(connection, &filepath, known_files);
@@ -830,13 +849,16 @@ pub fn item_from_video(
             if videometadata.date.num_days_from_ce() < 100 {
                 if let Ok(created) = statdata.created() {
                     if let Ok(nsecs) = created.duration_since(UNIX_EPOCH) {
-                        if let Some(ndt) = chrono::DateTime::from_timestamp(nsecs.as_secs() as i64, 0) {
+                        if let Some(ndt) =
+                            chrono::DateTime::from_timestamp(nsecs.as_secs() as i64, 0)
+                        {
                             videometadata.date = ndt.date_naive();
-                        }                                
+                        }
                     }
                 }
             }
-            videometadata.thumb = crate::thumbnails::create_thumbnail(&PathBuf::from(&videometadata.poster), 254);
+            videometadata.thumb =
+                crate::thumbnails::create_thumbnail(&PathBuf::from(&videometadata.poster), 254);
             crate::sql::insert_video(connection, videometadata, statdata, known_files);
         }
     }
@@ -845,72 +867,71 @@ pub fn item_from_video(
 
     let hidden = videometadata.name.starts_with(".") || hidden_attribute(&statdata);
 
-    let (mime, icon_handle_grid, icon_handle_list, icon_handle_list_condensed) = if statdata
-        .is_dir()
-    {
-        (
-            //TODO: make this a static
-            "inode/directory".parse().unwrap(),
-            crate::tab::folder_icon(&path, sizes.grid()),
-            crate::tab::folder_icon(&path, sizes.list()),
-            crate::tab::folder_icon(&path, sizes.list_condensed()),
-        )
-    } else {
-        if videometadata.path.len() > 0 {
-            //let thumbpath = PathBuf::from(&videometadata.poster);
-            //let thumbmime = mime_for_path(thumbpath.clone());
-            let filemime = mime_for_path(filepath.clone());
-            if videometadata.thumb.len() > 0 {
-                let thumbpath = PathBuf::from(&videometadata.thumb);
-                (
-                    filemime.clone(),
-                    widget::icon::from_path(thumbpath.clone()),
-                    widget::icon::from_path(thumbpath.clone()),
-                    widget::icon::from_path(thumbpath.clone()),
-                )
-            } else {
-                (
-                    filemime.clone(),
-                    mime_icon(filemime.clone(), sizes.grid()),
-                    mime_icon(filemime.clone(), sizes.list()),
-                    mime_icon(filemime.clone(), sizes.list_condensed()),
-                )
-            }
+    let (mime, icon_handle_grid, icon_handle_list, icon_handle_list_condensed) =
+        if statdata.is_dir() {
+            (
+                //TODO: make this a static
+                "inode/directory".parse().unwrap(),
+                crate::tab::folder_icon(&path, sizes.grid()),
+                crate::tab::folder_icon(&path, sizes.list()),
+                crate::tab::folder_icon(&path, sizes.list_condensed()),
+            )
         } else {
-            let mime = mime_for_path(&path);
-            //TODO: clean this up, implement for trash
-            let icon_name_opt = if mime == "application/x-desktop" {
-                let (desktop_name_opt, icon_name_opt) = crate::tab::parse_desktop_file(&path);
-                if let Some(desktop_name) = desktop_name_opt {
-                    display_name = Item::display_name(&desktop_name);
+            if videometadata.path.len() > 0 {
+                //let thumbpath = PathBuf::from(&videometadata.poster);
+                //let thumbmime = mime_for_path(thumbpath.clone());
+                let filemime = mime_for_path(filepath.clone());
+                if videometadata.thumb.len() > 0 {
+                    let thumbpath = PathBuf::from(&videometadata.thumb);
+                    (
+                        filemime.clone(),
+                        widget::icon::from_path(thumbpath.clone()),
+                        widget::icon::from_path(thumbpath.clone()),
+                        widget::icon::from_path(thumbpath.clone()),
+                    )
+                } else {
+                    (
+                        filemime.clone(),
+                        mime_icon(filemime.clone(), sizes.grid()),
+                        mime_icon(filemime.clone(), sizes.list()),
+                        mime_icon(filemime.clone(), sizes.list_condensed()),
+                    )
                 }
-                icon_name_opt
             } else {
-                None
-            };
-            if let Some(icon_name) = icon_name_opt {
-                (
-                    mime.clone(),
-                    widget::icon::from_name(&*icon_name)
-                        .size(sizes.grid())
-                        .handle(),
-                    widget::icon::from_name(&*icon_name)
-                        .size(sizes.list())
-                        .handle(),
-                    widget::icon::from_name(&*icon_name)
-                        .size(sizes.list_condensed())
-                        .handle(),
-                )
-            } else {
-                (
-                    mime.clone(),
-                    mime_icon(mime.clone(), sizes.grid()),
-                    mime_icon(mime.clone(), sizes.list()),
-                    mime_icon(mime, sizes.list_condensed()),
-                )
+                let mime = mime_for_path(&path);
+                //TODO: clean this up, implement for trash
+                let icon_name_opt = if mime == "application/x-desktop" {
+                    let (desktop_name_opt, icon_name_opt) = crate::tab::parse_desktop_file(&path);
+                    if let Some(desktop_name) = desktop_name_opt {
+                        display_name = Item::display_name(&desktop_name);
+                    }
+                    icon_name_opt
+                } else {
+                    None
+                };
+                if let Some(icon_name) = icon_name_opt {
+                    (
+                        mime.clone(),
+                        widget::icon::from_name(&*icon_name)
+                            .size(sizes.grid())
+                            .handle(),
+                        widget::icon::from_name(&*icon_name)
+                            .size(sizes.list())
+                            .handle(),
+                        widget::icon::from_name(&*icon_name)
+                            .size(sizes.list_condensed())
+                            .handle(),
+                    )
+                } else {
+                    (
+                        mime.clone(),
+                        mime_icon(mime.clone(), sizes.grid()),
+                        mime_icon(mime.clone(), sizes.list()),
+                        mime_icon(mime, sizes.list_condensed()),
+                    )
+                }
             }
-        }
-    };
+        };
 
     let open_with = mime_apps(&mime);
 
@@ -936,7 +957,10 @@ pub fn item_from_video(
     let mut item = Item {
         name: videometadata.name.to_string(),
         display_name,
-        metadata: ItemMetadata::Path { metadata: statdata.clone(), children },
+        metadata: ItemMetadata::Path {
+            metadata: statdata.clone(),
+            children,
+        },
         hidden,
         location_opt: Some(Location::Path(path)),
         mime,
@@ -999,13 +1023,16 @@ pub fn item_from_nfo(
                     if metadata.date.num_days_from_ce() < 100 {
                         if let Ok(created) = statdata.created() {
                             if let Ok(nsecs) = created.duration_since(UNIX_EPOCH) {
-                                if let Some(ndt) = chrono::DateTime::from_timestamp(nsecs.as_secs() as i64, 0) {
+                                if let Some(ndt) =
+                                    chrono::DateTime::from_timestamp(nsecs.as_secs() as i64, 0)
+                                {
                                     metadata.date = ndt.date_naive();
-                                }                                
+                                }
                             }
                         }
                     }
-                    metadata.thumb = crate::thumbnails::create_thumbnail(&PathBuf::from(&metadata.poster), 254);
+                    metadata.thumb =
+                        crate::thumbnails::create_thumbnail(&PathBuf::from(&metadata.poster), 254);
                     metadata.name = basename.clone();
                     crate::sql::update_video(connection, metadata, statdata, known_files);
                 } else {
@@ -1013,23 +1040,26 @@ pub fn item_from_nfo(
                 }
             }
         } else {
-            video_metadata( metadata);
+            video_metadata(metadata);
             parse_nfo(&nfo_file, metadata);
             if metadata.date.num_days_from_ce() < 100 {
                 if let Ok(created) = statdata.created() {
                     if let Ok(nsecs) = created.duration_since(UNIX_EPOCH) {
-                        if let Some(ndt) = chrono::DateTime::from_timestamp(nsecs.as_secs() as i64, 0) {
+                        if let Some(ndt) =
+                            chrono::DateTime::from_timestamp(nsecs.as_secs() as i64, 0)
+                        {
                             metadata.date = ndt.date_naive();
-                        }                                
+                        }
                     }
                 }
             }
-            metadata.thumb = crate::thumbnails::create_thumbnail(&PathBuf::from(&metadata.poster), 254);
+            metadata.thumb =
+                crate::thumbnails::create_thumbnail(&PathBuf::from(&metadata.poster), 254);
             metadata.name = basename.clone();
             crate::sql::insert_video(connection, metadata, statdata, known_files);
         }
     }
-    
+
     let name;
     if metadata.title.len() == 0 {
         name = basename.clone();
@@ -1041,7 +1071,7 @@ pub fn item_from_nfo(
 
     let hidden = name.starts_with(".") || hidden_attribute(&statdata);
 
-     let (mime, icon_handle_grid, icon_handle_list, icon_handle_list_condensed) = {
+    let (mime, icon_handle_grid, icon_handle_list, icon_handle_list_condensed) = {
         let thumbpath = PathBuf::from(&metadata.thumb);
         let thumbmime = mime_for_path(thumbpath.clone());
         let filemime = mime_for_path(filepath.clone());
@@ -1063,7 +1093,6 @@ pub fn item_from_nfo(
     };
 
     let open_with = mime_apps(&mime);
-
 
     let children = if statdata.is_dir() {
         //TODO: calculate children in the background (and make it cancellable?)
@@ -1114,7 +1143,7 @@ pub fn item_from_nfo(
     item
 }
 
-/// try to find external metadata for audio files 
+/// try to find external metadata for audio files
 /// Lyrics or coverart.
 fn audio_metadata(
     audio: PathBuf,
@@ -1218,9 +1247,11 @@ pub fn item_from_audiotags(
                     if metadata.date.num_days_from_ce() < 100 {
                         if let Ok(created) = statdata.created() {
                             if let Ok(nsecs) = created.duration_since(UNIX_EPOCH) {
-                                if let Some(ndt) = chrono::DateTime::from_timestamp(nsecs.as_secs() as i64, 0) {
+                                if let Some(ndt) =
+                                    chrono::DateTime::from_timestamp(nsecs.as_secs() as i64, 0)
+                                {
                                     metadata.date = ndt.date_naive();
-                                }                                
+                                }
                             }
                         }
                     }
@@ -1251,9 +1282,11 @@ pub fn item_from_audiotags(
             if metadata.date.num_days_from_ce() < 100 {
                 if let Ok(created) = statdata.created() {
                     if let Ok(nsecs) = created.duration_since(UNIX_EPOCH) {
-                        if let Some(ndt) = chrono::DateTime::from_timestamp(nsecs.as_secs() as i64, 0) {
+                        if let Some(ndt) =
+                            chrono::DateTime::from_timestamp(nsecs.as_secs() as i64, 0)
+                        {
                             metadata.date = ndt.date_naive();
-                        }                                
+                        }
                     }
                 }
             }
@@ -1400,17 +1433,25 @@ pub fn item_from_exif(
                     parse_exif(&image_file, metadata);
                     if metadata.thumb.len() == 0 {
                         if metadata.resized.len() > 0 {
-                            metadata.thumb = crate::thumbnails::create_thumbnail(&PathBuf::from(&metadata.resized), 254);
+                            metadata.thumb = crate::thumbnails::create_thumbnail(
+                                &PathBuf::from(&metadata.resized),
+                                254,
+                            );
                         } else {
-                            metadata.thumb = crate::thumbnails::create_thumbnail(&PathBuf::from(&metadata.path), 254);
+                            metadata.thumb = crate::thumbnails::create_thumbnail(
+                                &PathBuf::from(&metadata.path),
+                                254,
+                            );
                         }
                     }
                     if metadata.date.num_days_from_ce() < 100 {
                         if let Ok(created) = statdata.created() {
                             if let Ok(nsecs) = created.duration_since(UNIX_EPOCH) {
-                                if let Some(ndt) = chrono::DateTime::from_timestamp(nsecs.as_secs() as i64, 0) {
+                                if let Some(ndt) =
+                                    chrono::DateTime::from_timestamp(nsecs.as_secs() as i64, 0)
+                                {
                                     metadata.date = ndt.date_naive();
-                                }                                
+                                }
                             }
                         }
                     }
@@ -1424,24 +1465,28 @@ pub fn item_from_exif(
             parse_exif(&image_file, metadata);
             if metadata.thumb.len() == 0 {
                 if metadata.resized.len() > 0 {
-                    metadata.thumb = crate::thumbnails::create_thumbnail(&PathBuf::from(&metadata.resized), 254);
+                    metadata.thumb =
+                        crate::thumbnails::create_thumbnail(&PathBuf::from(&metadata.resized), 254);
                 } else {
-                    metadata.thumb = crate::thumbnails::create_thumbnail(&PathBuf::from(&metadata.path), 254);
+                    metadata.thumb =
+                        crate::thumbnails::create_thumbnail(&PathBuf::from(&metadata.path), 254);
                 }
             }
             if metadata.date.num_days_from_ce() < 100 {
                 if let Ok(created) = statdata.created() {
                     if let Ok(nsecs) = created.duration_since(UNIX_EPOCH) {
-                        if let Some(ndt) = chrono::DateTime::from_timestamp(nsecs.as_secs() as i64, 0) {
+                        if let Some(ndt) =
+                            chrono::DateTime::from_timestamp(nsecs.as_secs() as i64, 0)
+                        {
                             metadata.date = ndt.date_naive();
-                        }                                
+                        }
                     }
                 }
             }
             metadata.name = basename.clone();
             crate::sql::insert_image(connection, metadata, statdata, known_files);
         }
-    } 
+    }
 
     let name;
     if metadata.title.len() == 0 {
@@ -1458,9 +1503,11 @@ pub fn item_from_exif(
     if metadata.thumb.len() == 0 {
         // generate thumbnail
         if metadata.resized.len() > 0 {
-            metadata.thumb = crate::thumbnails::create_thumbnail(&PathBuf::from(&metadata.resized), 254);
+            metadata.thumb =
+                crate::thumbnails::create_thumbnail(&PathBuf::from(&metadata.resized), 254);
         } else {
-            metadata.thumb = crate::thumbnails::create_thumbnail(&PathBuf::from(&metadata.path), 254);
+            metadata.thumb =
+                crate::thumbnails::create_thumbnail(&PathBuf::from(&metadata.path), 254);
         }
         thumbpath = PathBuf::from(&metadata.thumb);
     } else {
@@ -1654,7 +1701,15 @@ pub fn scan_videos(
     poster.push_str("_001.jpeg");
     meta_data.poster = poster.clone();
     special_files.insert(PathBuf::from(&poster));
-    items.push(crate::parsers::item_from_video(path, &mut meta_data, &statdata, sizes, known_files, connection, false));
+    items.push(crate::parsers::item_from_video(
+        path,
+        &mut meta_data,
+        &statdata,
+        sizes,
+        known_files,
+        connection,
+        false,
+    ));
 
     ControlFlow::Continue(())
 }
@@ -1689,11 +1744,11 @@ pub fn scan_audiotags(
         }
     };
     special_files.insert(audio.clone());
-    // find external cover art 
+    // find external cover art
 
     items.push(crate::parsers::item_from_audiotags(
         audio,
-        special_files, 
+        special_files,
         &mut meta_data,
         &statdata,
         sizes,
@@ -1735,8 +1790,8 @@ pub fn scan_exif(
         }
     };
     special_files.insert(path.clone());
-    let (imagestr, thumbstr) = crate::thumbnails::create_thumbnail_downscale_if_necessary(
-            &path, 254, 6000);
+    let (imagestr, thumbstr) =
+        crate::thumbnails::create_thumbnail_downscale_if_necessary(&path, 254, 6000);
     meta_data.thumb = thumbstr.clone();
     if imagestr.len() > 0 {
         meta_data.resized = imagestr.clone();
@@ -1776,7 +1831,7 @@ pub fn scan_single_nfo_dir(
     let mut nfo_file = dp.clone().join("movie.nfo");
     let mut contents = Vec::new();
     let mut movie_name = String::new();
-    let mut nfo_names= Vec::new();
+    let mut nfo_names = Vec::new();
     match std::fs::read_dir(dp) {
         Ok(entries) => {
             for entry_res in entries {
@@ -1792,7 +1847,7 @@ pub fn scan_single_nfo_dir(
             }
             if contents.len() > 13 {
                 justdirs.push(dp.clone());
-                return ControlFlow::Break(())
+                return ControlFlow::Break(());
             }
 
             for path in contents.iter() {
@@ -1811,10 +1866,13 @@ pub fn scan_single_nfo_dir(
                         justdirs.push(dp.clone());
                         return ControlFlow::Break(());
                     }
-                    nfo_file = path.clone();
-                    if let Some(basename) = path.file_stem() {
-                        nfo_names.push(osstr_to_string(basename.to_os_string()));
-
+                    if nfo_file.clone().into_os_string() != path.clone().into_os_string() {
+                        nfo_file = path.clone();
+                        if let Some(basename) = path.file_stem() {
+                            nfo_names.push(osstr_to_string(basename.to_os_string()));
+                        }
+                    } else {
+                        nfo_names.push(osstr_to_string(path.clone().into_os_string()));
                     }
                     nfo += 1;
                 } else if f.ends_with(".mkv") || f.ends_with(".mp4") || f.ends_with(".webm") {
@@ -1834,7 +1892,8 @@ pub fn scan_single_nfo_dir(
                     movie += 1;
                 }
             }
-            if movie_name.len() > 0 && nfo_names.len() > 1 {
+            // filter cases where 
+            if movie_name.len() > 0 && nfo_names.len() > 0 {
                 let mut movienamenfo = false;
                 for n in nfo_names.iter() {
                     if &movie_name == n {
@@ -1846,6 +1905,10 @@ pub fn scan_single_nfo_dir(
                     return ControlFlow::Break(());
                 }
             }
+            if !osstr_to_string(nfo_file.clone().into_os_string()).contains(&movie_name) {
+                justdirs.push(dp.clone());
+                return ControlFlow::Break(());
+            }
         }
         Err(err) => {
             log::warn!("failed to read directory {:?}: {}", tab_path, err);
@@ -1853,7 +1916,7 @@ pub fn scan_single_nfo_dir(
     }
     if !PathBuf::from(&nfo_file).exists() {
         justdirs.push(dp.clone());
-        return ControlFlow::Break(())
+        return ControlFlow::Break(());
     }
     if meta_data.path.len() == 0 {
         justdirs.push(dp.clone());
@@ -1862,7 +1925,10 @@ pub fn scan_single_nfo_dir(
     if meta_data.poster.len() == 0 {
         create_screenshots(&mut meta_data);
         if meta_data.poster.len() == 0 {
-            log::error!("Failed to find poster or create a screenshot for movie {}", &meta_data.path);
+            log::error!(
+                "Failed to find poster or create a screenshot for movie {}",
+                &meta_data.path
+            );
             return ControlFlow::Break(());
         }
     }
@@ -1943,7 +2009,7 @@ pub fn scan_nfos_in_dir(
     if !nfo_file.exists() {
         return ControlFlow::Break(());
     }
-    
+
     if meta_data.poster.len() > 0 {
         let poster = PathBuf::from(&meta_data.poster);
         if poster.exists() {
@@ -1975,4 +2041,3 @@ pub fn scan_nfos_in_dir(
     ));
     ControlFlow::Continue(())
 }
-
