@@ -923,7 +923,7 @@ fn create_screenshots(meta: &mut crate::sql::VideoMetadata) {
             }
         }
     }
-    meta.poster = output.clone();
+    //meta.poster = output.clone();
     meta.thumb = output;
 }
 
