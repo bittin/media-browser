@@ -293,7 +293,9 @@ fn parse_audiotags(file: &PathBuf, metadata: &mut crate::sql::AudioMetadata) {
     };
     match tag.album_cover() {
         Some(picture) => {
+            let max_size = 256;
             let thumbpath = album_path(&file);
+            let thumbstring = osstr_to_string(thumbpath.clone().into_os_string());
             if !PathBuf::from(&thumbpath).is_file() {
                 match picture.mime_type {
                     MimeType::Jpeg => {
@@ -301,8 +303,21 @@ fn parse_audiotags(file: &PathBuf, metadata: &mut crate::sql::AudioMetadata) {
                             picture.data,
                             image::ImageFormat::Jpeg,
                         ) {
-                            Ok(buf) => {
-                                let _ = buf.save_with_format(&thumbpath, image::ImageFormat::Png);
+                            Ok(image) => {
+                                let nwidth;
+                                let nheight;
+                                if image.width() > image.height() {
+                                    nwidth = max_size;
+                                    nheight = nwidth * image.height() / image.width();
+                                } else {
+                                    nheight = max_size;
+                                    nwidth = nheight * image.width() / image.height();
+                                }
+                                let thumb = image::imageops::resize(&image, nwidth, nheight, image::imageops::FilterType::Lanczos3);
+                                let ret = thumb.save(thumbstring.clone());
+                                if ret.is_err() {
+                                    log::error!("Failed to create thumbnail for file {}!", file.display());
+                                }
                             }
                             Err(error) => {
                                 log::warn!("failed to read audio album art jpeg: {}", error);
@@ -314,8 +329,21 @@ fn parse_audiotags(file: &PathBuf, metadata: &mut crate::sql::AudioMetadata) {
                             picture.data,
                             image::ImageFormat::Png,
                         ) {
-                            Ok(buf) => {
-                                let _ = buf.save_with_format(&thumbpath, image::ImageFormat::Png);
+                            Ok(image) => {
+                                let nwidth;
+                                let nheight;
+                                if image.width() > image.height() {
+                                    nwidth = max_size;
+                                    nheight = nwidth * image.height() / image.width();
+                                } else {
+                                    nheight = max_size;
+                                    nwidth = nheight * image.width() / image.height();
+                                }
+                                let thumb = image::imageops::resize(&image, nwidth, nheight, image::imageops::FilterType::Lanczos3);
+                                let ret = thumb.save(thumbstring.clone());
+                                if ret.is_err() {
+                                    log::error!("Failed to create thumbnail for file {}!", file.display());
+                                }
                             }
                             Err(error) => {
                                 log::warn!("failed to read audio album art jpeg: {}", error);
@@ -325,10 +353,23 @@ fn parse_audiotags(file: &PathBuf, metadata: &mut crate::sql::AudioMetadata) {
                     MimeType::Bmp => {
                         match image::load_from_memory_with_format(
                             picture.data,
-                            image::ImageFormat::Jpeg,
+                            image::ImageFormat::Bmp,
                         ) {
-                            Ok(buf) => {
-                                let _ = buf.save_with_format(&thumbpath, image::ImageFormat::Bmp);
+                            Ok(image) => {
+                                let nwidth;
+                                let nheight;
+                                if image.width() > image.height() {
+                                    nwidth = max_size;
+                                    nheight = nwidth * image.height() / image.width();
+                                } else {
+                                    nheight = max_size;
+                                    nwidth = nheight * image.width() / image.height();
+                                }
+                                let thumb = image::imageops::resize(&image, nwidth, nheight, image::imageops::FilterType::Lanczos3);
+                                let ret = thumb.save(thumbstring.clone());
+                                if ret.is_err() {
+                                    log::error!("Failed to create thumbnail for file {}!", file.display());
+                                }
                             }
                             Err(error) => {
                                 log::warn!("failed to read audio album art jpeg: {}", error);
@@ -340,8 +381,21 @@ fn parse_audiotags(file: &PathBuf, metadata: &mut crate::sql::AudioMetadata) {
                             picture.data,
                             image::ImageFormat::Gif,
                         ) {
-                            Ok(buf) => {
-                                let _ = buf.save_with_format(&thumbpath, image::ImageFormat::Png);
+                            Ok(image) => {
+                                let nwidth;
+                                let nheight;
+                                if image.width() > image.height() {
+                                    nwidth = max_size;
+                                    nheight = nwidth * image.height() / image.width();
+                                } else {
+                                    nheight = max_size;
+                                    nwidth = nheight * image.width() / image.height();
+                                }
+                                let thumb = image::imageops::resize(&image, nwidth, nheight, image::imageops::FilterType::Lanczos3);
+                                let ret = thumb.save(thumbstring.clone());
+                                if ret.is_err() {
+                                    log::error!("Failed to create thumbnail for file {}!", file.display());
+                                }
                             }
                             Err(error) => {
                                 log::warn!("failed to read audio album art jpeg: {}", error);
@@ -353,8 +407,21 @@ fn parse_audiotags(file: &PathBuf, metadata: &mut crate::sql::AudioMetadata) {
                             picture.data,
                             image::ImageFormat::Tiff,
                         ) {
-                            Ok(buf) => {
-                                let _ = buf.save_with_format(&thumbpath, image::ImageFormat::Png);
+                            Ok(image) => {
+                                let nwidth;
+                                let nheight;
+                                if image.width() > image.height() {
+                                    nwidth = max_size;
+                                    nheight = nwidth * image.height() / image.width();
+                                } else {
+                                    nheight = max_size;
+                                    nwidth = nheight * image.width() / image.height();
+                                }
+                                let thumb = image::imageops::resize(&image, nwidth, nheight, image::imageops::FilterType::Lanczos3);
+                                let ret = thumb.save(thumbstring.clone());
+                                if ret.is_err() {
+                                    log::error!("Failed to create thumbnail for file {}!", file.display());
+                                }
                             }
                             Err(error) => {
                                 log::warn!("failed to read audio album art jpeg: {}", error);
@@ -363,7 +430,8 @@ fn parse_audiotags(file: &PathBuf, metadata: &mut crate::sql::AudioMetadata) {
                     }
                 }
             }
-            metadata.poster = osstr_to_string(thumbpath.into_os_string());
+            metadata.poster = thumbstring.clone();
+            metadata.thumb = thumbstring;
         }
         None => {}
     };
@@ -842,21 +910,7 @@ fn create_screenshots(meta: &mut crate::sql::VideoMetadata) {
         );
         return;
     } else {
-        match std::fs::copy(&localoutputpath, &outputpath) {
-            Ok(bytes) => {
-                if bytes == 0 {
-                    log::error!("poster image {} had no data!", localoutput);
-                }
-            }
-            Err(error) => {
-                log::error!(
-                    "could not write poster to metadata storage for file {}!: {}",
-                    meta.path,
-                    error
-                );
-                return;
-            }
-        }
+        crate::thumbnails::create_thumbnail(&localoutputpath, 256);
         match std::fs::remove_file(&localoutputpath) {
             Ok(()) => {}
             Err(error) => {
@@ -869,7 +923,8 @@ fn create_screenshots(meta: &mut crate::sql::VideoMetadata) {
             }
         }
     }
-    meta.poster = output;
+    meta.poster = output.clone();
+    meta.thumb = output;
 }
 
 /// create an item to put into our tabmodel from a video wihtout external metadata
