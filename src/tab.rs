@@ -418,7 +418,7 @@ pub fn parse_desktop_file(path: &Path) -> (Option<String>, Option<String>) {
 }
 
 pub fn scan_path_recursive(tab_path: PathBuf) {
-    let mut data = crate::parsers::ScanMetaData::new();
+    let mut data = crate::scanmetadata::ScanMetaData::new();
     let mut connection;
     match crate::sql::connect() {
         Ok(ok) => connection = ok,
@@ -428,7 +428,10 @@ pub fn scan_path_recursive(tab_path: PathBuf) {
         }
     }
     log::warn!("Scanning path {} recursively. This can take a long time. Only read operations should be done while this job is still running!", tab_path.display());
-    data.known_files_mut().extend(crate::sql::files(&mut connection));
+    let files = crate::sql::files(&mut connection);
+    for (k, v) in files.iter() {
+        data.known_files_insert(k.to_path_buf(), v.to_owned());
+    }
     let _ = scan_path_runner(
         &mut connection,
         &tab_path,
@@ -440,16 +443,19 @@ pub fn scan_path_recursive(tab_path: PathBuf) {
 }
 
 pub fn scan_path(tab_path: &PathBuf, sizes: IconSizes, recursive: bool) -> Vec<Item> {
-    let data = crate::parsers::ScanMetaData::new();
+    let data = crate::scanmetadata::ScanMetaData::new();
     let mut connection;
     match crate::sql::connect() {
         Ok(ok) => connection = ok,
         Err(error) => {
             log::error!("Could not open SQLite DB connection: {}", error);
-            return data.items().to_owned();
+            return data.items_clone();
         }
     }
-    data.known_files_mut().extend(crate::sql::files(&mut connection));
+    let files = crate::sql::files(&mut connection);
+    for (k, v) in files.iter() {
+        data.known_files_insert(k.to_path_buf(), v.to_owned());
+    }
     scan_path_runner(
         &mut connection,
         &tab_path,
@@ -464,7 +470,7 @@ pub fn scan_path_runner(
     tab_path: &PathBuf,
     sizes: IconSizes,
     recursive: bool,
-    data: &crate::parsers::ScanMetaData,
+    data: &crate::scanmetadata::ScanMetaData,
 ) -> Vec<Item> {
     if recursive {
         log::warn!("Scanning directory {}", tab_path.display());
@@ -576,7 +582,7 @@ pub fn scan_path_runner(
                 }
             }
 
-            for path in data.justdirs().iter() {
+            for path in data.justdirs_clone().iter() {
                 if recursive {
                     if let Some(dirname) = path.file_stem() {
                         if crate::parsers::osstr_to_string(dirname.to_os_string()).starts_with(".")
@@ -613,12 +619,13 @@ pub fn scan_path_runner(
         }
     }
     if !recursive {
-        data.items_mut().sort_by(|a, b| match (a.metadata.is_dir(), b.metadata.is_dir()) {
+        let mut items = data.items_clone();
+        items.sort_by(|a, b| match (a.metadata.is_dir(), b.metadata.is_dir()) {
             (true, false) => Ordering::Less,
             (false, true) => Ordering::Greater,
             _ => LANGUAGE_SORTER.compare(&a.display_name, &b.display_name),
         });
-        return data.items().clone();
+        return items;
     } else {
         return Vec::new();
     }

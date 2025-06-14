@@ -15,52 +15,6 @@ use std::ops::ControlFlow;
 use std::path::PathBuf;
 use std::time::UNIX_EPOCH;
 
-use std::cell::{Ref, RefCell, RefMut};
-
-#[derive(Clone, Debug, Default)]
-pub struct ScanMetaData {
-    known_files: RefCell<std::collections::BTreeMap<PathBuf, crate::sql::FileMetadata>>,
-    special_files: RefCell<std::collections::BTreeSet<PathBuf>>,
-    items: RefCell<Vec<Item>>,
-    justdirs: RefCell<Vec<PathBuf>>,
-}
-
-impl ScanMetaData {
-    pub fn new() -> Self {
-        ScanMetaData {
-            ..Default::default()
-        }
-    }
-    pub fn known_files(
-        &self,
-    ) -> Ref<'_, std::collections::BTreeMap<PathBuf, crate::sql::FileMetadata>> {
-        self.known_files.borrow()
-    }
-    pub fn special_files(&self) -> Ref<'_, std::collections::BTreeSet<PathBuf>> {
-        self.special_files.borrow()
-    }
-    pub fn items(&self) -> Ref<'_, Vec<Item>> {
-        self.items.borrow()
-    }
-    pub fn justdirs(&self) -> Ref<'_, Vec<PathBuf>> {
-        self.justdirs.borrow()
-    }
-    pub fn known_files_mut(
-        &self,
-    ) -> RefMut<'_, std::collections::BTreeMap<PathBuf, crate::sql::FileMetadata>> {
-        self.known_files.borrow_mut()
-    }
-    pub fn special_files_mut(&self) -> RefMut<'_, std::collections::BTreeSet<PathBuf>> {
-        self.special_files.borrow_mut()
-    }
-    pub fn items_mut(&self) -> RefMut<'_, Vec<Item>> {
-        self.items.borrow_mut()
-    }
-    pub fn justdirs_mut(&self) -> RefMut<'_, Vec<PathBuf>> {
-        self.justdirs.borrow_mut()
-    }
-}
-
 /// Read video metadata from XML files movie.nfo (XBMC/Kodi format)
 fn parse_nfo(nfo_file: &PathBuf, metadata: &mut crate::sql::VideoMetadata) {
     use std::fs::File;
@@ -933,17 +887,17 @@ pub fn item_from_video(
     videometadata: &mut crate::sql::VideoMetadata,
     statdata: &std::fs::Metadata,
     sizes: IconSizes,
-    data: &ScanMetaData,
+    data: &crate::scanmetadata::ScanMetaData,
     connection: &mut rusqlite::Connection,
     from_db: bool,
 ) -> Item {
     let mut refresh = false;
     let filepath = osstr_to_string(path.clone().into_os_string());
     if !from_db {
-        if data.known_files().contains_key(&path) {
+        if data.known_files_contains(path.clone()) {
             if let Ok(modified) = statdata.modified() {
                 if let Ok(new_date) = modified.duration_since(UNIX_EPOCH) {
-                    let filedata = &data.known_files()[&path];
+                    let filedata = &data.known_files_get(path.clone());
                     let new_seconds_since_epoch = new_date.as_secs();
                     if new_seconds_since_epoch > filedata.modification_time {
                         refresh = true;
@@ -1118,7 +1072,7 @@ pub fn item_from_nfo(
     metadata: &mut crate::sql::VideoMetadata,
     statdata: &std::fs::Metadata,
     sizes: IconSizes,
-    data: &ScanMetaData,
+    data: &crate::scanmetadata::ScanMetaData,
     connection: &mut rusqlite::Connection,
     from_db: bool,
 ) -> Item {
@@ -1134,11 +1088,11 @@ pub fn item_from_nfo(
         }
     }
     if !from_db {
-        if data.known_files().contains_key(&filepath) {
+        if data.known_files_contains(filepath.clone()) {
             let mut refresh = false;
             if let Ok(modified) = statdata.modified() {
                 if let Ok(new_date) = modified.duration_since(UNIX_EPOCH) {
-                    let filedata = &data.known_files()[&filepath];
+                    let filedata = &data.known_files_get(filepath.clone());
                     let new_seconds_since_epoch = new_date.as_secs();
                     if new_seconds_since_epoch > filedata.modification_time {
                         refresh = true;
@@ -1273,7 +1227,7 @@ pub fn item_from_nfo(
 
 /// try to find external metadata for audio files
 /// Lyrics or coverart.
-fn audio_metadata(audio: PathBuf, data: &ScanMetaData, meta_data: &mut crate::sql::AudioMetadata) {
+fn audio_metadata(audio: PathBuf, data: &crate::scanmetadata::ScanMetaData, meta_data: &mut crate::sql::AudioMetadata) {
     // find external lyrics files
     if let Some(path) = audio.parent() {
         if let Some(base) = audio.file_stem() {
@@ -1285,13 +1239,11 @@ fn audio_metadata(audio: PathBuf, data: &ScanMetaData, meta_data: &mut crate::sq
             lyrics_2.extend(".srt".to_string().chars());
             if PathBuf::from(lyrics_1.clone()).is_file() {
                 meta_data.lyrics.push(lyrics_1.clone());
-                data.special_files_mut()
-                    .insert(PathBuf::from(lyrics_1.clone()));
+                data.special_files_insert(PathBuf::from(lyrics_1.clone()));
             }
             if PathBuf::from(lyrics_1.clone()).is_file() {
                 meta_data.lyrics.push(lyrics_2.clone());
-                data.special_files_mut()
-                    .insert(PathBuf::from(lyrics_2.clone()));
+                data.special_files_insert(PathBuf::from(lyrics_2.clone()));
             }
         }
     }
@@ -1300,26 +1252,25 @@ fn audio_metadata(audio: PathBuf, data: &ScanMetaData, meta_data: &mut crate::sq
     let posterpath = PathBuf::from(poster.clone());
     if posterpath.is_file() {
         meta_data.poster = poster.clone();
-        data.special_files_mut().insert(posterpath.clone());
+        data.special_files_insert(posterpath.clone());
     }
     if meta_data.thumb.len() == 0 {
         if posterpath.exists() {
-            data.special_files_mut().insert(posterpath.clone());
+            data.special_files_insert(posterpath.clone());
             let thumb = crate::thumbnails::create_thumbnail(&posterpath, 256);
             if thumb.len() > 0 {
                 meta_data.thumb = thumb.clone();
             }
         }
     } else {
-        data.special_files_mut()
-            .insert(PathBuf::from(meta_data.thumb.clone()));
+        data.special_files_insert(PathBuf::from(meta_data.thumb.clone()));
     }
 }
 
 /// create an item to put into our tabmodel from a audio file with internal metadata
 pub fn item_from_audiotags(
     audio: PathBuf,
-    data: &ScanMetaData,
+    data: &crate::scanmetadata::ScanMetaData,
     metadata: &mut crate::sql::AudioMetadata,
     statdata: &std::fs::Metadata,
     sizes: IconSizes,
@@ -1341,11 +1292,11 @@ pub fn item_from_audiotags(
         // fill the program data structures to work properly
         audio_metadata(audio, data, metadata);
     } else {
-        if data.known_files().contains_key(&filepath) {
+        if data.known_files_contains(filepath.clone()) {
             let mut refresh = false;
             if let Ok(modified) = statdata.modified() {
                 if let Ok(new_date) = modified.duration_since(UNIX_EPOCH) {
-                    let filedata = &data.known_files()[&filepath];
+                    let filedata = &data.known_files_get(filepath.clone());
                     let new_seconds_since_epoch = new_date.as_secs();
                     if new_seconds_since_epoch > filedata.modification_time {
                         refresh = true;
@@ -1528,7 +1479,7 @@ pub fn item_from_exif(
     metadata: &mut crate::sql::ImageMetadata,
     statdata: &std::fs::Metadata,
     sizes: IconSizes,
-    data: &ScanMetaData,
+    data: &crate::scanmetadata::ScanMetaData,
     connection: &mut rusqlite::Connection,
     from_db: bool,
 ) -> Item {
@@ -1544,11 +1495,11 @@ pub fn item_from_exif(
         }
     }
     if !from_db {
-        if data.known_files().contains_key(&filepath) {
+        if data.known_files_contains(filepath.clone()) {
             let mut refresh = false;
             if let Ok(modified) = statdata.modified() {
                 if let Ok(new_date) = modified.duration_since(UNIX_EPOCH) {
-                    let filedata = &data.known_files()[&filepath];
+                    let filedata = &data.known_files_get(filepath.clone());
                     let new_seconds_since_epoch = new_date.as_secs();
                     if new_seconds_since_epoch > filedata.modification_time {
                         refresh = true;
@@ -1734,12 +1685,12 @@ pub fn osstr_to_string(osstr: std::ffi::OsString) -> String {
 
 /// Scanners to process the filesystem
 
-pub fn scan_files(path: PathBuf, data: &ScanMetaData, sizes: IconSizes) -> ControlFlow<()> {
-    if data.special_files().contains(&path) {
+pub fn scan_files(path: PathBuf, data: &crate::scanmetadata::ScanMetaData, sizes: IconSizes) -> ControlFlow<()> {
+    if data.special_files_contains(path.clone()) {
         return ControlFlow::Break(());
     }
     let name;
-    if let Some(bn) = path.file_name() {
+    if let Some(bn) = path.clone().file_name() {
         name = crate::parsers::osstr_to_string(bn.to_os_string());
     } else {
         name = crate::parsers::osstr_to_string(path.clone().into_os_string());
@@ -1751,14 +1702,14 @@ pub fn scan_files(path: PathBuf, data: &ScanMetaData, sizes: IconSizes) -> Contr
             return ControlFlow::Break(());
         }
     };
-    data.special_files_mut().insert(path.clone());
+    data.special_files_insert(path.clone());
     let item = crate::parsers::item_from_entry(path, name, metadata, sizes);
-    data.items_mut().push(item);
+    data.items_push(item);
     ControlFlow::Continue(())
 }
 
-pub fn scan_directories(path: PathBuf, data: &ScanMetaData, sizes: IconSizes) -> ControlFlow<()> {
-    if data.special_files().contains(&path.clone()) {
+pub fn scan_directories(path: PathBuf, data: &crate::scanmetadata::ScanMetaData, sizes: IconSizes) -> ControlFlow<()> {
+    if data.special_files_contains(path.clone()) {
         return ControlFlow::Break(());
     }
     let name;
@@ -1774,19 +1725,19 @@ pub fn scan_directories(path: PathBuf, data: &ScanMetaData, sizes: IconSizes) ->
             return ControlFlow::Break(());
         }
     };
-    data.special_files_mut().insert(path.clone());
+    data.special_files_insert(path.clone());
     let item = crate::parsers::item_from_entry(path, name, metadata, sizes);
-    data.items_mut().push(item);
+    data.items_push(item);
     ControlFlow::Continue(())
 }
 
 pub fn scan_videos(
     path: PathBuf,
-    data: &ScanMetaData,
+    data: &crate::scanmetadata::ScanMetaData,
     sizes: IconSizes,
     connection: &mut rusqlite::Connection,
 ) -> ControlFlow<()> {
-    if data.special_files().contains(&path.clone()) {
+    if data.special_files_contains(path.clone()) {
         return ControlFlow::Break(());
     }
     let mut meta_data = crate::sql::VideoMetadata {
@@ -1811,11 +1762,11 @@ pub fn scan_videos(
             return ControlFlow::Break(());
         }
     };
-    data.special_files_mut().insert(path.clone());
+    data.special_files_insert(path.clone());
     let mut poster = osstr_to_string(path.clone().into_os_string());
     poster.push_str("_001.jpeg");
     meta_data.poster = poster.clone();
-    data.special_files_mut().insert(PathBuf::from(&poster));
+    data.special_files_insert(PathBuf::from(&poster));
     let item = crate::parsers::item_from_video(
         path,
         &mut meta_data,
@@ -1825,17 +1776,17 @@ pub fn scan_videos(
         connection,
         false,
     );
-    data.items_mut().push(item);
+    data.items_push(item);
     ControlFlow::Continue(())
 }
 
 pub fn scan_audiotags(
     audio: PathBuf,
-    data: &ScanMetaData,
+    data: &crate::scanmetadata::ScanMetaData,
     sizes: IconSizes,
     connection: &mut rusqlite::Connection,
 ) -> ControlFlow<()> {
-    if data.special_files().contains(&audio.clone()) {
+    if data.special_files_contains(audio.clone()) {
         return ControlFlow::Break(());
     }
     let mut meta_data = crate::sql::AudioMetadata {
@@ -1856,7 +1807,7 @@ pub fn scan_audiotags(
             return ControlFlow::Break(());
         }
     };
-    data.special_files_mut().insert(audio.clone());
+    data.special_files_insert(audio.clone());
     // find external cover art
 
     let item = crate::parsers::item_from_audiotags(
@@ -1868,18 +1819,18 @@ pub fn scan_audiotags(
         connection,
         false,
     );
-    data.items_mut().push(item);
+    data.items_push(item);
 
     ControlFlow::Continue(())
 }
 
 pub fn scan_exif(
     path: PathBuf,
-    data: &ScanMetaData,
+    data: &crate::scanmetadata::ScanMetaData,
     sizes: IconSizes,
     connection: &mut rusqlite::Connection,
 ) -> ControlFlow<()> {
-    if data.special_files().contains(&path.clone()) {
+    if data.special_files_contains(path.clone()) {
         return ControlFlow::Break(());
     }
     let mut meta_data = crate::sql::ImageMetadata {
@@ -1900,7 +1851,7 @@ pub fn scan_exif(
             return ControlFlow::Break(());
         }
     };
-    data.special_files_mut().insert(path.clone());
+    data.special_files_insert(path.clone());
     let (imagestr, thumbstr) =
         crate::thumbnails::create_thumbnail_downscale_if_necessary(&path, 254, 6000);
     meta_data.thumb = thumbstr.clone();
@@ -1916,18 +1867,18 @@ pub fn scan_exif(
         connection,
         false,
     );
-    data.items_mut().push(item);
+    data.items_push(item);
     ControlFlow::Continue(())
 }
 
 pub fn scan_single_nfo_dir(
     dp: &PathBuf,
     tab_path: &PathBuf,
-    data: &ScanMetaData,
+    data: &crate::scanmetadata::ScanMetaData,
     sizes: IconSizes,
     connection: &mut rusqlite::Connection,
 ) -> ControlFlow<()> {
-    if data.special_files().contains(&dp.clone()) {
+    if data.special_files_contains(dp.clone()) {
         return ControlFlow::Break(());
     }
     let mut meta_data = crate::sql::VideoMetadata {
@@ -1954,7 +1905,7 @@ pub fn scan_single_nfo_dir(
                 contents.push(path);
             }
             if contents.len() > 13 {
-                data.justdirs_mut().push(dp.clone());
+                data.justdirs_push(dp.clone());
                 return ControlFlow::Break(());
             }
 
@@ -1962,7 +1913,7 @@ pub fn scan_single_nfo_dir(
                 let f = osstr_to_string(path.clone().into_os_string()).to_ascii_lowercase();
                 if f.contains("poster.") {
                     if poster > 0 {
-                        data.justdirs_mut().push(dp.clone());
+                        data.justdirs_push(dp.clone());
                         return ControlFlow::Break(());
                     }
                     meta_data.poster = osstr_to_string(path.clone().into_os_string());
@@ -1971,7 +1922,7 @@ pub fn scan_single_nfo_dir(
                     meta_data.subtitles.push(f.clone());
                 } else if f.contains(".nfo") {
                     if nfo > 1 {
-                        data.justdirs_mut().push(dp.clone());
+                        data.justdirs_push(dp.clone());
                         return ControlFlow::Break(());
                     }
                     if !osstr_to_string(path.clone().into_os_string())
@@ -1988,7 +1939,7 @@ pub fn scan_single_nfo_dir(
                     nfo += 1;
                 } else if f.ends_with(".mkv") || f.ends_with(".mp4") || f.ends_with(".webm") {
                     if movie > 0 {
-                        data.justdirs_mut().push(dp.clone());
+                        data.justdirs_push(dp.clone());
                         return ControlFlow::Break(());
                     }
                     meta_data.path = osstr_to_string(path.clone().into_os_string());
@@ -2012,7 +1963,7 @@ pub fn scan_single_nfo_dir(
                     }
                 }
                 if !movienamenfo {
-                    data.justdirs_mut().push(dp.clone());
+                    data.justdirs_push(dp.clone());
                     return ControlFlow::Break(());
                 }
             }
@@ -2022,11 +1973,11 @@ pub fn scan_single_nfo_dir(
         }
     }
     if !PathBuf::from(&nfo_file).exists() {
-        data.justdirs_mut().push(dp.clone());
+        data.justdirs_push(dp.clone());
         return ControlFlow::Break(());
     }
     if meta_data.path.len() == 0 {
-        data.justdirs_mut().push(dp.clone());
+        data.justdirs_push(dp.clone());
         return ControlFlow::Break(());
     }
     if meta_data.poster.len() == 0 {
@@ -2039,9 +1990,9 @@ pub fn scan_single_nfo_dir(
             return ControlFlow::Break(());
         }
     }
-    data.special_files_mut().insert(dp.clone());
+    data.special_files_insert(dp.clone());
     for path in contents.iter() {
-        data.special_files_mut().insert(path.clone());
+        data.special_files_insert(path.clone());
     }
     let thumbpath = PathBuf::from(&meta_data.poster);
     if thumbpath.exists() {
@@ -2071,7 +2022,7 @@ pub fn scan_single_nfo_dir(
         connection,
         false,
     );
-    data.items_mut().push(item);
+    data.items_push(item);
     // test if we have a single movie with NFO in this dir
 
     ControlFlow::Continue(())
@@ -2080,7 +2031,7 @@ pub fn scan_single_nfo_dir(
 pub fn scan_nfos_in_dir(
     video: String,
     all: &Vec<PathBuf>,
-    data: &ScanMetaData,
+    data: &crate::scanmetadata::ScanMetaData,
     sizes: IconSizes,
     connection: &mut rusqlite::Connection,
 ) -> ControlFlow<()> {
@@ -2106,7 +2057,7 @@ pub fn scan_nfos_in_dir(
             } else if f.ends_with(".mkv") || f.ends_with(".mp4") || f.ends_with(".webm") {
                 meta_data.path = osstr_to_string(fp.clone().into_os_string());
             }
-            data.special_files_mut().insert(fp.clone());
+            data.special_files_insert(fp.clone());
         }
     }
     if meta_data.path.len() == 0 {
@@ -2145,6 +2096,6 @@ pub fn scan_nfos_in_dir(
         connection,
         false,
     );
-    data.items_mut().push(item);
+    data.items_push(item);
     ControlFlow::Continue(())
 }

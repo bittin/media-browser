@@ -893,7 +893,7 @@ fn search_file_metadata(
 fn stuff_items(
     connection: &mut rusqlite::Connection, 
     search: &SearchData,
-    data: &crate::parsers::ScanMetaData,
+    data: &crate::scanmetadata::ScanMetaData,
     used_files: &mut std::collections::BTreeSet<PathBuf>,
     file: FileMetadata,
 ) {
@@ -912,7 +912,7 @@ fn stuff_items(
                     connection,
                     true,
                 );
-                data.items_mut().push(item);
+                data.items_push(item);
             }    
         }
         if file.file_type == 3 && search.audio {
@@ -928,7 +928,7 @@ fn stuff_items(
                     connection,
                     true,
                 );
-                data.items_mut().push(item);
+                data.items_push(item);
             }    
 
         }
@@ -945,7 +945,7 @@ fn stuff_items(
                     connection,
                     true
                 );
-                data.items_mut().push(item);
+                data.items_push(item);
             }                
         }
     }
@@ -967,7 +967,7 @@ pub fn search_items(
     connection: &mut rusqlite::Connection, 
     s: &SearchData,
 ) -> Vec<crate::tab::Item> {
-    let data = crate::parsers::ScanMetaData::new();
+    let data = crate::scanmetadata::ScanMetaData::new();
     let mut search = s.to_owned();
     // if the search term was entered into the to box switch the boxes
     if search.from_string.trim().len() == 0 && search.to_string.len() > 0 {
@@ -1259,7 +1259,7 @@ pub fn insert_video(
     connection: &mut rusqlite::Connection, 
     metadata: &mut crate::sql::VideoMetadata,
     statdata: &std::fs::Metadata,
-    data: &crate::parsers::ScanMetaData,
+    data: &crate::scanmetadata::ScanMetaData,
 ) {
     let video_id = insert_file(connection, &metadata.path, statdata, 2, data);
     metadata.id = video_id;
@@ -1637,7 +1637,7 @@ pub fn insert_media_tag(connection: &mut rusqlite::Connection, media_id: u32, ta
 pub fn delete_video(
     connection: &mut rusqlite::Connection, 
     metadata: &mut crate::sql::VideoMetadata,
-    data: &crate::parsers::ScanMetaData,
+    data: &crate::scanmetadata::ScanMetaData,
 ) {
     // Get the index.
     //let index = self.ids[id];
@@ -1682,7 +1682,7 @@ pub fn delete_video(
         log::error!("Failed to delete candidate {}!", metadata.path);
         return;
     }   
-    data.known_files_mut().remove(&PathBuf::from(&metadata.path));
+    data.known_files_remove(PathBuf::from(&metadata.path));
  
 }
 
@@ -1690,7 +1690,7 @@ pub fn update_video(
     connection: &mut rusqlite::Connection, 
     metadata: &mut crate::sql::VideoMetadata,
     statdata: &std::fs::Metadata,
-    data: &crate::parsers::ScanMetaData,
+    data: &crate::scanmetadata::ScanMetaData,
 ) {
     delete_video(connection, metadata, data);
     insert_video(connection, metadata, statdata, data);
@@ -2046,7 +2046,7 @@ pub fn video_by_id(
 pub fn video(
     connection: &mut rusqlite::Connection, 
     filepath: &str,
-    data: &crate::parsers::ScanMetaData,
+    data: &crate::scanmetadata::ScanMetaData,
 ) -> VideoMetadata {
     let mut v = VideoMetadata {..Default::default()};
     v.path = filepath.to_string();
@@ -2440,8 +2440,8 @@ pub fn video(
             log::error!("could not prepare SQL statement: {}", err);
         }
     }
-    if !data.known_files().contains_key(&PathBuf::from(&v.path)) {
-        data.known_files_mut().insert(PathBuf::from(&v.path), filedata.clone());
+    if !data.known_files_contains(PathBuf::from(&v.path)) {
+        data.known_files_insert(PathBuf::from(&v.path), filedata.clone());
     }
 
     v
@@ -2498,7 +2498,7 @@ pub fn insert_audio(
     connection: &mut rusqlite::Connection, 
     metadata: &mut AudioMetadata,
     statdata: &std::fs::Metadata,
-    data: &crate::parsers::ScanMetaData,
+    data: &crate::scanmetadata::ScanMetaData,
 ) {
     let audio_id = insert_file(connection, &metadata.path, statdata, 3, data);
     metadata.id = audio_id;
@@ -2722,7 +2722,7 @@ fn insert_artist(connection: &mut rusqlite::Connection, name: String) -> i32 {
 pub fn delete_audio(
     connection: &mut rusqlite::Connection, 
     metadata: &mut AudioMetadata,
-    data: &crate::parsers::ScanMetaData,
+    data: &crate::scanmetadata::ScanMetaData,
 ) {
     // Get the index.
     //let index = self.ids[id];
@@ -2767,14 +2767,14 @@ pub fn delete_audio(
         log::error!("Failed to delete candidate {}!", metadata.path);
         return;
     }
-    data.known_files_mut().remove(&PathBuf::from(&metadata.path));
+    data.known_files_remove(PathBuf::from(&metadata.path));
 }
 
 pub fn update_audio(
     connection: &mut rusqlite::Connection, 
     metadata: &mut crate::sql::AudioMetadata,
     statdata: &std::fs::Metadata,
-    data: &crate::parsers::ScanMetaData,
+    data: &crate::scanmetadata::ScanMetaData,
 ) {
     delete_audio(connection, metadata, data);
     insert_audio(connection, metadata, statdata, data);
@@ -3146,7 +3146,7 @@ pub fn audio_by_id(
 pub fn audio(
     connection: &mut rusqlite::Connection, 
     filepath: &str,
-    data: &crate::parsers::ScanMetaData,
+    data: &crate::scanmetadata::ScanMetaData,
 ) -> AudioMetadata {
     let mut v = AudioMetadata {..Default::default()};
     // fill v from all tables
@@ -3505,8 +3505,8 @@ pub fn audio(
             log::error!("could not prepare SQL statement: {}", err);
         }
     }
-    if !data.known_files().contains_key(&PathBuf::from(&v.path)) {
-        data.known_files_mut().insert(PathBuf::from(&v.path), filedata.clone());
+    if !data.known_files_contains(PathBuf::from(&v.path)) {
+        data.known_files_insert(PathBuf::from(&v.path), filedata.clone());
     }
     v
 }
@@ -3564,7 +3564,7 @@ pub fn insert_image(
     connection: &mut rusqlite::Connection, 
     metadata: &mut ImageMetadata,
     statdata: &std::fs::Metadata,
-    data: &crate::parsers::ScanMetaData,
+    data: &crate::scanmetadata::ScanMetaData,
 ) {
     let image_id = insert_file(connection, &metadata.path, statdata, 1, data);
     metadata.id = image_id;
@@ -3590,7 +3590,7 @@ pub fn insert_image(
 pub fn delete_image(
     connection: &mut rusqlite::Connection, 
     metadata: &mut ImageMetadata,
-    data: &crate::parsers::ScanMetaData,
+    data: &crate::scanmetadata::ScanMetaData,
 ) {
     // Get the index.
     //let index = self.ids[id];
@@ -3626,14 +3626,14 @@ pub fn delete_image(
         log::error!("Failed to delete candidate {}!", image_id);
         return;
     }    
-    data.known_files_mut().remove(&PathBuf::from(&metadata.path));
+    data.known_files_remove(PathBuf::from(&metadata.path));
 }
 
 pub fn update_image(
     connection: &mut rusqlite::Connection, 
     metadata: &mut crate::sql::ImageMetadata,
     statdata: &std::fs::Metadata,
-    data: &crate::parsers::ScanMetaData,
+    data: &crate::scanmetadata::ScanMetaData,
 ) {
     delete_image(connection, metadata, data);
     insert_image(connection, metadata, statdata, data);
@@ -3836,7 +3836,7 @@ pub fn image_by_id(
 pub fn image(
     connection: &mut rusqlite::Connection, 
     filepath: &str,
-    data: &crate::parsers::ScanMetaData,
+    data: &crate::scanmetadata::ScanMetaData,
 ) -> ImageMetadata {
     let mut v = ImageMetadata {..Default::default()};
     // fill v from all tables
@@ -4034,8 +4034,8 @@ pub fn image(
             log::error!("could not prepare SQL statement: {}", err);
         }
     }
-    if !data.known_files().contains_key(&PathBuf::from(&v.path)) {
-        data.known_files_mut().insert(PathBuf::from(&v.path), filedata.clone());
+    if !data.known_files_contains(PathBuf::from(&v.path)) {
+        data.known_files_insert(PathBuf::from(&v.path), filedata.clone());
     }
     v
 }
@@ -4315,7 +4315,7 @@ pub fn insert_file(
     path: &str,
     metadata: &std::fs::Metadata,
     file_type: i32,
-    data: &crate::parsers::ScanMetaData,
+    data: &crate::scanmetadata::ScanMetaData,
 ) -> u32 {
     let mut creation_time: u64 = 0;
     if let Ok(created) = metadata.created() {
@@ -4375,27 +4375,27 @@ pub fn insert_file(
         metadata_id,
         ..Default::default()
     };
-    data.known_files_mut().insert(meta.filepath.clone(), meta.clone());
+    data.known_files_insert(meta.filepath.clone(), meta.clone());
 
     if file_type == 3 {
         let mut thumbstring = path.to_string();
         thumbstring.extend(".png".to_string().chars());
         let thumbpath = PathBuf::from(&thumbstring);
-        if !data.known_files().contains_key(&thumbpath) {
-            data.known_files_mut().insert(thumbpath, meta.clone());
+        if !data.known_files_contains(thumbpath.clone()) {
+            data.known_files_insert(thumbpath.clone(), meta.clone());
         }
         let mut lyricstring = path.to_string();
         lyricstring.extend(".lrc".to_string().chars());
         let lyricpath = PathBuf::from(&lyricstring);
-        if !data.known_files().contains_key(&lyricpath) {
-            data.known_files_mut().insert(lyricpath, meta);
+        if !data.known_files_contains(lyricpath.clone()) {
+            data.known_files_insert(lyricpath, meta);
         }
     } else if file_type == 2 {
         let mut thumbstring = path.to_string();
         thumbstring.extend("_001.jpeg".to_string().chars());
         let thumbpath = PathBuf::from(&thumbstring);
-        if !data.known_files().contains_key(&thumbpath) {
-            data.known_files_mut().insert(thumbpath, meta);
+        if !data.known_files_contains(thumbpath.clone()) {
+            data.known_files_insert(thumbpath, meta);
         }
     }
     metadata_id as u32
@@ -4404,13 +4404,13 @@ pub fn insert_file(
 pub fn delete_file(    
     connection: &mut rusqlite::Connection, 
     path: &str,
-    data: &crate::parsers::ScanMetaData,
+    data: &crate::scanmetadata::ScanMetaData,
 ) {
     let _ret = connection.execute(
         "DELETE FROM file_metadata WHERE filepath = ?1",
         params![&path],
     );
-    data.known_files_mut().remove(&PathBuf::from(path));
+    data.known_files_remove(PathBuf::from(path));
 }
 
 pub fn update_file(    
@@ -4418,7 +4418,7 @@ pub fn update_file(
     path: &str,
     metadata: &std::fs::Metadata,
     file_type: i32,
-    data: &crate::parsers::ScanMetaData,
+    data: &crate::scanmetadata::ScanMetaData,
 ) {
     delete_file(connection, path, data);
     insert_file(connection, path, metadata, file_type, data);
