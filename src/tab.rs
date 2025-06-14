@@ -418,7 +418,7 @@ pub fn parse_desktop_file(path: &Path) -> (Option<String>, Option<String>) {
 }
 
 pub fn scan_path_recursive(tab_path: PathBuf) {
-    let mut items = Vec::new();
+    let mut data = crate::parsers::ScanMetaData::new();
     let mut connection;
     match crate::sql::connect() {
         Ok(ok) => connection = ok,
@@ -428,44 +428,35 @@ pub fn scan_path_recursive(tab_path: PathBuf) {
         }
     }
     log::warn!("Scanning path {} recursively. This can take a long time. Only read operations should be done while this job is still running!", tab_path.display());
-    let mut known_files: std::collections::BTreeMap<PathBuf, crate::sql::FileMetadata> =
-        crate::sql::files(&mut connection);
-    let mut special_files = std::collections::BTreeSet::new();
+    data.known_files_mut().extend(crate::sql::files(&mut connection));
     let _ = scan_path_runner(
         &mut connection,
         &tab_path,
         IconSizes::default(),
         true,
-        &mut known_files,
-        &mut special_files,
-        &mut items,
+        &mut data,
     );
     log::warn!("Done Scanning path {} recursively.", tab_path.display());
 }
 
 pub fn scan_path(tab_path: &PathBuf, sizes: IconSizes, recursive: bool) -> Vec<Item> {
-    let mut items = Vec::new();
+    let data = crate::parsers::ScanMetaData::new();
     let mut connection;
     match crate::sql::connect() {
         Ok(ok) => connection = ok,
         Err(error) => {
             log::error!("Could not open SQLite DB connection: {}", error);
-            return items;
+            return data.items().to_owned();
         }
     }
-    let mut known_files = crate::sql::files(&mut connection);
-    let mut special_files = std::collections::BTreeSet::new();
-    items = scan_path_runner(
+    data.known_files_mut().extend(crate::sql::files(&mut connection));
+    scan_path_runner(
         &mut connection,
         &tab_path,
         sizes,
         recursive,
-        &mut known_files,
-        &mut special_files,
-        &mut items,
-    );
-
-    items
+        &data,
+    )
 }
 
 pub fn scan_path_runner(
@@ -473,9 +464,7 @@ pub fn scan_path_runner(
     tab_path: &PathBuf,
     sizes: IconSizes,
     recursive: bool,
-    known_files: &mut std::collections::BTreeMap<PathBuf, crate::sql::FileMetadata>,
-    special_files: &mut std::collections::BTreeSet<PathBuf>,
-    items: &mut Vec<Item>,
+    data: &crate::parsers::ScanMetaData,
 ) -> Vec<Item> {
     if recursive {
         log::warn!("Scanning directory {}", tab_path.display());
@@ -488,7 +477,6 @@ pub fn scan_path_runner(
             let mut videos = Vec::new();
             let mut images = Vec::new();
             let mut dirs = Vec::new();
-            let mut justdirs = Vec::new();
             for entry_res in entries {
                 let entry = match entry_res {
                     Ok(ok) => ok,
@@ -535,10 +523,8 @@ pub fn scan_path_runner(
                 if let ControlFlow::Break(_) = crate::parsers::scan_nfos_in_dir(
                     video,
                     &all,
-                    special_files,
-                    items,
+                    &data,
                     sizes,
-                    known_files,
                     connection,
                 ) {
                     continue;
@@ -547,11 +533,9 @@ pub fn scan_path_runner(
 
             for video in videos {
                 if let ControlFlow::Break(_) = crate::parsers::scan_videos(
-                    special_files,
                     video,
-                    items,
+                    &data,
                     sizes,
-                    known_files,
                     connection,
                 ) {
                     continue;
@@ -562,11 +546,8 @@ pub fn scan_path_runner(
                 if let ControlFlow::Break(_) = crate::parsers::scan_single_nfo_dir(
                     dp,
                     tab_path,
-                    special_files,
-                    &mut justdirs,
-                    items,
+                    data,
                     sizes,
-                    known_files,
                     connection,
                 ) {
                     continue;
@@ -576,10 +557,8 @@ pub fn scan_path_runner(
             for audio in audios {
                 if let ControlFlow::Break(_) = crate::parsers::scan_audiotags(
                     audio,
-                    special_files,
-                    items,
+                    data,
                     sizes,
-                    known_files,
                     connection,
                 ) {
                     continue;
@@ -589,17 +568,15 @@ pub fn scan_path_runner(
             for path in images {
                 if let ControlFlow::Break(_) = crate::parsers::scan_exif(
                     path,
-                    special_files,
-                    items,
+                    data,
                     sizes,
-                    known_files,
                     connection,
                 ) {
                     continue;
                 }
             }
 
-            for path in justdirs {
+            for path in data.justdirs().iter() {
                 if recursive {
                     if let Some(dirname) = path.file_stem() {
                         if crate::parsers::osstr_to_string(dirname.to_os_string()).starts_with(".")
@@ -609,16 +586,14 @@ pub fn scan_path_runner(
                     }
                     scan_path_runner(
                         connection,
-                        &path,
+                        path,
                         sizes,
                         recursive,
-                        known_files,
-                        special_files,
-                        items,
+                        data,
                     );
                 } else {
                     if let ControlFlow::Break(_) =
-                        crate::parsers::scan_directories(special_files, path, items, sizes)
+                        crate::parsers::scan_directories(path.to_owned(), data, sizes)
                     {
                         continue;
                     }
@@ -627,7 +602,7 @@ pub fn scan_path_runner(
 
             for path in all {
                 if let ControlFlow::Break(_) =
-                    crate::parsers::scan_files(special_files, path, items, sizes)
+                    crate::parsers::scan_files(path, data, sizes)
                 {
                     continue;
                 }
@@ -638,12 +613,12 @@ pub fn scan_path_runner(
         }
     }
     if !recursive {
-        items.sort_by(|a, b| match (a.metadata.is_dir(), b.metadata.is_dir()) {
+        data.items_mut().sort_by(|a, b| match (a.metadata.is_dir(), b.metadata.is_dir()) {
             (true, false) => Ordering::Less,
             (false, true) => Ordering::Greater,
             _ => LANGUAGE_SORTER.compare(&a.display_name, &b.display_name),
         });
-        return items.clone();
+        return data.items().clone();
     } else {
         return Vec::new();
     }
