@@ -293,8 +293,7 @@ fn parse_audiotags(file: &PathBuf, metadata: &mut crate::sql::AudioMetadata) {
     };
     match tag.album_cover() {
         Some(picture) => {
-            let mut thumbpath = metadata.path.clone();
-            thumbpath.push_str(".png");
+            let thumbpath = album_path(&file);
             if !PathBuf::from(&thumbpath).is_file() {
                 match picture.mime_type {
                     MimeType::Jpeg => {
@@ -364,7 +363,7 @@ fn parse_audiotags(file: &PathBuf, metadata: &mut crate::sql::AudioMetadata) {
                     }
                 }
             }
-            metadata.poster = thumbpath;
+            metadata.poster = osstr_to_string(thumbpath.into_os_string());
         }
         None => {}
     };
@@ -746,6 +745,34 @@ pub fn poster_path(path: &std::path::PathBuf) -> std::path::PathBuf {
         basename = osstr_to_string(base.to_os_string());
     }
     let filename = format!("{:016x}_{}-poster.jpeg", hashvalue, basename);
+    match dirs::data_local_dir() {
+        Some(pb) => {
+            let mut dir = pb.join("media-browser").join("thumbs");
+            if !dir.exists() {
+                let ret = std::fs::create_dir_all(dir.clone());
+                if ret.is_err() {
+                    log::warn!("Failed to create directory {}", dir.display());
+                    dir = dirs::home_dir().unwrap();
+                }
+            }
+            posterpath = dir.join(filename);
+        }
+        None => {
+            let dir = dirs::home_dir().unwrap().join(".thumbs").join("large");
+            posterpath = dir.join(filename);
+        }
+    }
+    posterpath
+}
+
+pub fn album_path(path: &std::path::PathBuf) -> std::path::PathBuf {
+    let posterpath;
+    let hashvalue: u64 = crate::thumbnails::calculate_hash(path);
+    let mut basename = String::from("albumart");
+    if let Some(base) = path.file_stem() {
+        basename = osstr_to_string(base.to_os_string());
+    }
+    let filename = format!("{:016x}_{}-albumart.png", hashvalue, basename);
     match dirs::data_local_dir() {
         Some(pb) => {
             let mut dir = pb.join("media-browser").join("thumbs");
@@ -1892,11 +1919,14 @@ pub fn scan_single_nfo_dir(
                         data.justdirs_mut().push(dp.clone());
                         return ControlFlow::Break(());
                     }
-                    if nfo_file.clone().into_os_string() != path.clone().into_os_string() {
+                    if !osstr_to_string(path.clone().into_os_string())
+                        .to_ascii_lowercase()
+                        .ends_with("movie.nfo")
+                    {
                         nfo_file = path.clone();
-                        if let Some(basename) = path.file_stem() {
-                            nfo_names.push(osstr_to_string(basename.to_os_string()));
-                        }
+                    }
+                    if let Some(basename) = path.file_stem() {
+                        nfo_names.push(osstr_to_string(basename.to_os_string()));
                     } else {
                         nfo_names.push(osstr_to_string(path.clone().into_os_string()));
                     }
@@ -1918,8 +1948,8 @@ pub fn scan_single_nfo_dir(
                     movie += 1;
                 }
             }
-            // filter cases where
-            if movie_name.len() > 0 && nfo_names.len() > 0 {
+            // filter cases where we have multiple NFOs and none of them has the movie name
+            if movie_name.len() > 0 && nfo_names.len() > 1 {
                 let mut movienamenfo = false;
                 for n in nfo_names.iter() {
                     if &movie_name == n {
@@ -1930,10 +1960,6 @@ pub fn scan_single_nfo_dir(
                     data.justdirs_mut().push(dp.clone());
                     return ControlFlow::Break(());
                 }
-            }
-            if !osstr_to_string(nfo_file.clone().into_os_string()).contains(&movie_name) {
-                data.justdirs_mut().push(dp.clone());
-                return ControlFlow::Break(());
             }
         }
         Err(err) => {
