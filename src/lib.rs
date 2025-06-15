@@ -25,6 +25,7 @@ mod mounter;
 mod mouse_area;
 mod operation;
 pub mod parsers;
+pub mod scanmetadata;
 mod spawn_detached;
 pub mod sql;
 pub mod tab;
