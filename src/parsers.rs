@@ -267,10 +267,18 @@ fn parse_audiotags(file: &PathBuf, metadata: &mut crate::sql::AudioMetadata) {
                                     nheight = max_size;
                                     nwidth = nheight * image.width() / image.height();
                                 }
-                                let thumb = image::imageops::resize(&image, nwidth, nheight, image::imageops::FilterType::Lanczos3);
+                                let thumb = image::imageops::resize(
+                                    &image,
+                                    nwidth,
+                                    nheight,
+                                    image::imageops::FilterType::Lanczos3,
+                                );
                                 let ret = thumb.save(thumbstring.clone());
                                 if ret.is_err() {
-                                    log::error!("Failed to create thumbnail for file {}!", file.display());
+                                    log::error!(
+                                        "Failed to create thumbnail for file {}!",
+                                        file.display()
+                                    );
                                 }
                             }
                             Err(error) => {
@@ -293,10 +301,18 @@ fn parse_audiotags(file: &PathBuf, metadata: &mut crate::sql::AudioMetadata) {
                                     nheight = max_size;
                                     nwidth = nheight * image.width() / image.height();
                                 }
-                                let thumb = image::imageops::resize(&image, nwidth, nheight, image::imageops::FilterType::Lanczos3);
+                                let thumb = image::imageops::resize(
+                                    &image,
+                                    nwidth,
+                                    nheight,
+                                    image::imageops::FilterType::Lanczos3,
+                                );
                                 let ret = thumb.save(thumbstring.clone());
                                 if ret.is_err() {
-                                    log::error!("Failed to create thumbnail for file {}!", file.display());
+                                    log::error!(
+                                        "Failed to create thumbnail for file {}!",
+                                        file.display()
+                                    );
                                 }
                             }
                             Err(error) => {
@@ -319,10 +335,18 @@ fn parse_audiotags(file: &PathBuf, metadata: &mut crate::sql::AudioMetadata) {
                                     nheight = max_size;
                                     nwidth = nheight * image.width() / image.height();
                                 }
-                                let thumb = image::imageops::resize(&image, nwidth, nheight, image::imageops::FilterType::Lanczos3);
+                                let thumb = image::imageops::resize(
+                                    &image,
+                                    nwidth,
+                                    nheight,
+                                    image::imageops::FilterType::Lanczos3,
+                                );
                                 let ret = thumb.save(thumbstring.clone());
                                 if ret.is_err() {
-                                    log::error!("Failed to create thumbnail for file {}!", file.display());
+                                    log::error!(
+                                        "Failed to create thumbnail for file {}!",
+                                        file.display()
+                                    );
                                 }
                             }
                             Err(error) => {
@@ -345,10 +369,18 @@ fn parse_audiotags(file: &PathBuf, metadata: &mut crate::sql::AudioMetadata) {
                                     nheight = max_size;
                                     nwidth = nheight * image.width() / image.height();
                                 }
-                                let thumb = image::imageops::resize(&image, nwidth, nheight, image::imageops::FilterType::Lanczos3);
+                                let thumb = image::imageops::resize(
+                                    &image,
+                                    nwidth,
+                                    nheight,
+                                    image::imageops::FilterType::Lanczos3,
+                                );
                                 let ret = thumb.save(thumbstring.clone());
                                 if ret.is_err() {
-                                    log::error!("Failed to create thumbnail for file {}!", file.display());
+                                    log::error!(
+                                        "Failed to create thumbnail for file {}!",
+                                        file.display()
+                                    );
                                 }
                             }
                             Err(error) => {
@@ -371,10 +403,18 @@ fn parse_audiotags(file: &PathBuf, metadata: &mut crate::sql::AudioMetadata) {
                                     nheight = max_size;
                                     nwidth = nheight * image.width() / image.height();
                                 }
-                                let thumb = image::imageops::resize(&image, nwidth, nheight, image::imageops::FilterType::Lanczos3);
+                                let thumb = image::imageops::resize(
+                                    &image,
+                                    nwidth,
+                                    nheight,
+                                    image::imageops::FilterType::Lanczos3,
+                                );
                                 let ret = thumb.save(thumbstring.clone());
                                 if ret.is_err() {
-                                    log::error!("Failed to create thumbnail for file {}!", file.display());
+                                    log::error!(
+                                        "Failed to create thumbnail for file {}!",
+                                        file.display()
+                                    );
                                 }
                             }
                             Err(error) => {
@@ -888,7 +928,7 @@ pub fn item_from_video(
     statdata: &std::fs::Metadata,
     sizes: IconSizes,
     data: &crate::scanmetadata::ScanMetaData,
-    connection: &mut rusqlite::Connection,
+    sql_connection: std::sync::Arc<std::sync::Mutex<rusqlite::Connection>>,
     from_db: bool,
 ) -> Item {
     let mut refresh = false;
@@ -921,9 +961,9 @@ pub fn item_from_video(
                         &PathBuf::from(&videometadata.poster),
                         254,
                     );
-                    crate::sql::update_video(connection, videometadata, statdata, data);
+                    crate::sql::update_video(sql_connection, videometadata, statdata, data);
                 } else {
-                    *videometadata = crate::sql::video(connection, &filepath, data);
+                    *videometadata = crate::sql::video(sql_connection, &filepath, data);
                 }
             }
         } else {
@@ -941,7 +981,7 @@ pub fn item_from_video(
             }
             videometadata.thumb =
                 crate::thumbnails::create_thumbnail(&PathBuf::from(&videometadata.poster), 254);
-            crate::sql::insert_video(connection, videometadata, statdata, data);
+            crate::sql::insert_video(sql_connection, videometadata, statdata, data);
         }
     }
 
@@ -1073,7 +1113,7 @@ pub fn item_from_nfo(
     statdata: &std::fs::Metadata,
     sizes: IconSizes,
     data: &crate::scanmetadata::ScanMetaData,
-    connection: &mut rusqlite::Connection,
+    sql_connection: std::sync::Arc<std::sync::Mutex<rusqlite::Connection>>,
     from_db: bool,
 ) -> Item {
     let filepath = PathBuf::from(&metadata.path);
@@ -1116,9 +1156,9 @@ pub fn item_from_nfo(
                     metadata.thumb =
                         crate::thumbnails::create_thumbnail(&PathBuf::from(&metadata.poster), 254);
                     metadata.name = basename.clone();
-                    crate::sql::update_video(connection, metadata, statdata, data);
+                    crate::sql::update_video(sql_connection, metadata, statdata, data);
                 } else {
-                    *metadata = crate::sql::video(connection, &metadata.path, data);
+                    *metadata = crate::sql::video(sql_connection, &metadata.path, data);
                 }
             }
         } else {
@@ -1138,7 +1178,7 @@ pub fn item_from_nfo(
             metadata.thumb =
                 crate::thumbnails::create_thumbnail(&PathBuf::from(&metadata.poster), 254);
             metadata.name = basename.clone();
-            crate::sql::insert_video(connection, metadata, statdata, data);
+            crate::sql::insert_video(sql_connection, metadata, statdata, data);
         }
     }
 
@@ -1227,7 +1267,11 @@ pub fn item_from_nfo(
 
 /// try to find external metadata for audio files
 /// Lyrics or coverart.
-fn audio_metadata(audio: PathBuf, data: &crate::scanmetadata::ScanMetaData, meta_data: &mut crate::sql::AudioMetadata) {
+fn audio_metadata(
+    audio: PathBuf,
+    data: &crate::scanmetadata::ScanMetaData,
+    meta_data: &mut crate::sql::AudioMetadata,
+) {
     // find external lyrics files
     if let Some(path) = audio.parent() {
         if let Some(base) = audio.file_stem() {
@@ -1274,7 +1318,7 @@ pub fn item_from_audiotags(
     metadata: &mut crate::sql::AudioMetadata,
     statdata: &std::fs::Metadata,
     sizes: IconSizes,
-    connection: &mut rusqlite::Connection,
+    sql_connection: std::sync::Arc<std::sync::Mutex<rusqlite::Connection>>,
     from_db: bool,
 ) -> Item {
     let filepath = PathBuf::from(&metadata.path);
@@ -1332,9 +1376,9 @@ pub fn item_from_audiotags(
                             }
                         }
                     }
-                    crate::sql::update_audio(connection, metadata, statdata, data);
+                    crate::sql::update_audio(sql_connection, metadata, statdata, data);
                 } else {
-                    *metadata = crate::sql::audio(connection, &metadata.path, data);
+                    *metadata = crate::sql::audio(sql_connection, &metadata.path, data);
                     audio_metadata(audio, data, metadata);
                 }
             }
@@ -1367,7 +1411,7 @@ pub fn item_from_audiotags(
                     }
                 }
             }
-            crate::sql::insert_audio(connection, metadata, statdata, data);
+            crate::sql::insert_audio(sql_connection, metadata, statdata, data);
         }
     }
 
@@ -1480,7 +1524,7 @@ pub fn item_from_exif(
     statdata: &std::fs::Metadata,
     sizes: IconSizes,
     data: &crate::scanmetadata::ScanMetaData,
-    connection: &mut rusqlite::Connection,
+    sql_connection: std::sync::Arc<std::sync::Mutex<rusqlite::Connection>>,
     from_db: bool,
 ) -> Item {
     let filepath = PathBuf::from(&metadata.path);
@@ -1533,9 +1577,9 @@ pub fn item_from_exif(
                         }
                     }
                     metadata.name = basename.clone();
-                    crate::sql::update_image(connection, metadata, statdata, data);
+                    crate::sql::update_image(sql_connection, metadata, statdata, data);
                 } else {
-                    *metadata = crate::sql::image(connection, &metadata.path, data);
+                    *metadata = crate::sql::image(sql_connection, &metadata.path, data);
                 }
             }
         } else {
@@ -1561,7 +1605,7 @@ pub fn item_from_exif(
                 }
             }
             metadata.name = basename.clone();
-            crate::sql::insert_image(connection, metadata, statdata, data);
+            crate::sql::insert_image(sql_connection, metadata, statdata, data);
         }
     }
 
@@ -1685,7 +1729,11 @@ pub fn osstr_to_string(osstr: std::ffi::OsString) -> String {
 
 /// Scanners to process the filesystem
 
-pub fn scan_files(path: PathBuf, data: &crate::scanmetadata::ScanMetaData, sizes: IconSizes) -> ControlFlow<()> {
+pub fn scan_files(
+    path: PathBuf,
+    data: &crate::scanmetadata::ScanMetaData,
+    sizes: IconSizes,
+) -> ControlFlow<()> {
     if data.special_files_contains(path.clone()) {
         return ControlFlow::Break(());
     }
@@ -1708,7 +1756,11 @@ pub fn scan_files(path: PathBuf, data: &crate::scanmetadata::ScanMetaData, sizes
     ControlFlow::Continue(())
 }
 
-pub fn scan_directories(path: PathBuf, data: &crate::scanmetadata::ScanMetaData, sizes: IconSizes) -> ControlFlow<()> {
+pub fn scan_directories(
+    path: PathBuf,
+    data: &crate::scanmetadata::ScanMetaData,
+    sizes: IconSizes,
+) -> ControlFlow<()> {
     if data.special_files_contains(path.clone()) {
         return ControlFlow::Break(());
     }
@@ -1735,7 +1787,7 @@ pub fn scan_videos(
     path: PathBuf,
     data: &crate::scanmetadata::ScanMetaData,
     sizes: IconSizes,
-    connection: &mut rusqlite::Connection,
+    sql_connection: std::sync::Arc<std::sync::Mutex<rusqlite::Connection>>,
 ) -> ControlFlow<()> {
     if data.special_files_contains(path.clone()) {
         return ControlFlow::Break(());
@@ -1773,7 +1825,7 @@ pub fn scan_videos(
         &statdata,
         sizes,
         data,
-        connection,
+        sql_connection,
         false,
     );
     data.items_push(item);
@@ -1784,7 +1836,7 @@ pub fn scan_audiotags(
     audio: PathBuf,
     data: &crate::scanmetadata::ScanMetaData,
     sizes: IconSizes,
-    connection: &mut rusqlite::Connection,
+    sql_connection: std::sync::Arc<std::sync::Mutex<rusqlite::Connection>>,
 ) -> ControlFlow<()> {
     if data.special_files_contains(audio.clone()) {
         return ControlFlow::Break(());
@@ -1816,7 +1868,7 @@ pub fn scan_audiotags(
         &mut meta_data,
         &statdata,
         sizes,
-        connection,
+        sql_connection,
         false,
     );
     data.items_push(item);
@@ -1828,7 +1880,7 @@ pub fn scan_exif(
     path: PathBuf,
     data: &crate::scanmetadata::ScanMetaData,
     sizes: IconSizes,
-    connection: &mut rusqlite::Connection,
+    sql_connection: std::sync::Arc<std::sync::Mutex<rusqlite::Connection>>,
 ) -> ControlFlow<()> {
     if data.special_files_contains(path.clone()) {
         return ControlFlow::Break(());
@@ -1864,7 +1916,7 @@ pub fn scan_exif(
         &statdata,
         sizes,
         data,
-        connection,
+        sql_connection,
         false,
     );
     data.items_push(item);
@@ -1876,7 +1928,8 @@ pub fn scan_single_nfo_dir(
     tab_path: &PathBuf,
     data: &crate::scanmetadata::ScanMetaData,
     sizes: IconSizes,
-    connection: &mut rusqlite::Connection,
+    justdirs: &mut Vec<PathBuf>,
+    sql_connection: std::sync::Arc<std::sync::Mutex<rusqlite::Connection>>,
 ) -> ControlFlow<()> {
     if data.special_files_contains(dp.clone()) {
         return ControlFlow::Break(());
@@ -1905,7 +1958,7 @@ pub fn scan_single_nfo_dir(
                 contents.push(path);
             }
             if contents.len() > 13 {
-                data.justdirs_push(dp.clone());
+                justdirs.push(dp.clone());
                 return ControlFlow::Break(());
             }
 
@@ -1913,7 +1966,7 @@ pub fn scan_single_nfo_dir(
                 let f = osstr_to_string(path.clone().into_os_string()).to_ascii_lowercase();
                 if f.contains("poster.") {
                     if poster > 0 {
-                        data.justdirs_push(dp.clone());
+                        justdirs.push(dp.clone());
                         return ControlFlow::Break(());
                     }
                     meta_data.poster = osstr_to_string(path.clone().into_os_string());
@@ -1922,7 +1975,7 @@ pub fn scan_single_nfo_dir(
                     meta_data.subtitles.push(f.clone());
                 } else if f.contains(".nfo") {
                     if nfo > 1 {
-                        data.justdirs_push(dp.clone());
+                        justdirs.push(dp.clone());
                         return ControlFlow::Break(());
                     }
                     if !osstr_to_string(path.clone().into_os_string())
@@ -1939,7 +1992,7 @@ pub fn scan_single_nfo_dir(
                     nfo += 1;
                 } else if f.ends_with(".mkv") || f.ends_with(".mp4") || f.ends_with(".webm") {
                     if movie > 0 {
-                        data.justdirs_push(dp.clone());
+                        justdirs.push(dp.clone());
                         return ControlFlow::Break(());
                     }
                     meta_data.path = osstr_to_string(path.clone().into_os_string());
@@ -1963,7 +2016,7 @@ pub fn scan_single_nfo_dir(
                     }
                 }
                 if !movienamenfo {
-                    data.justdirs_push(dp.clone());
+                    justdirs.push(dp.clone());
                     return ControlFlow::Break(());
                 }
             }
@@ -1973,11 +2026,11 @@ pub fn scan_single_nfo_dir(
         }
     }
     if !PathBuf::from(&nfo_file).exists() {
-        data.justdirs_push(dp.clone());
+        justdirs.push(dp.clone());
         return ControlFlow::Break(());
     }
     if meta_data.path.len() == 0 {
-        data.justdirs_push(dp.clone());
+        justdirs.push(dp.clone());
         return ControlFlow::Break(());
     }
     if meta_data.poster.len() == 0 {
@@ -2019,7 +2072,7 @@ pub fn scan_single_nfo_dir(
         &statdata,
         sizes,
         data,
-        connection,
+        sql_connection,
         false,
     );
     data.items_push(item);
@@ -2033,7 +2086,7 @@ pub fn scan_nfos_in_dir(
     all: &Vec<PathBuf>,
     data: &crate::scanmetadata::ScanMetaData,
     sizes: IconSizes,
-    connection: &mut rusqlite::Connection,
+    sql_connection: std::sync::Arc<std::sync::Mutex<rusqlite::Connection>>,
 ) -> ControlFlow<()> {
     let mut meta_data = crate::sql::VideoMetadata {
         ..Default::default()
@@ -2093,7 +2146,7 @@ pub fn scan_nfos_in_dir(
         &statdata,
         sizes,
         data,
-        connection,
+        sql_connection,
         false,
     );
     data.items_push(item);

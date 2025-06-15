@@ -417,23 +417,18 @@ pub fn parse_desktop_file(path: &Path) -> (Option<String>, Option<String>) {
     )
 }
 
-pub fn scan_path_recursive(tab_path: PathBuf) {
+pub fn scan_path_recursive(
+    sql_connection: std::sync::Arc<std::sync::Mutex<rusqlite::Connection>>,
+    tab_path: PathBuf,
+) {
     let mut data = crate::scanmetadata::ScanMetaData::new();
-    let mut connection;
-    match crate::sql::connect() {
-        Ok(ok) => connection = ok,
-        Err(error) => {
-            log::error!("Could not open SQLite DB connection: {}", error);
-            return;
-        }
-    }
     log::warn!("Scanning path {} recursively. This can take a long time. Only read operations should be done while this job is still running!", tab_path.display());
-    let files = crate::sql::files(&mut connection);
+    let files = crate::sql::files(sql_connection.clone());
     for (k, v) in files.iter() {
         data.known_files_insert(k.to_path_buf(), v.to_owned());
     }
     let _ = scan_path_runner(
-        &mut connection,
+        sql_connection.clone(),
         &tab_path,
         IconSizes::default(),
         true,
@@ -442,36 +437,28 @@ pub fn scan_path_recursive(tab_path: PathBuf) {
     log::warn!("Done Scanning path {} recursively.", tab_path.display());
 }
 
-pub fn scan_path(tab_path: &PathBuf, sizes: IconSizes, recursive: bool) -> Vec<Item> {
+pub fn scan_path(
+    sql_connection: std::sync::Arc<std::sync::Mutex<rusqlite::Connection>>,
+    tab_path: &PathBuf,
+    sizes: IconSizes,
+    recursive: bool,
+) -> Vec<Item> {
     let data = crate::scanmetadata::ScanMetaData::new();
-    let mut connection;
-    match crate::sql::connect() {
-        Ok(ok) => connection = ok,
-        Err(error) => {
-            log::error!("Could not open SQLite DB connection: {}", error);
-            return data.items_clone();
-        }
-    }
-    let files = crate::sql::files(&mut connection);
+    let files = crate::sql::files(sql_connection.clone());
     for (k, v) in files.iter() {
         data.known_files_insert(k.to_path_buf(), v.to_owned());
     }
-    scan_path_runner(
-        &mut connection,
-        &tab_path,
-        sizes,
-        recursive,
-        &data,
-    )
+    scan_path_runner(sql_connection.clone(), &tab_path, sizes, recursive, &data)
 }
 
 pub fn scan_path_runner(
-    connection: &mut rusqlite::Connection,
+    sql_connection: std::sync::Arc<std::sync::Mutex<rusqlite::Connection>>,
     tab_path: &PathBuf,
     sizes: IconSizes,
     recursive: bool,
     data: &crate::scanmetadata::ScanMetaData,
 ) -> Vec<Item> {
+    let mut justdirs = Vec::new();
     if recursive {
         log::warn!("Scanning directory {}", tab_path.display());
     }
@@ -531,19 +518,16 @@ pub fn scan_path_runner(
                     &all,
                     &data,
                     sizes,
-                    connection,
+                    sql_connection.clone(),
                 ) {
                     continue;
                 }
             }
 
             for video in videos {
-                if let ControlFlow::Break(_) = crate::parsers::scan_videos(
-                    video,
-                    &data,
-                    sizes,
-                    connection,
-                ) {
+                if let ControlFlow::Break(_) =
+                    crate::parsers::scan_videos(video, &data, sizes, sql_connection.clone())
+                {
                     continue;
                 }
             }
@@ -554,35 +538,29 @@ pub fn scan_path_runner(
                     tab_path,
                     data,
                     sizes,
-                    connection,
+                    &mut justdirs,
+                    sql_connection.clone(),
                 ) {
                     continue;
                 }
             }
 
             for audio in audios {
-                if let ControlFlow::Break(_) = crate::parsers::scan_audiotags(
-                    audio,
-                    data,
-                    sizes,
-                    connection,
-                ) {
+                if let ControlFlow::Break(_) =
+                    crate::parsers::scan_audiotags(audio, data, sizes, sql_connection.clone())
+                {
                     continue;
                 }
             }
 
             for path in images {
-                if let ControlFlow::Break(_) = crate::parsers::scan_exif(
-                    path,
-                    data,
-                    sizes,
-                    connection,
-                ) {
+                if let ControlFlow::Break(_) =
+                    crate::parsers::scan_exif(path, data, sizes, sql_connection.clone())
+                {
                     continue;
                 }
             }
-
-            for path in data.justdirs_clone().iter() {
+            for path in justdirs.iter() {
                 if recursive {
                     if let Some(dirname) = path.file_stem() {
                         if crate::parsers::osstr_to_string(dirname.to_os_string()).starts_with(".")
@@ -590,13 +568,7 @@ pub fn scan_path_runner(
                             continue; // skip hidden directories when recursively scanning
                         }
                     }
-                    scan_path_runner(
-                        connection,
-                        path,
-                        sizes,
-                        recursive,
-                        data,
-                    );
+                    scan_path_runner(sql_connection.clone(), path, sizes, recursive, data);
                 } else {
                     if let ControlFlow::Break(_) =
                         crate::parsers::scan_directories(path.to_owned(), data, sizes)
@@ -607,9 +579,7 @@ pub fn scan_path_runner(
             }
 
             for path in all {
-                if let ControlFlow::Break(_) =
-                    crate::parsers::scan_files(path, data, sizes)
-                {
+                if let ControlFlow::Break(_) = crate::parsers::scan_files(path, data, sizes) {
                     continue;
                 }
             }
@@ -643,10 +613,14 @@ fn sort_items_media_browser(items: Vec<Item>) -> Vec<Item> {
     items2.sort_by(|a, b| match (a.metadata.is_dir(), b.metadata.is_dir()) {
         (true, false) => core::cmp::Ordering::Less,
         (false, true) => core::cmp::Ordering::Greater,
-        _ => check_reverse(LANGUAGE_SORTER.compare(&a.display_name, &b.display_name), true),
+        _ => check_reverse(
+            LANGUAGE_SORTER.compare(&a.display_name, &b.display_name),
+            true,
+        ),
     });
     let mut sorted = Vec::new();
-    let mut albums: std::collections::BTreeMap<String, std::collections::BTreeMap<u32, Item>> = std::collections::BTreeMap::new();
+    let mut albums: std::collections::BTreeMap<String, std::collections::BTreeMap<u32, Item>> =
+        std::collections::BTreeMap::new();
     // sort audio content from the same album in order of track id
     for i in items2 {
         if let Some(audio) = i.audio_opt.as_ref() {
@@ -654,7 +628,10 @@ fn sort_items_media_browser(items: Vec<Item>) -> Vec<Item> {
             if audio.album.len() > 0 && audio.track_id > 0 {
                 if albums.contains_key(&audio.album) {
                     let track_id = audio.track_id;
-                    albums.get_mut(&audio.album).unwrap().insert(track_id, i.clone());
+                    albums
+                        .get_mut(&audio.album)
+                        .unwrap()
+                        .insert(track_id, i.clone());
                 } else {
                     let mut album = std::collections::BTreeMap::new();
                     let track_id = audio.track_id;
@@ -679,43 +656,33 @@ fn sort_items_media_browser(items: Vec<Item>) -> Vec<Item> {
 
 fn sort_items_from_search(items: Vec<Item>, search: &crate::sql::SearchData) -> Vec<Item> {
     let mut sorted = Vec::new();
-//    if search.album {
-        // sort audio content from the same album in order of track id
-        sorted.extend(sort_items_media_browser(items));
-//    } else {
-//        sorted.extend(items);
-//        sorted.sort_by(|a, b| match (a.metadata.is_dir(), b.metadata.is_dir()) {
-//            (true, false) => core::cmp::Ordering::Less,
-//            (false, true) => core::cmp::Ordering::Greater,
-//            _ => LANGUAGE_SORTER.compare(&a.display_name, &b.display_name),
-//        });
-//    }
+    //    if search.album {
+    // sort audio content from the same album in order of track id
+    sorted.extend(sort_items_media_browser(items));
+    //    } else {
+    //        sorted.extend(items);
+    //        sorted.sort_by(|a, b| match (a.metadata.is_dir(), b.metadata.is_dir()) {
+    //            (true, false) => core::cmp::Ordering::Less,
+    //            (false, true) => core::cmp::Ordering::Greater,
+    //            _ => LANGUAGE_SORTER.compare(&a.display_name, &b.display_name),
+    //        });
+    //    }
     sorted
 }
 
-fn scan_search_db(search: &crate::sql::SearchData) -> Vec<Item> {
-    let mut connection;
-    match crate::sql::connect() {
-        Ok(ok) => connection = ok,
-        Err(error) => {
-            log::error!("Could not open SQLite DB connection: {}", error);
-            return Vec::new();
-        }
-    }
+fn scan_search_db(
+    sql_connection: std::sync::Arc<std::sync::Mutex<rusqlite::Connection>>,
+    search: &crate::sql::SearchData,
+) -> Vec<Item> {
     log::warn!("Searching database");
-    let items = crate::sql::search_items(&mut connection, search);
+    let items = crate::sql::search_items(sql_connection.clone(), search);
     sort_items_from_search(items, search)
 }
 
-fn scan_tags(t: crate::sql::Tag) -> Vec<Item> {
-    let mut connection;
-    match crate::sql::connect() {
-        Ok(ok) => connection = ok,
-        Err(error) => {
-            log::error!("Could not open SQLite DB connection: {}", error);
-            return Vec::new();
-        }
-    }
+fn scan_tags(
+    sql_connection: std::sync::Arc<std::sync::Mutex<rusqlite::Connection>>,
+    t: crate::sql::Tag,
+) -> Vec<Item> {
     log::warn!("Searching database for tag {}", t.tag);
     let search = crate::sql::SearchData {
         from_string: t.tag.clone(),
@@ -725,11 +692,10 @@ fn scan_tags(t: crate::sql::Tag) -> Vec<Item> {
         tags: true,
         ..Default::default()
     };
-    let items = crate::sql::search_items(&mut connection, &search);
+    let items = crate::sql::search_items(sql_connection.clone(), &search);
 
     sort_items_from_search(items, &search)
 }
-
 
 pub fn scan_search<F: Fn(&Path, &str, Metadata) -> bool + Sync>(
     tab_path: &PathBuf,
@@ -1006,7 +972,7 @@ impl std::fmt::Display for Location {
                     "search {} in database for selected entries.",
                     search.display()
                 )
-            },
+            }
             Self::Trash => write!(f, "trash"),
         }
     }
@@ -1031,18 +997,22 @@ impl Location {
         }
     }
 
-    pub fn scan(&self, sizes: IconSizes) -> (Option<Item>, Vec<Item>) {
+    pub fn scan(
+        &self,
+        sql_connection: std::sync::Arc<std::sync::Mutex<rusqlite::Connection>>,
+        sizes: IconSizes,
+    ) -> (Option<Item>, Vec<Item>) {
         let items = match self {
-            Self::Path(path) => scan_path(path, sizes, false),
+            Self::Path(path) => scan_path(sql_connection.clone(), path, sizes, false),
             Self::Search(..) => {
                 // Search is done incrementally
                 Vec::new()
             }
-            Self::Tag(t) => scan_tags(t.clone()),
+            Self::Tag(t) => scan_tags(sql_connection.clone(), t.clone()),
             Self::Trash => scan_trash(sizes),
             Self::Recents => scan_recents(sizes),
             Self::Network(uri, _) => scan_network(uri, sizes),
-            Self::DBSearch(search) => scan_search_db(search),
+            Self::DBSearch(search) => scan_search_db(sql_connection.clone(), search),
         };
         let parent_item_opt = match self.path_opt() {
             Some(path) => match super::parsers::item_from_path(path, sizes) {
@@ -1507,11 +1477,14 @@ impl Item {
                             text = seconds_to_runtime(video.duration)
                         )));
                         for l in video.tags.iter() {
-                            details = details.push(widget::button::link(fl!(
-                                "item-media-tag",
-                                text = l.tag.clone()
-                            )).on_press(crate::app::Message::LaunchSearch(ST::Tag, l.tag.clone()))
-                            .padding(0));
+                            details = details.push(
+                                widget::button::link(fl!("item-media-tag", text = l.tag.clone()))
+                                    .on_press(crate::app::Message::LaunchSearch(
+                                        ST::Tag,
+                                        l.tag.clone(),
+                                    ))
+                                    .padding(0),
+                            );
                         }
                         for l in video.audiolangs.iter() {
                             details = details.push(widget::text::body(fl!(
@@ -1526,18 +1499,27 @@ impl Item {
                             )));
                         }
                         for l in video.director.iter() {
-                            details = details.push(widget::button::link(fl!(
-                                "item-media-director",
-                                text = l.to_string()
-                            )).on_press(crate::app::Message::LaunchSearch(ST::Director, l.to_string()))
-                            .padding(0));
+                            details = details.push(
+                                widget::button::link(fl!(
+                                    "item-media-director",
+                                    text = l.to_string()
+                                ))
+                                .on_press(crate::app::Message::LaunchSearch(
+                                    ST::Director,
+                                    l.to_string(),
+                                ))
+                                .padding(0),
+                            );
                         }
                         for l in video.actors.iter() {
-                            details = details.push(widget::button::link(fl!(
-                                "item-media-actor",
-                                text = l.to_string()
-                            )).on_press(crate::app::Message::LaunchSearch(ST::Actor, l.to_string()))
-                            .padding(0));
+                            details = details.push(
+                                widget::button::link(fl!("item-media-actor", text = l.to_string()))
+                                    .on_press(crate::app::Message::LaunchSearch(
+                                        ST::Actor,
+                                        l.to_string(),
+                                    ))
+                                    .padding(0),
+                            );
                         }
                         for l in video.chapters.iter() {
                             let start = crate::parsers::timecode_to_ffmpeg_time(l.start as u32);
@@ -1565,52 +1547,83 @@ impl Item {
                             text = seconds_to_runtime(audio.duration)
                         )));
                         if audio.album.len() > 0 {
-                            details = details.push(widget::button::link(fl!(
-                                "item-media-album",
-                                text = audio.album.clone()
-                            )).on_press(crate::app::Message::LaunchSearch(ST::Album, audio.album.clone()))
-                            .padding(0));
+                            details = details.push(
+                                widget::button::link(fl!(
+                                    "item-media-album",
+                                    text = audio.album.clone()
+                                ))
+                                .on_press(crate::app::Message::LaunchSearch(
+                                    ST::Album,
+                                    audio.album.clone(),
+                                ))
+                                .padding(0),
+                            );
                         }
                         if audio.track_id != 0 {
-                            details = details.push(widget::text::body(format!(
-                                "Id:   {}",
-                                audio.track_id
-                            )));
+                            details = details
+                                .push(widget::text::body(format!("Id:   {}", audio.track_id)));
                         }
                         for l in audio.tags.iter() {
-                            details = details.push(widget::button::link(fl!(
-                                "item-media-tag",
-                                text = l.tag.clone()
-                            )).on_press(crate::app::Message::LaunchSearch(ST::Tag, l.tag.clone()))
-                            .padding(0));
+                            details = details.push(
+                                widget::button::link(fl!("item-media-tag", text = l.tag.clone()))
+                                    .on_press(crate::app::Message::LaunchSearch(
+                                        ST::Tag,
+                                        l.tag.clone(),
+                                    ))
+                                    .padding(0),
+                            );
                         }
                         if audio.composer.len() > 0 {
-                            details = details.push(widget::button::link(fl!(
-                                "item-media-composer",
-                                text = audio.composer.clone()
-                            )).on_press(crate::app::Message::LaunchSearch(ST::Composer, audio.composer.clone()))
-                            .padding(0));
+                            details = details.push(
+                                widget::button::link(fl!(
+                                    "item-media-composer",
+                                    text = audio.composer.clone()
+                                ))
+                                .on_press(crate::app::Message::LaunchSearch(
+                                    ST::Composer,
+                                    audio.composer.clone(),
+                                ))
+                                .padding(0),
+                            );
                         }
                         if audio.genre.len() > 0 {
-                            details = details.push(widget::button::link(fl!(
-                                "item-media-genre",
-                                text = audio.genre.clone()
-                            )).on_press(crate::app::Message::LaunchSearch(ST::Genre, audio.genre.clone()))
-                            .padding(0));
+                            details = details.push(
+                                widget::button::link(fl!(
+                                    "item-media-genre",
+                                    text = audio.genre.clone()
+                                ))
+                                .on_press(crate::app::Message::LaunchSearch(
+                                    ST::Genre,
+                                    audio.genre.clone(),
+                                ))
+                                .padding(0),
+                            );
                         }
                         for l in audio.artist.iter() {
-                            details = details.push(widget::button::link(fl!(
-                                "item-media-artist",
-                                text = l.to_string()
-                            )).on_press(crate::app::Message::LaunchSearch(ST::Artist, l.to_string()))
-                            .padding(0));
+                            details = details.push(
+                                widget::button::link(fl!(
+                                    "item-media-artist",
+                                    text = l.to_string()
+                                ))
+                                .on_press(crate::app::Message::LaunchSearch(
+                                    ST::Artist,
+                                    l.to_string(),
+                                ))
+                                .padding(0),
+                            );
                         }
                         for l in audio.albumartist.iter() {
-                            details = details.push(widget::button::link(fl!(
-                                "item-media-albumartist",
-                                text = l.to_string()
-                            )).on_press(crate::app::Message::LaunchSearch(ST::AlbumArtist, l.to_string()))
-                            .padding(0));
+                            details = details.push(
+                                widget::button::link(fl!(
+                                    "item-media-albumartist",
+                                    text = l.to_string()
+                                ))
+                                .on_press(crate::app::Message::LaunchSearch(
+                                    ST::AlbumArtist,
+                                    l.to_string(),
+                                ))
+                                .padding(0),
+                            );
                         }
                         for l in audio.chapters.iter() {
                             let start = crate::parsers::timecode_to_ffmpeg_time(l.start as u32);
@@ -1639,11 +1652,14 @@ impl Item {
                             height = image.height
                         )));
                         for l in image.tags.iter() {
-                            details = details.push(widget::button::link(fl!(
-                                "item-media-tag",
-                                text = l.tag.clone()
-                            )).on_press(crate::app::Message::LaunchSearch(ST::Tag, l.tag.clone()))
-                            .padding(0));
+                            details = details.push(
+                                widget::button::link(fl!("item-media-tag", text = l.tag.clone()))
+                                    .on_press(crate::app::Message::LaunchSearch(
+                                        ST::Tag,
+                                        l.tag.clone(),
+                                    ))
+                                    .padding(0),
+                            );
                         }
                         if image.lense_model.len() > 0 {
                             details = details.push(widget::text::body(fl!(
@@ -2002,7 +2018,7 @@ impl Tab {
                 } else {
                     format!("Search {}", search.search_id)
                 }
-            },
+            }
             Location::Network(_uri, display_name) => display_name.clone(),
         }
     }
@@ -3293,7 +3309,7 @@ impl Tab {
             }),
             HeadingOptions::MediaSpecific => {
                 items.sort_by(|a, b| {
-                   if folders_first {
+                    if folders_first {
                         match (a.1.metadata.is_dir(), b.1.metadata.is_dir()) {
                             (true, false) => Ordering::Less,
                             (false, true) => Ordering::Greater,
@@ -3310,7 +3326,10 @@ impl Tab {
                     }
                 });
                 let mut sorted = Vec::new();
-                let mut albums: std::collections::BTreeMap<String, std::collections::BTreeMap<u32, (usize, &Item)>> = std::collections::BTreeMap::new();
+                let mut albums: std::collections::BTreeMap<
+                    String,
+                    std::collections::BTreeMap<u32, (usize, &Item)>,
+                > = std::collections::BTreeMap::new();
                 // sort audio content from the same album in order of track id
                 for (i, item) in items {
                     if let Some(audio) = item.audio_opt.as_ref() {
@@ -3318,7 +3337,10 @@ impl Tab {
                         if audio.album.len() > 0 && audio.track_id > 0 {
                             if albums.contains_key(&audio.album) {
                                 let track_id = audio.track_id;
-                                albums.get_mut(&audio.album).unwrap().insert(track_id, (i, item));
+                                albums
+                                    .get_mut(&audio.album)
+                                    .unwrap()
+                                    .insert(track_id, (i, item));
                             } else {
                                 let mut album = std::collections::BTreeMap::new();
                                 let track_id = audio.track_id;
@@ -3340,7 +3362,7 @@ impl Tab {
                 }
                 items = Vec::new();
                 items.extend(sorted);
-            },
+            }
             HeadingOptions::Modified => {
                 items.sort_by(|a, b| {
                     let a_modified = a.1.metadata.modified();
@@ -3652,9 +3674,12 @@ impl Tab {
 
                     let location = match &self.location {
                         Location::Path(_) => Location::Path(ancestor.to_path_buf()),
-                        Location::Search(_, term, _, _) => {
-                            Location::Search(ancestor.to_path_buf(), term.clone(), false, Instant::now())
-                        }
+                        Location::Search(_, term, _, _) => Location::Search(
+                            ancestor.to_path_buf(),
+                            term.clone(),
+                            false,
+                            Instant::now(),
+                        ),
                         other => other.clone(),
                     };
 
@@ -3743,7 +3768,7 @@ impl Tab {
                         .into(),
                 );
             }
-            Location::Tag(t)  => {
+            Location::Tag(t) => {
                 children.push(
                     widget::button::custom(widget::text::heading(t.tag.clone()))
                         .padding(space_xxxs)
@@ -4847,7 +4872,22 @@ mod tests {
         modifiers: Modifiers,
         expected_selected: &[bool],
     ) -> io::Result<()> {
-        let (_fs, mut tab) = tab_click_new(NUM_FILES, NUM_NESTED, NUM_DIRS, NUM_NESTED, NAME_LEN)?;
+        let sql_conmnection: rusqlite::Connection = match crate::sql::connect() {
+            Ok(conn) => conn,
+            Err(error) => {
+                log::error!("Failed to open Database! {}", error);
+                panic!("Ending the program as a database is required!");
+            }
+        };
+        let sql_connection = std::sync::Arc::new(std::sync::Mutex::new(sql_conmnection));
+        let (_fs, mut tab) = tab_click_new(
+            NUM_FILES,
+            NUM_NESTED,
+            NUM_DIRS,
+            NUM_NESTED,
+            NAME_LEN,
+            sql_connection,
+        )?;
 
         // Simulate clicks by triggering Message::Click
         for &click in clicks {
@@ -4920,7 +4960,20 @@ mod tests {
         let entries = read_dir_sorted(path)?;
 
         debug!("Calling scan_path(\"{}\")", path.display());
-        let actual = scan_path(&path.to_owned(), IconSizes::default(), false);
+        let sql_conmnection: rusqlite::Connection = match crate::sql::connect() {
+            Ok(conn) => conn,
+            Err(error) => {
+                log::error!("Failed to open Database! {}", error);
+                panic!("Ending the program as a database is required!");
+            }
+        };
+        let sql_connection = std::sync::Arc::new(std::sync::Mutex::new(sql_conmnection));
+        let actual = scan_path(
+            sql_connection,
+            &path.to_owned(),
+            IconSizes::default(),
+            false,
+        );
 
         // scan_path shouldn't skip any entries
         assert_eq!(entries.len(), actual.len());
@@ -4944,7 +4997,15 @@ mod tests {
         assert!(!invalid_path.exists());
 
         debug!("Calling scan_path(\"{}\")", invalid_path.display());
-        let actual = scan_path(&invalid_path, IconSizes::default(), false);
+        let sql_conmnection: rusqlite::Connection = match crate::sql::connect() {
+            Ok(conn) => conn,
+            Err(error) => {
+                log::error!("Failed to open Database! {}", error);
+                panic!("Ending the program as a database is required!");
+            }
+        };
+        let sql_connection = std::sync::Arc::new(std::sync::Mutex::new(sql_conmnection));
+        let actual = scan_path(sql_connection, &invalid_path, IconSizes::default(), false);
 
         assert!(actual.is_empty());
 
@@ -4957,7 +5018,20 @@ mod tests {
         let path = fs.path();
 
         debug!("Calling scan_path(\"{}\")", path.display());
-        let actual = scan_path(&path.to_owned(), IconSizes::default(), false);
+        let sql_conmnection: rusqlite::Connection = match crate::sql::connect() {
+            Ok(conn) => conn,
+            Err(error) => {
+                log::error!("Failed to open Database! {}", error);
+                panic!("Ending the program as a database is required!");
+            }
+        };
+        let sql_connection = std::sync::Arc::new(std::sync::Mutex::new(sql_conmnection));
+        let actual = scan_path(
+            sql_connection,
+            &path.to_owned(),
+            IconSizes::default(),
+            false,
+        );
 
         assert_eq!(0, path.read_dir()?.count());
         assert!(actual.is_empty());
@@ -5006,7 +5080,22 @@ mod tests {
 
     #[test]
     fn tab_click_double_opens_folder() -> io::Result<()> {
-        let (fs, mut tab) = tab_click_new(NUM_FILES, NUM_NESTED, NUM_DIRS, NUM_NESTED, NAME_LEN)?;
+        let sql_conmnection: rusqlite::Connection = match crate::sql::connect() {
+            Ok(conn) => conn,
+            Err(error) => {
+                log::error!("Failed to open Database! {}", error);
+                panic!("Ending the program as a database is required!");
+            }
+        };
+        let sql_connection = std::sync::Arc::new(std::sync::Mutex::new(sql_conmnection));
+        let (fs, mut tab) = tab_click_new(
+            NUM_FILES,
+            NUM_NESTED,
+            NUM_DIRS,
+            NUM_NESTED,
+            NAME_LEN,
+            sql_connection,
+        )?;
         let path = fs.path();
 
         // Simulate double clicking second directory

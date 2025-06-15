@@ -79,7 +79,7 @@ use wayland_client::{protocol::wl_output::WlOutput, Proxy};
 
 use crate::{
     clipboard::{ClipboardCopy, ClipboardKind, ClipboardPaste},
-    config::{AppTheme, Config, MediaFavorite as Favorite, IconSizes, MediaTabConfig as TabConfig},
+    config::{AppTheme, Config, IconSizes, MediaFavorite as Favorite, MediaTabConfig as TabConfig},
     fl, home_dir,
     key_bind::key_binds,
     localize::LANGUAGE_SORTER,
@@ -609,6 +609,7 @@ pub struct App {
     tab_dnd_hover: Option<(Entity, Instant)>,
     nav_drag_id: DragId,
     tab_drag_id: DragId,
+    sql_connection: std::sync::Arc<std::sync::Mutex<rusqlite::Connection>>,
 }
 
 impl App {
@@ -705,10 +706,15 @@ impl App {
     ) -> Task<Message> {
         log::info!("rescan_tab {entity:?} {location:?} {selection_paths:?}");
         let icon_sizes = self.config.tab.icon_sizes;
+        let sql_connection = self.sql_connection.clone();
         Task::perform(
             async move {
                 let location2 = location.clone();
-                match tokio::task::spawn_blocking(move || location2.scan(icon_sizes)).await {
+                match tokio::task::spawn_blocking(move || {
+                    location2.scan(sql_connection, icon_sizes)
+                })
+                .await
+                {
                     Ok((parent_item_opt, items)) => message::app(Message::TabRescan(
                         entity,
                         location,
@@ -947,7 +953,6 @@ impl App {
                 });
             }
         }
-
 
         self.nav_model = nav_model.build();
 
@@ -1285,19 +1290,21 @@ impl App {
             )
             .into(),
             widget::horizontal_space().into(),
-            widget::tooltip(widget::button::icon(
-                widget::icon::from_name("checkbox-checked-symbolic").size(16))
-                .on_press(Message::SearchPreviousSelect), 
-                widget::text::body(fl!("search-select")), 
-                widget::tooltip::Position::Top,)
-                .into(),
-            widget::tooltip(widget::button::icon(
-                widget::icon::from_name("edit-delete-symbolic").size(16))
-                .on_press(Message::SearchPreviousDelete), 
-                widget::text::body(fl!("search-delete")), 
-                widget::tooltip::Position::Top,)
-                .into(),
-            ]));
+            widget::tooltip(
+                widget::button::icon(widget::icon::from_name("checkbox-checked-symbolic").size(16))
+                    .on_press(Message::SearchPreviousSelect),
+                widget::text::body(fl!("search-select")),
+                widget::tooltip::Position::Top,
+            )
+            .into(),
+            widget::tooltip(
+                widget::button::icon(widget::icon::from_name("edit-delete-symbolic").size(16))
+                    .on_press(Message::SearchPreviousDelete),
+                widget::text::body(fl!("search-delete")),
+                widget::tooltip::Position::Top,
+            )
+            .into(),
+        ]));
 
         column = column.push(widget::text::heading(fl!("search-mediatypes")));
         column = column.push(widget::row::with_children(vec![
@@ -1351,7 +1358,7 @@ impl App {
             widget::checkbox(fl!("search-tag"), self.search.tags)
                 .on_toggle(move |value| Message::SearchTag(value))
                 .into(),
-            ]));
+        ]));
         column = column.push(widget::row::with_children(vec![
             widget::checkbox(fl!("search-description"), self.search.description)
                 .on_toggle(move |value| Message::SearchDescription(value))
@@ -1473,68 +1480,75 @@ impl App {
             }
             None => {
                 metadata_path = dirs::home_dir().unwrap();
-            },
+            }
         }
-        let appearance_section = widget::settings::section()
-            .title(fl!("appearance"))
-            .add(
-                widget::settings::item::builder(fl!("theme")).control(widget::dropdown(
-                    &self.app_themes,
-                    Some(app_theme_selected),
-                    move |index| {
-                        Message::AppTheme(match index {
-                            1 => AppTheme::Dark,
-                            2 => AppTheme::Light,
-                            _ => AppTheme::System,
-                        })
-                    },
-                ))
-            );
+        let appearance_section = widget::settings::section().title(fl!("appearance")).add(
+            widget::settings::item::builder(fl!("theme")).control(widget::dropdown(
+                &self.app_themes,
+                Some(app_theme_selected),
+                move |index| {
+                    Message::AppTheme(match index {
+                        1 => AppTheme::Dark,
+                        2 => AppTheme::Light,
+                        _ => AppTheme::System,
+                    })
+                },
+            )),
+        );
 
-        if let Ok(metadata_item) = crate::parsers::item_from_path(metadata_path, IconSizes::default()) {
+        if let Ok(metadata_item) =
+            crate::parsers::item_from_path(metadata_path, IconSizes::default())
+        {
             match &metadata_item.metadata {
                 ItemMetadata::Path { metadata, children } => {
                     if metadata.is_dir() {
                         if let Some(path) = metadata_item.path_opt() {
-                            let metadata_location = crate::parsers::osstr_to_string(path.clone().into_os_string());
+                            let metadata_location =
+                                crate::parsers::osstr_to_string(path.clone().into_os_string());
                             let metadata_items = children.to_owned();
                             let metadata_size = match &metadata_item.dir_size {
                                 crate::tab::DirSize::Calculating(_) => fl!("calculating"),
-                                crate::tab::DirSize::Directory(size) => crate::tab::format_size(*size),
+                                crate::tab::DirSize::Directory(size) => {
+                                    crate::tab::format_size(*size)
+                                }
                                 crate::tab::DirSize::NotDirectory => String::new(),
                                 crate::tab::DirSize::Error(err) => err.clone(),
                             };
                             let metadata_section = widget::settings::section()
                                 .title(fl!("metadata"))
-                                .add(widget::text::body(fl!("metadata-details", items = metadata_items, size = metadata_size, location = metadata_location)))
-                                .add(widget::settings::item::builder(fl!("metadata-delete"))
-                                    .control(widget::button::custom(widget::icon::from_name("user-trash-symbolic").size(16))
-                                        .on_press(Message::MetadataDelete))
-                                    );
+                                .add(widget::text::body(fl!(
+                                    "metadata-details",
+                                    items = metadata_items,
+                                    size = metadata_size,
+                                    location = metadata_location
+                                )))
+                                .add(
+                                    widget::settings::item::builder(fl!("metadata-delete"))
+                                        .control(
+                                            widget::button::custom(
+                                                widget::icon::from_name("user-trash-symbolic")
+                                                    .size(16),
+                                            )
+                                            .on_press(Message::MetadataDelete),
+                                        ),
+                                );
                             widget::column::with_children(vec![
                                 appearance_section.into(),
                                 metadata_section.into(),
-                            ]).into()
+                            ])
+                            .into()
                         } else {
-                            widget::column::with_children(vec![
-                                appearance_section.into(),
-                            ]).into()
+                            widget::column::with_children(vec![appearance_section.into()]).into()
                         }
                     } else {
-                        widget::column::with_children(vec![
-                            appearance_section.into(),
-                        ]).into()
+                        widget::column::with_children(vec![appearance_section.into()]).into()
                     }
-                },
-                _ => widget::column::with_children(vec![
-                    appearance_section.into(),
-                ]).into(),
+                }
+                _ => widget::column::with_children(vec![appearance_section.into()]).into(),
             }
-         } else {
-            widget::column::with_children(vec![
-                appearance_section.into(),
-            ]).into()
-        } 
+        } else {
+            widget::column::with_children(vec![appearance_section.into()]).into()
+        }
     }
 
     fn view_image_view(&self) -> Element<<App as cosmic::Application>::Message> {
@@ -1551,7 +1565,7 @@ impl App {
         }
         let image_viewer = Container::new(
             cosmic::iced::widget::image::Viewer::new(crate::image::image::create_handle(
-self.image_view.image_path.clone(),
+                self.image_view.image_path.clone(),
             ))
             .width(self.image_view.width)
             .height(self.image_view.height)
@@ -1855,10 +1869,11 @@ self.image_view.image_path.clone(),
                         items_right.push(widget::text::heading(fl!("chapters")).into());
                         items_right.push(
                             widget::dropdown(
-                                &self.video_view.chapters_str, 
-                                Some(self.video_view.current_chapter), 
-                                Message::Chapter)
-                                .into(),
+                                &self.video_view.chapters_str,
+                                Some(self.video_view.current_chapter),
+                                Message::Chapter,
+                            )
+                            .into(),
                         );
                     }
                 }
@@ -2244,10 +2259,11 @@ self.image_view.image_path.clone(),
                         items_right.push(widget::text::heading(fl!("chapters")).into());
                         items_right.push(
                             widget::dropdown(
-                                &self.audio_view.chapters_str, 
-                                Some(self.audio_view.current_chapter), 
-                                Message::Chapter)
-                                .into(),
+                                &self.audio_view.chapters_str,
+                                Some(self.audio_view.current_chapter),
+                                Message::Chapter,
+                            )
+                            .into(),
                         );
                     }
                 }
@@ -2597,9 +2613,13 @@ self.image_view.image_path.clone(),
                                                 self.video_view.chapters_str.extend(s);
                                             }
                                             self.video_view.audio_codes.clear();
-                                            self.video_view.audio_codes.extend(video.audiolangs.clone());
+                                            self.video_view
+                                                .audio_codes
+                                                .extend(video.audiolangs.clone());
                                             self.video_view.text_codes.clear();
-                                            self.video_view.text_codes.extend(video.sublangs.clone());            
+                                            self.video_view
+                                                .text_codes
+                                                .extend(video.sublangs.clone());
                                         }
                                     }
                                 }
@@ -2727,6 +2747,14 @@ impl Application for App {
 
         let window_id_opt = core.main_window_id();
 
+        let sql_conmnection: rusqlite::Connection = match crate::sql::connect() {
+            Ok(conn) => conn,
+            Err(error) => {
+                log::error!("Failed to open Database! {}", error);
+                panic!("Ending the program as a database is required!");
+            }
+        };
+
         let mut app = App {
             image_view: crate::image::image_view::ImageView::new(),
             video_view: crate::video::video_view::VideoView::new(),
@@ -2780,6 +2808,7 @@ impl Application for App {
             tab_dnd_hover: None,
             nav_drag_id: DragId::new(),
             tab_drag_id: DragId::new(),
+            sql_connection: std::sync::Arc::new(std::sync::Mutex::new(sql_conmnection)),
         };
         app.tab_model_id = app.tab_model.active();
         let mut commands = vec![app.update_config()];
@@ -2846,12 +2875,11 @@ impl Application for App {
         let location_opt = self.nav_model.data::<Location>(entity);
 
         let mut items = Vec::new();
-        
+
         if let Some(location) = location_opt {
             match location {
                 Location::Path(path) => {
-                    if path.is_file()
-                    {
+                    if path.is_file() {
                         items.push(cosmic::widget::menu::Item::Button(
                             fl!("open"),
                             None,
@@ -2876,7 +2904,7 @@ impl Application for App {
                             NavMenuAction::RemoveFromSidebar(entity),
                         ));
                     }
-                },
+                }
                 Location::Tag(_t) => {
                     items.push(cosmic::widget::menu::Item::Button(
                         fl!("open-in-new-tab"),
@@ -2890,9 +2918,9 @@ impl Application for App {
                             None,
                             NavMenuAction::RemoveTagFromSidebar(entity),
                         ));
-                    }            
-                },
-                _ => {},
+                    }
+                }
+                _ => {}
             }
         }
         items.push(cosmic::widget::menu::Item::Divider);
@@ -3038,9 +3066,7 @@ impl Application for App {
 
         match message {
             Message::Open(_entity_opt, filepath) => {
-                if filepath.len() > 0 {
-
-                }
+                if filepath.len() > 0 {}
                 if let Some(tab) = self.tab_model.data_mut::<Tab>(self.tab_model_id) {
                     let v = tab.selected_file_paths();
                     for path in v {
@@ -3141,20 +3167,21 @@ impl Application for App {
             }
             Message::AddTagToContents(to, contents) => {
                 for p in contents.paths {
-                    let mut connection;
-                    match crate::sql::connect() {
-                        Ok(ok) => connection = ok,
-                        Err(error) => {
-                            log::error!("Could not open SQLite DB connection: {}", error);
-                            return Task::none();
-                        }
-                    }
-                    let file = crate::sql::file(&mut connection, &crate::parsers::osstr_to_string(p.clone().into_os_string()));
-                    crate::sql::insert_media_tag(&mut connection, file.metadata_id as u32, to.tag_id);
+                    let file = crate::sql::file(
+                        self.sql_connection.clone(),
+                        &crate::parsers::osstr_to_string(p.clone().into_os_string()),
+                    );
+                    crate::sql::insert_media_tag(
+                        self.sql_connection.clone(),
+                        file.metadata_id as u32,
+                        to.tag_id,
+                    );
                 }
             }
             Message::AddTagToSidebar(_entity_opt) => {
-                self.dialog_pages.push_back(DialogPage::NewTag {tag: "unnamed".to_string()});
+                self.dialog_pages.push_back(DialogPage::NewTag {
+                    tag: "unnamed".to_string(),
+                });
                 return widget::text_input::focus(self.dialog_text_input.clone());
             }
             Message::AppTheme(app_theme) => {
@@ -3167,7 +3194,7 @@ impl Application for App {
                         crate::video::video_view::Message::AudioToggle,
                     ));
                 } else if self.active_view == Mode::Audio {
-                   let _ = self.update(Message::AudioMessage(
+                    let _ = self.update(Message::AudioMessage(
                         crate::audio::audio_view::Message::AudioToggle,
                     ));
                 } else {
@@ -3408,8 +3435,9 @@ impl Application for App {
                                 if item.selected {
                                     if let Some(Location::Path(path)) = &item.location_opt {
                                         let pathbuf = path.to_path_buf();
+                                        let sql_connection = self.sql_connection.clone();
                                         let _joinhandle = std::thread::spawn(move || {
-                                            crate::tab::scan_path_recursive(pathbuf)
+                                            crate::tab::scan_path_recursive(sql_connection, pathbuf)
                                         });
                                     }
                                 }
@@ -3724,16 +3752,10 @@ impl Application for App {
                                 Operation::NewFolder { path }
                             });
                         }
-                        DialogPage::NewTag {tag} => {
-                            let mut connection;
-                            match crate::sql::connect() {
-                                Ok(ok) => connection = ok,
-                                Err(error) => {
-                                    log::error!("Could not open SQLite DB connection: {}", error);
-                                    return Task::none();
-                                }
-                            }
-                            let tag_id = crate::sql::insert_tag(&mut connection, 0, tag.clone()) as u32;
+                        DialogPage::NewTag { tag } => {
+                            let tag_id =
+                                crate::sql::insert_tag(self.sql_connection.clone(), 0, tag.clone())
+                                    as u32;
                             let t = crate::sql::Tag {
                                 tag_id,
                                 tag: tag.clone(),
@@ -3817,7 +3839,9 @@ impl Application for App {
                 crate::image::image_view::Message::ToAudio => {}
                 crate::image::image_view::Message::Open(imagepath) => {
                     self.image_view.image_path = imagepath;
-                    self.image_view.handle_opt = Some(crate::image::image::Handle::from_path(self.image_view.image_path.clone()));
+                    self.image_view.handle_opt = Some(crate::image::image::Handle::from_path(
+                        self.image_view.image_path.clone(),
+                    ));
                     self.image_view.image_path_loaded = self.image_view.image_path.clone();
                     self.active_view = Mode::Image;
                     self.view();
@@ -3882,14 +3906,17 @@ impl Application for App {
                         if !metadata_path.exists() {
                             let ret = std::fs::create_dir_all(metadata_path.clone());
                             if ret.is_err() {
-                                log::warn!("Failed to create directory {}", metadata_path.display());
+                                log::warn!(
+                                    "Failed to create directory {}",
+                                    metadata_path.display()
+                                );
                                 metadata_path = dirs::home_dir().unwrap();
                             }
                         }
                     }
                     None => {
                         metadata_path = dirs::home_dir().unwrap();
-                    },
+                    }
                 }
                 let paths = vec![metadata_path];
                 if !paths.is_empty() {
@@ -3908,55 +3935,56 @@ impl Application for App {
                     ..Default::default()
                 };
                 self.search_previous.clear();
-                self.search_previous.extend(crate::sql::previous_searches());
+                self.search_previous
+                    .extend(crate::sql::searches(self.sql_connection.clone()));
                 match search_type {
                     ST::Director => {
                         self.search.director = true;
                         self.search.video = true;
                         self.search.from_string = search_term;
-                    },
+                    }
                     ST::Actor => {
                         self.search.actor = true;
                         self.search.video = true;
                         self.search.from_string = search_term;
-                    },
+                    }
                     ST::Artist => {
                         self.search.artist = true;
                         self.search.audio = true;
                         self.search.from_string = search_term;
-                    },
+                    }
                     ST::AlbumArtist => {
                         self.search.album_artist = true;
                         self.search.audio = true;
                         self.search.from_string = search_term;
-                    },
+                    }
                     ST::Album => {
                         self.search.album = true;
                         self.search.audio = true;
                         self.search.from_string = search_term;
-                    },
+                    }
                     ST::Composer => {
                         self.search.composer = true;
                         self.search.audio = true;
                         self.search.from_string = search_term;
-                    },
+                    }
                     ST::Genre => {
                         self.search.genre = true;
                         self.search.audio = true;
                         self.search.from_string = search_term;
-                    },
+                    }
                     ST::Tag => {
                         self.search.tags = true;
                         self.search.audio = true;
                         self.search.video = true;
                         self.search.image = true;
                         self.search.from_string = search_term;
-                    },
+                    }
 
                     _ => return Task::none(),
                 }
                 return self.update(Message::SearchCommit);
-            },
+            }
             Message::Modifiers(modifiers) => {
                 self.modifiers = modifiers;
             }
@@ -4051,7 +4079,6 @@ impl Application for App {
                     cosmic::iced_core::mouse::ScrollDelta::Pixels { y, .. } => y,
                 };
                 if self.active_view == Mode::Video {
-        
                     let seconds = self.video_view.position + delta_y as f64 * 10.0;
                     let _ = self.update(Message::VideoMessage(
                         crate::video::video_view::Message::Seek(seconds),
@@ -4246,7 +4273,7 @@ impl Application for App {
                             None
                         }
                     },
-                ))
+                ));
             }
             Message::Paste(entity_opt) => {
                 let entity = entity_opt.unwrap_or_else(|| self.tab_model.active());
@@ -4578,7 +4605,8 @@ impl Application for App {
                     ..Default::default()
                 };
                 self.search_previous.clear();
-                self.search_previous.extend(crate::sql::previous_searches());
+                self.search_previous
+                    .extend(crate::sql::searches(self.sql_connection.clone()));
                 for s in self.search_previous.iter() {
                     self.search_previous_str.push(s.display());
                 }
@@ -4596,9 +4624,7 @@ impl Application for App {
                 let search = self.search_previous[self.search_previous_pos].clone();
                 self.search_previous_str.remove(self.search_previous_pos);
                 self.search_previous.remove(self.search_previous_pos);
-                if let Ok(mut connection) = crate::sql::connect() {
-                    crate::sql::delete_search(&mut connection, search);
-                }
+                crate::sql::delete_search(self.sql_connection.clone(), search);
             }
             Message::SearchImages(is_checked) => {
                 self.search.search_id = 0;
@@ -4813,12 +4839,13 @@ impl Application for App {
                     }
                 }
                 if s.search_id == 0 {
-                    s.store();
+                    s.store(self.sql_connection.clone());
                     self.search_previous.push(s.clone());
                 }
                 self.search = s.clone();
                 let location = Location::DBSearch(s);
-                let (parent_item_opt, items) = location.scan(IconSizes::default());
+                let (parent_item_opt, items) =
+                    location.scan(self.sql_connection.clone(), IconSizes::default());
                 let (entity, command) = self.open_tab_entity(location, true, None);
                 if let Some(tab) = self.tab_model.data_mut::<Tab>(entity) {
                     tab.parent_item_opt = parent_item_opt;
@@ -5044,7 +5071,6 @@ impl Application for App {
                                 Some(command) => command,
                                 _ => Task::none(),
                             };
-    
                         }
                         tab::Command::OpenInExternalApp(path) => {
                             let mut found_desktop_exec = false;
@@ -5187,10 +5213,13 @@ impl Application for App {
 
                 let mut paths = Vec::with_capacity(recently_trashed.len());
                 let icon_sizes = self.config.tab.icon_sizes;
+                let sql_connection = self.sql_connection.clone();
 
                 return cosmic::task::future(async move {
-                    match tokio::task::spawn_blocking(move || Location::Trash.scan(icon_sizes))
-                        .await
+                    match tokio::task::spawn_blocking(move || {
+                        Location::Trash.scan(sql_connection, icon_sizes)
+                    })
+                    .await
                     {
                         Ok((_parent_item_opt, items)) => {
                             for path in &*recently_trashed {
@@ -5438,15 +5467,13 @@ impl Application for App {
                                 paths: data.paths,
                             },
                         )),
-                        Location::Tag(t) => {
-                            self.update(Message::AddTagToContents(
-                                t.clone(),
-                                ClipboardPaste {
-                                    kind: ClipboardKind::Copy,
-                                    paths: data.paths,
-                                },
-                            ))
-                        },
+                        Location::Tag(t) => self.update(Message::AddTagToContents(
+                            t.clone(),
+                            ClipboardPaste {
+                                kind: ClipboardKind::Copy,
+                                paths: data.paths,
+                            },
+                        )),
                         Location::Trash if matches!(action, DndAction::Move) => {
                             self.operation(Operation::Delete { paths: data.paths });
                             Task::none()
@@ -5554,28 +5581,33 @@ impl Application for App {
             Message::NavMenuAction(action) => match action {
                 NavMenuAction::Open(entity) => {
                     if let Some(location) = self.nav_model.data::<Location>(entity) {
-                        match location 
-                        {
+                        match location {
                             Location::Path(path) => {
                                 let _ = self.update(Message::Open(
                                     Some(entity),
                                     crate::parsers::osstr_to_string(path.clone().into_os_string()),
                                 ));
-                            },
-                            Location::Tag(t) => {
-                                let _ = self.update(Message::LaunchSearch(crate::sql::SearchType::Tag, t.tag.clone()));
                             }
-                            _ => {},
-                        }                            
+                            Location::Tag(t) => {
+                                let _ = self.update(Message::LaunchSearch(
+                                    crate::sql::SearchType::Tag,
+                                    t.tag.clone(),
+                                ));
+                            }
+                            _ => {}
+                        }
                     }
                 }
                 NavMenuAction::OpenTag(entity) => {
                     if let Some(location) = self.nav_model.data::<Location>(entity) {
                         match location {
                             Location::Tag(t) => {
-                                let _ = self.update(Message::LaunchSearch(crate::sql::SearchType::Tag, t.tag.clone()));
-                            },
-                            _ => {},
+                                let _ = self.update(Message::LaunchSearch(
+                                    crate::sql::SearchType::Tag,
+                                    t.tag.clone(),
+                                ));
+                            }
+                            _ => {}
                         }
                     }
                 }
@@ -5590,19 +5622,13 @@ impl Application for App {
                     }
                 }
                 NavMenuAction::RemoveTagFromSidebar(entity) => {
-                    if let Some(FavoriteIndex(tag_i)) =
-                        self.nav_model.data::<FavoriteIndex>(entity)
+                    if let Some(FavoriteIndex(tag_i)) = self.nav_model.data::<FavoriteIndex>(entity)
                     {
                         let mut tags = self.config.tags.clone();
-                        let mut connection;
-                        match crate::sql::connect() {
-                            Ok(ok) => connection = ok,
-                            Err(error) => {
-                                log::error!("Could not open SQLite DB connection: {}", error);
-                                return Task::none();
-                            }
-                        }
-                        crate::sql::delete_tag(&mut connection, tags[*tag_i].tag.clone());
+                        crate::sql::delete_tag(
+                            self.sql_connection.clone(),
+                            tags[*tag_i].tag.clone(),
+                        );
                         tags.remove(*tag_i);
                         config_set!(tags, tags);
                         return self.update_config();
@@ -6044,7 +6070,7 @@ impl Application for App {
                         .spacing(space_xxs),
                     )
             }
-            DialogPage::NewTag { tag} => {
+            DialogPage::NewTag { tag } => {
                 let mut dialog = widget::dialog().title(fl!("create-new-tag"));
 
                 let complete_maybe = if tag.is_empty() {
@@ -6072,8 +6098,7 @@ impl Application for App {
                     )
                     .control(
                         widget::column::with_children(vec![
-                            widget::text::body(fl!("tag-name"))
-                            .into(),
+                            widget::text::body(fl!("tag-name")).into(),
                             widget::text_input("", tag.as_str())
                                 .id(self.dialog_text_input.clone())
                                 .on_input(move |tag| {
@@ -6886,7 +6911,7 @@ impl Application for App {
                 },
             ),
         );
-        
+
         Subscription::batch(subscriptions)
     }
 }
@@ -7066,13 +7091,14 @@ pub(crate) mod test_utils {
         dirs: usize,
         nested: usize,
         name_len: usize,
+        sql_connection: std::sync::Arc<std::sync::Mutex<rusqlite::Connection>>,
     ) -> io::Result<(TempDir, Tab)> {
         let fs = simple_fs(files, hidden, dirs, nested, name_len)?;
         let path = fs.path();
 
         // New tab with items
         let location = Location::Path(path.to_owned());
-        let (parent_item_opt, items) = location.scan(IconSizes::default());
+        let (parent_item_opt, items) = location.scan(sql_connection.clone(), IconSizes::default());
         let mut tab = Tab::new(location, TabConfig::default());
         tab.parent_item_opt = parent_item_opt;
         tab.set_items(items);

@@ -513,7 +513,16 @@ impl App {
         Task::perform(
             async move {
                 let location2 = location.clone();
-                match tokio::task::spawn_blocking(move || location2.scan(icon_sizes)).await {
+                let sql_conmnection: rusqlite::Connection = match crate::sql::connect() {
+                    Ok(conn) => conn,
+                    Err(error) => {
+                        log::error!("Failed to open Database! {}", error);
+                        panic!("Ending the program as a database is required!");
+                    },
+                };
+                let sql_connection = std::sync::Arc::new(std::sync::Mutex::new(sql_conmnection));
+
+                match tokio::task::spawn_blocking(move || location2.scan(sql_connection, icon_sizes)).await {
                     Ok((parent_item_opt, items)) => {
                         message::app(Message::TabRescan(location, parent_item_opt, items))
                     }
