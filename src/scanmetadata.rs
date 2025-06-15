@@ -86,7 +86,11 @@ impl ScanMetaData {
     pub fn items_clone(&self) -> Vec<Item> {
         match self.items.lock() {
             Ok(bm) => {
-                return bm.clone();
+                let mut v = Vec::new();
+                for p in bm.iter() {
+                    v.push(p.to_owned());
+                }
+                return v;
             },
             Err(error) => {
                 log::error!("could not lock known_files for clone! {}", error);
@@ -105,7 +109,11 @@ impl ScanMetaData {
     pub fn justdirs_clone(&self) -> Vec<PathBuf> {
         match self.justdirs.lock() {
             Ok(bm) => {
-                return bm.clone();
+                let mut v = Vec::new();
+                for p in bm.iter() {
+                    v.push(p.to_path_buf());
+                }
+                return v;
             },
             Err(error) => {
                 log::error!("could not lock known_files for clone! {}", error);
