@@ -47,6 +47,8 @@ Positions ended with a ? are *stretch goals*. If it is possible AND somebody doe
 - scroll-wheel sometimes starts seeking at the position it last operated, not the current playback position
 - Search Results have no context menu
 - Search results do not change sort order
+- Check that updates to the database actually work
+- deactivate creation time and access time for files
 
 #### Open Bugs
 
@@ -55,7 +57,6 @@ Positions ended with a ? are *stretch goals*. If it is possible AND somebody doe
 - for single Movie directories thumbnails are generated for unused metadata images instead of just the poster
 - Automatically close Popup GUI after 5 Seconds of no activity?
 - key bindings only work in browser mode
-- Check that updates to the database actually work
 
 ### Features
 

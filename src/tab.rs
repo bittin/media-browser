@@ -1359,27 +1359,28 @@ impl Item {
 
         details = details.push(widget::text::heading(name.to_string()));
         details = details.push(widget::text::body(fl!("type", mime = mime.to_string())));
+        /*
         if let Ok(time) = metadata.created() {
             details = details.push(widget::text::body(fl!(
                 "item-created",
                 created = format_time(time).to_string()
             )));
         }
-
+        */
         if let Ok(time) = metadata.modified() {
             details = details.push(widget::text::body(fl!(
                 "item-modified",
                 modified = format_time(time).to_string()
             )));
         }
-
+        /*
         if let Ok(time) = metadata.accessed() {
             details = details.push(widget::text::body(fl!(
                 "item-accessed",
                 accessed = format_time(time).to_string()
             )));
         }
-
+        */
         if !metadata.is_dir() {
             details = details.push(widget::text::body(fl!(
                 "item-size",
