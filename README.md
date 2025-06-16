@@ -14,7 +14,7 @@ Directory navigation displays media in the local directory. Detail information i
 
 If you select a directory containing your media collection you can right-click *Scan All Subdirectories for media* or use *File->Scan All Subdirectories for*.
 
-**WARNING** While this is running the database is permanently written to. It is possible to use previously scanned data read-only (Search results). But while this is running you should not open directories that are not scanned yet, or create new tags or assign media files to existing ones.
+**CAUTION** While this is running the database is permanently written to. It is possible to use previously scanned data read-only (Search results). But any access will slow down the background process. And opening a directory that is not in the database will open much slower than usual.
 
 Depending on how many directories there are to scan and the number of media this can take a long time. You can monitor the progress as it is logged to the system. When the process is done, it will say so in the log.
 
