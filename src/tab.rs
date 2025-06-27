@@ -1462,6 +1462,7 @@ impl Item {
 
                         (details, settings) =
                             self.file_details(&path, &self.name, &mime_for_path(path.clone()));
+
                         if video.date.to_string() != "1970-01-01".to_string() {
                             details = details.push(widget::text::body(fl!(
                                 "item-media-release-date",
@@ -1477,6 +1478,7 @@ impl Item {
                             "item-media-runtime",
                             text = seconds_to_runtime(video.duration)
                         )));
+                        details = details.push(widget::text::body(video.description.clone()));
                         for l in video.tags.iter() {
                             details = details.push(
                                 widget::button::link(fl!("item-media-tag", text = l.tag.clone()))
