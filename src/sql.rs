@@ -152,7 +152,10 @@ impl SearchData {
         s
     }
 
-    pub fn store(&mut self, sql_connection: std::sync::Arc<std::sync::Mutex<rusqlite::Connection>>) {
+    pub fn store(
+        &mut self,
+        sql_connection: std::sync::Arc<std::sync::Mutex<rusqlite::Connection>>,
+    ) {
         let id = insert_search(sql_connection.clone(), self.clone());
         self.search_id = id;
     }
@@ -1262,6 +1265,182 @@ pub fn fill_chapters(
 }
 
 #[derive(Clone, Debug, PartialEq, PartialOrd)]
+pub struct CollectionMetadata {
+    pub id: u32,
+    pub name: String,
+    pub path: String,
+    pub poster: String,
+    pub thumb: String,
+    pub description: String,
+    pub tags: Vec<Tag>,
+    pub episode_ids: Vec<u32>,
+}
+
+impl Default for CollectionMetadata {
+    fn default() -> CollectionMetadata {
+        CollectionMetadata {
+            id: 0,
+            name: String::new(),
+            path: String::new(),
+            poster: String::new(),
+            thumb: String::new(),
+            description: String::new(),
+            tags: Vec::new(),
+            episode_ids: Vec::new(),
+        }
+    }
+}
+
+pub fn insert_collection(
+    sql_connection: std::sync::Arc<std::sync::Mutex<rusqlite::Connection>>,
+    metadata: &mut crate::sql::CollectionMetadata,
+    statdata: &std::fs::Metadata,
+    data: &crate::scanmetadata::ScanMetaData,
+) {
+    let file_id = insert_file(sql_connection.clone(), &metadata.path, statdata, 2, data);
+    let connection = match sql_connection.lock() {
+        Ok(conn) => conn,
+        Err(error) => {
+            log::error!("Failed to lock sql connection for use! {}", error);
+            return;
+        }
+    };
+    metadata.id = file_id;
+    match connection.execute(
+        "INSERT INTO collections (file_id, name, poster, description) VALUES (?1, ?2, ?3, ?4)",
+        params![
+            &metadata.id,
+            &metadata.name,
+            &metadata.poster,
+            &metadata.description
+        ],
+    ) {
+        Ok(_retval) => {} //log::warn!("Inserted {} video with ID {} and location {} into candidates.", video.id, video.index, candidate_id),
+        Err(error) => {
+            log::error!("Failed to insert tvshow into collections database: {}", error);
+            drop(connection);
+            delete_collection(sql_connection.clone(), metadata, data);
+            insert_collection(sql_connection.clone(), metadata, statdata, data);
+            return;
+        }
+    }
+    let mut collection_id = 0;
+    let query = "SELECT last_insert_rowid()";
+    match connection.prepare(query) {
+        Ok(mut statement) => match statement.query(params![]) {
+            Ok(mut rows) => {
+                while let Ok(Some(row)) = rows.next() {
+                    let s_opt = row.get(0);
+                    if s_opt.is_ok() {
+                        collection_id = s_opt.unwrap();
+                    }
+                }
+            }
+            Err(err) => {
+                log::error!("could not read line from video_metadata database: {}", err);
+            }
+        },
+        Err(error) => {
+            log::error!("Failed to get collection_id for from database: {}", error);
+            return;
+        }
+    }
+    for i in 0..metadata.episode_ids.len() {
+        match connection.execute(
+            "INSERT INTO collections_map (collection_id, episode_id) VALUES (?1)",
+            params![&collection_id, &metadata.episode_ids[i]],
+        ) {
+            Ok(_retval) => {} //log::warn!("Inserted {} video with ID {} and location {} into candidates.", video.id, video.index, candidate_id),
+            Err(error) => {
+                log::error!(
+                    "Failed to insert episode_id  into  collections_map: {}",
+                    error
+                );
+            }
+        }
+    }
+}
+
+pub fn delete_collection(
+    sql_connection: std::sync::Arc<std::sync::Mutex<rusqlite::Connection>>,
+    metadata: &mut crate::sql::CollectionMetadata,
+    data: &crate::scanmetadata::ScanMetaData,
+) {
+    // Get the index.
+    //let index = self.ids[id];
+    let connection = match sql_connection.lock() {
+        Ok(conn) => conn,
+        Err(error) => {
+            log::error!("Failed to lock sql connection for use! {}", error);
+            return;
+        }
+    };
+    let mut collection_id: u32 = 0;
+    let query = "SELECT metadata_id FROM file_metadata WHERE filepath = ?1";
+    match connection.prepare(query) {
+        Ok(mut statement) => match statement.query(params![&metadata.path]) {
+            Ok(mut rows) => {
+                while let Ok(Some(row)) = rows.next() {
+                    let s_opt = row.get(1);
+                    if s_opt.is_ok() {
+                        collection_id = s_opt.unwrap();
+                    }
+                }
+            }
+            Err(err) => {
+                log::error!("could not read line from file_metadata database: {}", err);
+            }
+        },
+        Err(error) => {
+            log::error!(
+                "Failed to get file_id for {} from database: {}",
+                metadata.path,
+                error
+            );
+            return;
+        }
+    }
+    // clear the entry in the candidates list without deleting it
+    let ret = connection.execute(
+        "DELETE FROM collections WHERE file_id = ?1",
+        params![&collection_id],
+    );
+    if ret.is_err() {
+        log::error!("Failed to delete candidate {}!", collection_id);
+        return;
+    }
+    let ret = connection.execute(
+        "DELETE FROM collections_map WHERE collection_id = ?1",
+        params![&collection_id],
+    );
+    if ret.is_err() {
+        log::error!("Failed to delete candidate {}!", collection_id);
+        return;
+    }
+    // clear the entry in the candidates list without deleting it
+    let ret = connection.execute(
+        "DELETE FROM file_metadata WHERE filepath = ?1",
+        params![&metadata.path],
+    );
+    if ret.is_err() {
+        log::error!("Failed to delete candidate {}!", metadata.path);
+        return;
+    }
+    data.known_files_remove(PathBuf::from(&metadata.path));
+}
+
+pub fn update_collection(
+    sql_connection: std::sync::Arc<std::sync::Mutex<rusqlite::Connection>>,
+    metadata: &mut crate::sql::CollectionMetadata,
+    statdata: &std::fs::Metadata,
+    data: &crate::scanmetadata::ScanMetaData,
+) {
+    delete_collection(sql_connection.clone(), metadata, data);
+    insert_collection(sql_connection.clone(), metadata, statdata, data);
+}
+
+
+#[derive(Clone, Debug, PartialEq, PartialOrd)]
 pub struct VideoMetadata {
     pub id: u32,
     pub name: String,
@@ -1560,7 +1739,11 @@ pub fn insert_video(
     }
     drop(connection);
     for i in 0..metadata.tags.len() {
-        let tag_id = insert_tag(sql_connection.clone(), metadata.id, metadata.tags[i].tag.clone());
+        let tag_id = insert_tag(
+            sql_connection.clone(),
+            metadata.id,
+            metadata.tags[i].tag.clone(),
+        );
         if tag_id == -1 {
             continue;
         }
@@ -1630,7 +1813,10 @@ pub fn tags(sql_connection: std::sync::Arc<std::sync::Mutex<rusqlite::Connection
     tags
 }
 
-pub fn delete_tag(sql_connection: std::sync::Arc<std::sync::Mutex<rusqlite::Connection>>, tag: String) {
+pub fn delete_tag(
+    sql_connection: std::sync::Arc<std::sync::Mutex<rusqlite::Connection>>,
+    tag: String,
+) {
     let mut tag_id = -1;
     let connection = match sql_connection.lock() {
         Ok(conn) => conn,
@@ -2964,7 +3150,11 @@ pub fn insert_audio(
     }
     // insert user defined tags into table
     for i in 0..metadata.tags.len() {
-        let tag_id = insert_tag(sql_connection.clone(), metadata.id, metadata.tags[i].tag.clone());
+        let tag_id = insert_tag(
+            sql_connection.clone(),
+            metadata.id,
+            metadata.tags[i].tag.clone(),
+        );
         if tag_id == -1 {
             continue;
         }
@@ -3909,7 +4099,11 @@ pub fn insert_image(
     }
     drop(connection);
     for i in 0..metadata.tags.len() {
-        let tag_id = insert_tag(sql_connection.clone(), metadata.id, metadata.tags[i].tag.clone());
+        let tag_id = insert_tag(
+            sql_connection.clone(),
+            metadata.id,
+            metadata.tags[i].tag.clone(),
+        );
         if tag_id == -1 {
             continue;
         }
@@ -4993,7 +5187,10 @@ pub fn insert_search(
     search_id
 }
 
-pub fn delete_search(sql_connection: std::sync::Arc<std::sync::Mutex<rusqlite::Connection>>, s: SearchData) {
+pub fn delete_search(
+    sql_connection: std::sync::Arc<std::sync::Mutex<rusqlite::Connection>>,
+    s: SearchData,
+) {
     let connection = match sql_connection.lock() {
         Ok(conn) => conn,
         Err(error) => {
@@ -5007,12 +5204,17 @@ pub fn delete_search(sql_connection: std::sync::Arc<std::sync::Mutex<rusqlite::C
     );
 }
 
-pub fn update_search(sql_connection: std::sync::Arc<std::sync::Mutex<rusqlite::Connection>>, s: SearchData) {
+pub fn update_search(
+    sql_connection: std::sync::Arc<std::sync::Mutex<rusqlite::Connection>>,
+    s: SearchData,
+) {
     delete_search(sql_connection.clone(), s.clone());
     insert_search(sql_connection.clone(), s);
 }
 
-pub fn searches(sql_connection: std::sync::Arc<std::sync::Mutex<rusqlite::Connection>>) -> Vec<SearchData> {
+pub fn searches(
+    sql_connection: std::sync::Arc<std::sync::Mutex<rusqlite::Connection>>,
+) -> Vec<SearchData> {
     let mut searches = Vec::new();
     let connection = match sql_connection.lock() {
         Ok(conn) => conn,
@@ -5628,7 +5830,71 @@ pub fn connect() -> Result<rusqlite::Connection, rusqlite::Error> {
                 return Err(error);
             }
         }
+        match connection.execute(
+            "
+        CREATE TABLE collections (
+            collection_id INTEGER,
+            file_id INTEGER,
+            collection_name TEXT,
+            poster TEXT,
+            description TEXT,
+            PRIMARY KEY(collection_id AUTOINCREMENT)
+        )",
+            [],
+        ) {
+            Ok(_ret) => {}
+            Err(error) => {
+                log::error!("Failed to create table collections: {}", error);
+                return Err(error);
+            }
+        }
+        match connection.execute(
+            "CREATE INDEX collection_file_id ON collection (file_id)",
+            (),
+        ) {
+            Ok(_ret) => {}
+            Err(error) => {
+                log::error!("Failed to create index on collections_file_id: {}", error);
+                return Err(error);
+            }
+        }
+        match connection.execute(
+            "CREATE INDEX collection_collection_name ON collection (collection_name)",
+            (),
+        ) {
+            Ok(_ret) => {}
+            Err(error) => {
+                log::error!("Failed to create index on collection_name: {}", error);
+                return Err(error);
+            }
+        }
 
+        match connection.execute(
+            "
+            CREATE TABLE collections_map (
+                entry_id INTEGER,
+                collection_id INTEGER, 
+                episode_id INTEGER, 
+                PRIMARY KEY(entry_id AUTOINCREMENT)
+            )",
+            [],
+        ) {
+            Ok(_ret) => {}
+            Err(error) => {
+                log::error!("Failed to create table collections_map: {}", error);
+                return Err(error);
+            }
+        }
+        match connection.execute(
+            "CREATE INDEX collection_map_collection_name ON collection_map (collection_name)",
+            (),
+        ) {
+            Ok(_ret) => {}
+            Err(error) => {
+                log::error!("Failed to create index on collection_name: {}", error);
+                return Err(error);
+            }
+        }
         match connection.execute(
             "
             CREATE TABLE audio_metadata (
