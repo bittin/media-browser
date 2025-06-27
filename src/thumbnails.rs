@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-only
-// 
+//
 // Modifications:
 // Copyright 2024 Alexander Schwarzkopf
 
@@ -14,7 +14,7 @@ pub fn calculate_hash<T: Hash>(t: &T) -> u64 {
 }
 
 pub fn thumbnail_path(path: &std::path::PathBuf) -> std::path::PathBuf {
-    let thumbpath; 
+    let thumbpath;
     let hashvalue: u64 = calculate_hash(path);
     let mut basename = String::from("thumbnail");
     if let Some(base) = path.file_stem() {
@@ -32,17 +32,17 @@ pub fn thumbnail_path(path: &std::path::PathBuf) -> std::path::PathBuf {
                 }
             }
             thumbpath = dir.join(filename);
-        },
+        }
         None => {
             let dir = dirs::home_dir().unwrap().join(".thumbs").join("large");
             thumbpath = dir.join(filename);
-        },
+        }
     }
     thumbpath
 }
 
 pub fn downscale_path(path: &std::path::PathBuf) -> std::path::PathBuf {
-    let thumbpath; 
+    let thumbpath;
     let hashvalue: u64 = calculate_hash(path);
     let mut basename = String::from("thumbnail");
     if let Some(base) = path.file_stem() {
@@ -60,18 +60,22 @@ pub fn downscale_path(path: &std::path::PathBuf) -> std::path::PathBuf {
                 }
             }
             thumbpath = dir.join(filename);
-        },
+        }
         None => {
             let dir = dirs::home_dir().unwrap().join(".thumbs").join("large");
             thumbpath = dir.join(filename);
-        },
+        }
     }
     thumbpath
 }
 
-pub fn downscale_image(path: &std::path::PathBuf, max_size: u32, width: usize, height: usize) -> std::path::PathBuf {
-    if let Ok(image) = image::ImageReader::open(
-        std::path::PathBuf::from(path.clone())) {
+pub fn downscale_image(
+    path: &std::path::PathBuf,
+    max_size: u32,
+    width: usize,
+    height: usize,
+) -> std::path::PathBuf {
+    if let Ok(image) = image::ImageReader::open(std::path::PathBuf::from(path.clone())) {
         if let Ok(img) = image.decode() {
             let nwidth;
             let nheight;
@@ -86,7 +90,7 @@ pub fn downscale_image(path: &std::path::PathBuf, max_size: u32, width: usize, h
             let newpath = crate::thumbnails::downscale_path(&path);
             if newpath.is_file() {
                 match std::fs::remove_file(newpath.clone()) {
-                    Ok(()) => {},
+                    Ok(()) => {}
                     Err(error) => log::error!("Failed to delete dummy file: {}", error),
                 }
             }
@@ -95,7 +99,7 @@ pub fn downscale_image(path: &std::path::PathBuf, max_size: u32, width: usize, h
             let encoder = image::codecs::png::PngEncoder::new(&mut buff);
             match newimg.write_with_encoder(encoder) {
                 Ok(()) => return newpath,
-                Err(_error) => {},
+                Err(_error) => {}
             }
         }
     }
@@ -110,32 +114,38 @@ pub fn create_thumbnail(path: &std::path::PathBuf, max_size: u32) -> String {
         return thumbstring;
     }
     match image::ImageReader::open(path) {
-        Ok(img) => {
-            match img.decode() {
-                Ok(image) => {
-                    let nwidth;
-                    let nheight;
-                    if image.width() > image.height() {
-                        nwidth = max_size;
-                        nheight = nwidth * image.height() / image.width();
-                    } else {
-                        nheight = max_size;
-                        nwidth = nheight * image.width() / image.height();
-                    }
-                    let thumb = image::imageops::resize(&image, nwidth, nheight, image::imageops::FilterType::Lanczos3);
+        Ok(img) => match img.decode() {
+            Ok(image) => {
+                let nwidth;
+                let nheight;
+                if image.width() > image.height() {
+                    nwidth = max_size;
+                    nheight = nwidth * image.height() / image.width();
+                } else {
+                    nheight = max_size;
+                    nwidth = nheight * image.width() / image.height();
+                }
+                let thumb = image::imageops::resize(
+                    &image,
+                    nwidth,
+                    nheight,
+                    image::imageops::FilterType::Lanczos3,
+                );
 
-                    thumbstring = crate::parsers::osstr_to_string(thumbpath.clone().into_os_string());
-                    let ret = thumb.save(thumbstring.clone());
-                    if ret.is_err() {
-                        log::error!("Failed to create thumbnail for file {}!", path.display());
-                        return String::new();
-                    }
-                },
-                Err(error) => {
-                    log::error!("Failed to open original image {} for thumbnail creation! {}", path.display(), error);
-                    return thumbstring;
-                },
-
+                thumbstring = crate::parsers::osstr_to_string(thumbpath.clone().into_os_string());
+                let ret = thumb.save(thumbstring.clone());
+                if ret.is_err() {
+                    log::error!("Failed to create thumbnail for file {}!", path.display());
+                    return String::new();
+                }
+            }
+            Err(error) => {
+                log::error!(
+                    "Failed to open original image {} for thumbnail creation! {}",
+                    path.display(),
+                    error
+                );
+                return thumbstring;
             }
         },
         Err(_error) => return thumbstring,
@@ -145,9 +155,9 @@ pub fn create_thumbnail(path: &std::path::PathBuf, max_size: u32) -> String {
 }
 
 pub fn create_thumbnail_downscale_if_necessary(
-    path: &std::path::PathBuf, 
-    tumb_size: u32, 
-    max_pixel_count: u32
+    path: &std::path::PathBuf,
+    tumb_size: u32,
+    max_pixel_count: u32,
 ) -> (String, String) {
     let mut thumbstring = String::new();
     let thumbpath = thumbnail_path(path);
@@ -156,7 +166,7 @@ pub fn create_thumbnail_downscale_if_necessary(
         thumbstring = crate::parsers::osstr_to_string(thumbpath.clone().into_os_string());
         return (imagestring, thumbstring);
     }
-    
+
     match image::ImageReader::open(path) {
         Ok(img) => {
             match img.into_decoder() {
@@ -166,14 +176,13 @@ pub fn create_thumbnail_downscale_if_necessary(
                             let color_type = decoder.color_type();
                             let (width, height) = decoder.dimensions();
                             if width > max_pixel_count || height > max_pixel_count {
-                                let newimage = downscale_image(
-                                    path, 
-                                    2000, 
-                                    width as usize, 
-                                    height as usize);
-                                imagestring = crate::parsers::osstr_to_string(newimage.clone().into_os_string());
+                                let newimage =
+                                    downscale_image(path, 2000, width as usize, height as usize);
+                                imagestring = crate::parsers::osstr_to_string(
+                                    newimage.clone().into_os_string(),
+                                );
                             }
-                            let numbytes = width * height * color_type.channel_count() as u32;
+                            let numbytes = width * height * color_type.channel_count() as usize;
                             // allocate the buffer to store the decoded pixels, assuming tightly packed without paddings between scanlines
                             let mut buffer = vec![0_u8; numbytes as usize];
                             // load the pixels to the buffer
@@ -188,56 +197,92 @@ pub fn create_thumbnail_downscale_if_necessary(
                                         nheight = tumb_size;
                                         nwidth = nheight * width / height;
                                     }
-                                    if  color_type.channel_count() == 4 {
+                                    if color_type.channel_count() == 4 {
                                         match image::RgbaImage::from_vec(width, height, buffer) {
                                             Some(image) => {
-                                                let thumb = image::imageops::resize(&image, nwidth, nheight, image::imageops::FilterType::Lanczos3);
-                                                thumbstring = crate::parsers::osstr_to_string(thumbpath.clone().into_os_string());
+                                                let thumb = image::imageops::resize(
+                                                    &image,
+                                                    nwidth,
+                                                    nheight,
+                                                    image::imageops::FilterType::Lanczos3,
+                                                );
+                                                thumbstring = crate::parsers::osstr_to_string(
+                                                    thumbpath.clone().into_os_string(),
+                                                );
                                                 let ret = thumb.save(thumbstring.clone());
                                                 if ret.is_err() {
-                                                    log::error!("Failed to create thumbnail for file {}!", path.display());
+                                                    log::error!(
+                                                        "Failed to create thumbnail for file {}!",
+                                                        path.display()
+                                                    );
                                                     return (String::new(), String::new());
-                                                }            
-                                            },
-                                            None => {},
+                                                }
+                                            }
+                                            None => {}
                                         }
                                     } else {
                                         match image::RgbImage::from_vec(width, height, buffer) {
                                             Some(image) => {
-                                                let thumb = image::imageops::resize(&image, nwidth, nheight, image::imageops::FilterType::Lanczos3);
-                                                thumbstring = crate::parsers::osstr_to_string(thumbpath.clone().into_os_string());
+                                                let thumb = image::imageops::resize(
+                                                    &image,
+                                                    nwidth,
+                                                    nheight,
+                                                    image::imageops::FilterType::Lanczos3,
+                                                );
+                                                thumbstring = crate::parsers::osstr_to_string(
+                                                    thumbpath.clone().into_os_string(),
+                                                );
                                                 let ret = thumb.save(thumbstring.clone());
                                                 if ret.is_err() {
-                                                    log::error!("Failed to create thumbnail for file {}!", path.display());
+                                                    log::error!(
+                                                        "Failed to create thumbnail for file {}!",
+                                                        path.display()
+                                                    );
                                                     return (String::new(), String::new());
-                                                }            
-                                            },
-                                            None => {},
+                                                }
+                                            }
+                                            None => {}
                                         }
                                     }
-                                 },
+                                }
                                 Err(error) => {
-                                    log::error!("Failed to decode Image {}! {}", path.display(), error);
-                                    return (imagestring, thumbstring)
-                                },
+                                    log::error!(
+                                        "Failed to decode Image {}! {}",
+                                        path.display(),
+                                        error
+                                    );
+                                    return (imagestring, thumbstring);
+                                }
                             }
-                        },
+                        }
                         Err(error) => {
-                            log::error!("Failed to create decoder for image {}! {}", path.display(), error);
-                            return (imagestring, thumbstring)
-                        },
+                            log::error!(
+                                "Failed to create decoder for image {}! {}",
+                                path.display(),
+                                error
+                            );
+                            return (imagestring, thumbstring);
+                        }
                     }
-                },
+                }
                 Err(error) => {
-                    log::error!("Failed to create decoder for image {}! {}", path.display(), error);
-                    return (imagestring, thumbstring)
-                },
+                    log::error!(
+                        "Failed to create decoder for image {}! {}",
+                        path.display(),
+                        error
+                    );
+                    return (imagestring, thumbstring);
+                }
             }
-        },
+        }
         Err(error) => {
-            log::error!("Failed to open Image {} for reading! {}", path.display(), error);
-            return (imagestring, thumbstring)
-        },
+            log::error!(
+                "Failed to open Image {} for reading! {}",
+                path.display(),
+                error
+            );
+            return (imagestring, thumbstring);
+        }
     }
 
     (imagestring, thumbstring)
