@@ -1268,12 +1268,13 @@ pub fn fill_chapters(
 pub struct CollectionMetadata {
     pub id: u32,
     pub name: String,
+    pub file_id: u32,
     pub path: String,
     pub poster: String,
     pub thumb: String,
     pub description: String,
     pub tags: Vec<Tag>,
-    pub episode_ids: Vec<u32>,
+    pub episodes: Vec<EpisodeMetadata>,
 }
 
 impl Default for CollectionMetadata {
@@ -1281,12 +1282,38 @@ impl Default for CollectionMetadata {
         CollectionMetadata {
             id: 0,
             name: String::new(),
+            file_id: 0,
             path: String::new(),
             poster: String::new(),
             thumb: String::new(),
             description: String::new(),
             tags: Vec::new(),
-            episode_ids: Vec::new(),
+            episodes: Vec::new(),
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, PartialOrd)]
+pub struct EpisodeMetadata {
+    pub series: u32,
+    pub episode: u32,
+    pub file_id: u32,
+    pub video: VideoMetadata,
+    pub file: FileMetadata,
+}
+
+impl Default for EpisodeMetadata {
+    fn default() -> EpisodeMetadata {
+        EpisodeMetadata {
+            series: 1,
+            episode: 1,
+            file_id: 0,
+            video: VideoMetadata {
+                ..Default::default()
+            },
+            file: FileMetadata {
+                ..Default::default()
+            },
         }
     }
 }
@@ -1317,7 +1344,10 @@ pub fn insert_collection(
     ) {
         Ok(_retval) => {} //log::warn!("Inserted {} video with ID {} and location {} into candidates.", video.id, video.index, candidate_id),
         Err(error) => {
-            log::error!("Failed to insert tvshow into collections database: {}", error);
+            log::error!(
+                "Failed to insert tvshow into collections database: {}",
+                error
+            );
             drop(connection);
             delete_collection(sql_connection.clone(), metadata, data);
             insert_collection(sql_connection.clone(), metadata, statdata, data);
@@ -1345,10 +1375,15 @@ pub fn insert_collection(
             return;
         }
     }
-    for i in 0..metadata.episode_ids.len() {
+    for i in 0..metadata.episodes.len() {
         match connection.execute(
-            "INSERT INTO collections_map (collection_id, episode_id) VALUES (?1)",
-            params![&collection_id, &metadata.episode_ids[i]],
+            "INSERT INTO collections_map (collection_id, episode_id, series, episode) VALUES (?1)",
+            params![
+                &collection_id,
+                &metadata.episodes[i].file_id,
+                &metadata.episodes[i].series,
+                &metadata.episodes[i].episode
+            ],
         ) {
             Ok(_retval) => {} //log::warn!("Inserted {} video with ID {} and location {} into candidates.", video.id, video.index, candidate_id),
             Err(error) => {
@@ -1439,6 +1474,222 @@ pub fn update_collection(
     insert_collection(sql_connection.clone(), metadata, statdata, data);
 }
 
+pub fn collection(
+    sql_connection: std::sync::Arc<std::sync::Mutex<rusqlite::Connection>>,
+    filepath: &str,
+    data: &crate::scanmetadata::ScanMetaData,
+) -> CollectionMetadata {
+    let mut v = CollectionMetadata {
+        ..Default::default()
+    };
+    let filedata = file(sql_connection.clone(), filepath);
+    let connection = match sql_connection.lock() {
+        Ok(conn) => conn,
+        Err(error) => {
+            log::error!("Failed to lock sql connection for use! {}", error);
+            return v;
+        }
+    };
+    v.path = filepath.to_string();
+    let collection_id = filedata.metadata_id;
+    let query = "SELECT collection_id, file_id, collection_name, poster, description FROM collections WHERE file_id = ?1";
+    match connection.prepare(query) {
+        Ok(mut statement) => {
+            match statement.query(params![&collection_id]) {
+                Ok(mut rows) => {
+                    loop {
+                        match rows.next() {
+                            Ok(Some(row)) => {
+                                match row.get(0) {
+                                    Ok(val) => v.id = val,
+                                    Err(error) => {
+                                        log::error!("Failed to read id for video: {}", error);
+                                        continue;
+                                    }
+                                }
+                                match row.get(1) {
+                                    Ok(val) => v.file_id = val,
+                                    Err(error) => {
+                                        log::error!("Failed to read video_id for video: {}", error);
+                                        continue;
+                                    }
+                                }
+                                match row.get(2) {
+                                    Ok(val) => v.name = val,
+                                    Err(error) => {
+                                        log::error!(
+                                            "Failed to read screenshot_id for video: {}",
+                                            error
+                                        );
+                                        continue;
+                                    }
+                                }
+                                match row.get(3) {
+                                    Ok(val) => v.poster = val,
+                                    Err(error) => {
+                                        log::error!("Failed to read runtime for video: {}", error);
+                                        continue;
+                                    }
+                                }
+                                match row.get(4) {
+                                    Ok(val) => v.description = val,
+                                    Err(error) => {
+                                        log::error!("Failed to read runtime for video: {}", error);
+                                        continue;
+                                    }
+                                }
+                            }
+                            Ok(None) => {
+                                //log::warn!("No data read from indices.");
+                                break;
+                            }
+                            Err(error) => {
+                                log::error!("Failed to read a row from indices: {}", error);
+                                break;
+                            }
+                        }
+                    }
+                }
+                Err(err) => {
+                    log::error!(
+                        "could not read line from videostore_indices database: {}",
+                        err
+                    );
+                }
+            }
+        }
+        Err(err) => {
+            log::error!("could not prepare SQL statement: {}", err);
+        }
+    }
+    let mut episodes = Vec::new();
+    let query = "SELECT episode_id, series, episode FROM collections_map WHERE collection_id = ?1 ORDER BY series ASC, episode ASC";
+    match connection.prepare(query) {
+        Ok(mut statement) => {
+            match statement.query(params![&collection_id]) {
+                Ok(mut rows) => {
+                    loop {
+                        match rows.next() {
+                            Ok(Some(row)) => {
+                                let mut e = EpisodeMetadata {
+                                    ..Default::default()
+                                };
+                                match row.get(0) {
+                                    Ok(val) => {
+                                        e.file_id = val;
+                                    }
+                                    Err(error) => {
+                                        log::error!("Failed to read id for video: {}", error);
+                                        continue;
+                                    }
+                                };
+                                match row.get(1) {
+                                    Ok(val) => {
+                                        e.series = val;
+                                    }
+                                    Err(error) => {
+                                        log::error!("Failed to read id for video: {}", error);
+                                        continue;
+                                    }
+                                };
+                                match row.get(2) {
+                                    Ok(val) => {
+                                        e.episode = val;
+                                    }
+                                    Err(error) => {
+                                        log::error!("Failed to read id for video: {}", error);
+                                        continue;
+                                    }
+                                };
+                                episodes.push(e);
+                            }
+                            Ok(None) => {
+                                //log::warn!("No data read from indices.");
+                                break;
+                            }
+                            Err(error) => {
+                                log::error!("Failed to read a row from indices: {}", error);
+                                break;
+                            }
+                        }
+                    }
+                }
+                Err(err) => {
+                    log::error!("could not read line from subtitles database: {}", err);
+                }
+            }
+        }
+        Err(err) => {
+            log::error!("could not prepare SQL statement: {}", err);
+        }
+    }
+    let query = "SELECT tag_id, tag FROM tags 
+                        INNER JOIN tags_media_map 
+                        ON tags_media_map.tagmap_id = tags.tag_id 
+                        WHERE tags_media_map.media_id = ?1";
+    match connection.prepare(query) {
+        Ok(mut statement) => {
+            match statement.query(params![&v.file_id]) {
+                Ok(mut rows) => {
+                    loop {
+                        match rows.next() {
+                            Ok(Some(row)) => {
+                                let mut tag = Tag {
+                                    ..Default::default()
+                                };
+                                match row.get::<usize, u32>(0) {
+                                    Ok(val) => tag.tag_id = val,
+                                    Err(error) => {
+                                        log::error!("Failed to read tags for video: {}", error);
+                                        continue;
+                                    }
+                                }
+                                match row.get::<usize, String>(1) {
+                                    Ok(val) => tag.tag = val,
+                                    Err(error) => {
+                                        log::error!("Failed to read tags for video: {}", error);
+                                        continue;
+                                    }
+                                }
+                                v.tags.push(tag);
+                            }
+                            Ok(None) => {
+                                //log::warn!("No data read from indices.");
+                                break;
+                            }
+                            Err(error) => {
+                                log::error!("Failed to read a row from tags: {}", error);
+                                break;
+                            }
+                        }
+                    }
+                }
+                Err(err) => {
+                    log::error!("could not read line from tags database: {}", err);
+                }
+            }
+        }
+        Err(err) => {
+            log::error!("could not prepare SQL statement: {}", err);
+        }
+    }
+
+    for mut e in episodes {
+        e.file = file_by_id(sql_connection.clone(), e.file_id as i64);
+        e.video = video_by_id(
+            sql_connection.clone(),
+            &&crate::parsers::osstr_to_string(e.file.filepath.clone().into_os_string()),
+            e.file_id as i64,
+        );
+        v.episodes.push(e);
+    }
+
+    if !data.known_files_contains(PathBuf::from(&v.path)) {
+        data.known_files_insert(PathBuf::from(&v.path), filedata.clone());
+    }
+
+    v
+}
 
 #[derive(Clone, Debug, PartialEq, PartialOrd)]
 pub struct VideoMetadata {
@@ -5875,6 +6126,8 @@ pub fn connect() -> Result<rusqlite::Connection, rusqlite::Error> {
                 entry_id INTEGER,
                 collection_id INTEGER, 
                 episode_id INTEGER, 
+                series INTEGER,
+                episode INTEGER,
                 PRIMARY KEY(entry_id AUTOINCREMENT)
             )",
             [],
@@ -5886,7 +6139,7 @@ pub fn connect() -> Result<rusqlite::Connection, rusqlite::Error> {
             }
         }
         match connection.execute(
-            "CREATE INDEX collection_map_collection_name ON collection_map (collection_name)",
+            "CREATE INDEX collection_map_episode_id ON collection_map (episode_id)",
             (),
         ) {
             Ok(_ret) => {}
