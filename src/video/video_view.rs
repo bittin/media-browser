@@ -5,10 +5,10 @@
 // Copyright 2024 Alexander Schwarzkopf
 
 use cosmic::{
-    cosmic_config::{self},
+    //cosmic_config::{self},
     cosmic_theme,
     iced::keyboard::{Key, Modifiers},
-    widget::menu::action::MenuAction,
+    //widget::menu::action::MenuAction,
 };
 pub use gstreamer as gst;
 //pub use gstreamer_app as gst_app;
@@ -48,6 +48,7 @@ fn language_name(code: &str) -> Option<String> {
     Some(name.to_string())
 }
 
+/*
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Action {
     FileClose,
@@ -81,6 +82,7 @@ pub struct Flags {
     config: Config,
     url_opt: Option<url::Url>,
 }
+    */
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum DropdownKind {

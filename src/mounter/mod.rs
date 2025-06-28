@@ -97,7 +97,7 @@ pub enum MounterMessage {
 }
 
 pub trait Mounter: Send + Sync {
-    fn items(&self, sizes: IconSizes) -> Option<MounterItems>;
+    fn _items(&self, sizes: IconSizes) -> Option<MounterItems>;
     //TODO: send result
     fn mount(&self, item: MounterItem) -> Task<()>;
     fn network_drive(&self, uri: String) -> Task<()>;

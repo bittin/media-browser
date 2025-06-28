@@ -25,7 +25,7 @@ pub use cosmic::iced_core::image::{FilterMethod, Handle};
 pub use super::image_player::Viewer;
 
 // Creates a new [`Viewer`] with the given image `Handle`.
-pub fn viewer<Handle>(handle: Handle) -> Viewer<Handle> {
+pub fn _viewer<Handle>(handle: Handle) -> Viewer<Handle> {
     Viewer::new(handle)
 }
 

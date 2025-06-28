@@ -143,6 +143,10 @@ fn network_scan(uri: &str, sizes: IconSizes) -> Result<Vec<tab::Item>, String> {
             overlaps_drag_rect: false,
             //TODO: scan directory size on gvfs mounts?
             dir_size: DirSize::NotDirectory,
+            video_opt: None,
+            audio_opt: None,
+            image_opt: None,
+            collection_opt: None,
         });
     }
     Ok(items)
@@ -463,7 +467,7 @@ impl Gvfs {
 }
 
 impl Mounter for Gvfs {
-    fn items(&self, sizes: IconSizes) -> Option<MounterItems> {
+    fn _items(&self, sizes: IconSizes) -> Option<MounterItems> {
         let (items_tx, mut items_rx) = mpsc::channel(1);
         self.command_tx.send(Cmd::Items(sizes, items_tx)).unwrap();
         items_rx.blocking_recv()

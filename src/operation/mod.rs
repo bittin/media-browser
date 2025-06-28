@@ -72,7 +72,7 @@ fn handle_replace(
     })
 }
 
-fn get_directory_name(file_name: &str) -> &str {
+fn _get_directory_name(file_name: &str) -> &str {
     const SUPPORTED_EXTENSIONS: [&str; 4] = [".tar.gz", ".tgz", ".tar", ".zip"];
 
     for ext in &SUPPORTED_EXTENSIONS {
@@ -84,7 +84,7 @@ fn get_directory_name(file_name: &str) -> &str {
 }
 
 // From https://docs.rs/zip/latest/zip/read/struct.ZipArchive.html#method.extract, with cancellation and progress added
-fn zip_extract<R: io::Read + io::Seek, P: AsRef<Path>>(
+fn _zip_extract<R: io::Read + io::Seek, P: AsRef<Path>>(
     archive: &mut zip::ZipArchive<R>,
     directory: P,
     controller: Controller,
