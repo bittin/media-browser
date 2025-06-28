@@ -560,6 +560,14 @@ pub fn scan_path_runner(
                     continue;
                 }
             }
+            let tvshows = data.tvshows_clone();
+            for path in tvshows {
+                if let ControlFlow::Break(_) =
+                    crate::parsers::scan_tvshow(path, &all, data, sizes, sql_connection.clone())
+                {
+                    continue;
+                }
+            }
             for path in justdirs.iter() {
                 if recursive {
                     if let Some(dirname) = path.file_stem() {
@@ -844,6 +852,7 @@ pub fn scan_trash(sizes: IconSizes) -> Vec<Item> {
                     image_opt: None,
                     video_opt: None,
                     audio_opt: None,
+                    collection_opt: None,
                 });
             }
         }
@@ -1244,6 +1253,7 @@ pub struct Item {
     pub image_opt: Option<crate::sql::ImageMetadata>,
     pub video_opt: Option<crate::sql::VideoMetadata>,
     pub audio_opt: Option<crate::sql::AudioMetadata>,
+    pub collection_opt: Option<crate::sql::CollectionMetadata>,
 }
 
 impl Item {
@@ -4172,7 +4182,7 @@ impl Tab {
         } else {
             icon_sizes.list()
         };
-        let row_height = icon_size + 2 * space_xxs;
+        let row_height = icon_size + 2_u16 * space_xxs;
 
         let mut children: Vec<Element<_>> = Vec::new();
         let mut y = 0;
@@ -4194,7 +4204,10 @@ impl Tab {
                 item.pos_opt.set(Some((count, 0)));
                 item.rect_opt.set(Some(Rectangle::new(
                     Point::new(space_m as f32, y as f32),
-                    Size::new(size.width - (2 * space_m) as f32, row_height as f32),
+                    Size::new(
+                        size.width - (2.0 as f32 * space_m as f32),
+                        row_height as f32,
+                    ),
                 )));
 
                 if count > 0 {
