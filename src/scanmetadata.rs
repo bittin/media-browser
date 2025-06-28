@@ -96,6 +96,22 @@ impl ScanMetaData {
             Err(error) => log::error!("could not lock items for push! {}", error),
         }
     }
+    pub fn items_pop(&self) -> Option<Item> {
+        match self.items.lock() {
+            Ok(mut bm) => {
+                if bm.len() == 0 {
+                    return None;
+                }
+                let last = bm.len() - 1;
+                let item = bm[last].clone();
+                bm.remove(last);
+                return Some(item);
+            }
+            Err(error) => log::error!("could not lock items for push! {}", error),
+        }
+        None
+    }
+
     pub fn tvshows_clone(&self) -> Vec<PathBuf> {
         match self.tvshows.lock() {
             Ok(bm) => {
