@@ -11,10 +11,10 @@ use cosmic::{
     widget::menu::action::MenuAction,
 };
 pub use gstreamer as gst;
-pub use gstreamer_app as gst_app;
+//pub use gstreamer_app as gst_app;
 use gstreamer::prelude::*;
 use crate::video::video::Video;
-use crate::video::video_player::VideoPlayer;
+//use crate::video::video_player::VideoPlayer;
 /*
 use iced_video_player::{
     gst::{self, prelude::*},

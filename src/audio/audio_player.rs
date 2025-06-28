@@ -11,12 +11,12 @@ use cosmic::iced::{
     Element
 };
 use cosmic::iced_wgpu::primitive::Renderer as PrimitiveRenderer;
-use std::{marker::PhantomData, sync::atomic::Ordering};
+use std::marker::PhantomData;
 use std::{sync::Arc, time::Instant};
 
 pub use gstreamer as gst;
 pub use gstreamer_pbutils as gst_pbutils;
-use gstreamer::prelude::*;
+//use gstreamer::prelude::*;
 
 /// Video player widget which displays the current frame of a [`Video`](crate::Video).
 pub struct AudioPlayer<'a, Message, Theme = cosmic::iced::Theme, Renderer = cosmic::iced::Renderer>

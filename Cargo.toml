@@ -102,7 +102,7 @@ version = "0.3.2"
 features = ["serde"]
 
 [features]
-default = ["advanced", "bzip2", "desktop", "liblzma", "notify", "winit", "wgpu"]
+default = ["advanced", "bzip2", "desktop", "liblzma", "notify", "winit", "wgpu", "gvfs"]
 advanced = []
 desktop = ["libcosmic/desktop", "dep:xdg"]
 notify = ["dep:notify-rust"]
@@ -110,6 +110,7 @@ wayland = ["libcosmic/wayland", "dep:wayland-client"]
 winit = ["libcosmic/winit"]
 wgpu = ["libcosmic/wgpu"]
 glib = ["dep:glib"]
+gvfs = ["dep:gio", "dep:glib"]
 
 [profile.dev]
 opt-level = 1

@@ -7,7 +7,7 @@
 
 use super::Error;
 use gstreamer as gst;
-use gst::glib::FlagsClass;
+//use gst::glib::FlagsClass;
 use gstreamer_app as gst_app;
 use gstreamer_app::prelude::*;
 use cosmic::iced::widget::image as img;
