@@ -182,9 +182,11 @@ pub fn create_thumbnail_downscale_if_necessary(
                                     newimage.clone().into_os_string(),
                                 );
                             }
-                            let numbytes = width * height * color_type.channel_count() as usize;
+                            let channels = color_type.channel_count() as usize;
+                            let pixels = width * height;
+                            let numbytes: usize = (pixels as u32 * channels as u32) as usize;
                             // allocate the buffer to store the decoded pixels, assuming tightly packed without paddings between scanlines
-                            let mut buffer = vec![0_u8; numbytes as usize];
+                            let mut buffer = vec![0_u8; numbytes];
                             // load the pixels to the buffer
                             match decoder.read_image(&mut buffer) {
                                 Ok(_) => {
