@@ -1517,14 +1517,14 @@ pub fn collection(
                                 match row.get(0) {
                                     Ok(val) => v.id = val,
                                     Err(error) => {
-                                        log::error!("Failed to read id for video: {}", error);
+                                        log::error!("Failed to read id for collections: {}", error);
                                         continue;
                                     }
                                 }
                                 match row.get(1) {
                                     Ok(val) => v.file_id = val,
                                     Err(error) => {
-                                        log::error!("Failed to read video_id for video: {}", error);
+                                        log::error!("Failed to read file_id for collections: {}", error);
                                         continue;
                                     }
                                 }
@@ -1532,7 +1532,7 @@ pub fn collection(
                                     Ok(val) => v.name = val,
                                     Err(error) => {
                                         log::error!(
-                                            "Failed to read screenshot_id for video: {}",
+                                            "Failed to read name for collections: {}",
                                             error
                                         );
                                         continue;
@@ -1541,21 +1541,21 @@ pub fn collection(
                                 match row.get(3) {
                                     Ok(val) => v.poster = val,
                                     Err(error) => {
-                                        log::error!("Failed to read runtime for video: {}", error);
+                                        log::error!("Failed to read poster for vidcollectionseo: {}", error);
                                         continue;
                                     }
                                 }
                                 match row.get(4) {
                                     Ok(val) => v.thumb = val,
                                     Err(error) => {
-                                        log::error!("Failed to read runtime for video: {}", error);
+                                        log::error!("Failed to read thumb for collections: {}", error);
                                         continue;
                                     }
                                 }
                                 match row.get(5) {
                                     Ok(val) => v.description = val,
                                     Err(error) => {
-                                        log::error!("Failed to read runtime for video: {}", error);
+                                        log::error!("Failed to read description for collections: {}", error);
                                         continue;
                                     }
                                 }
@@ -1565,7 +1565,7 @@ pub fn collection(
                                         v.path = PathBuf::from(&path);
                                     },
                                     Err(error) => {
-                                        log::error!("Failed to read runtime for video: {}", error);
+                                        log::error!("Failed to read path for collections: {}", error);
                                         continue;
                                     }
                                 };
@@ -1612,7 +1612,7 @@ pub fn collection(
                                         e.file_id = val;
                                     }
                                     Err(error) => {
-                                        log::error!("Failed to read id for video: {}", error);
+                                        log::error!("Failed to read file_id for collections_map: {}", error);
                                         continue;
                                     }
                                 };
@@ -1621,7 +1621,7 @@ pub fn collection(
                                         e.series = val;
                                     }
                                     Err(error) => {
-                                        log::error!("Failed to read id for video: {}", error);
+                                        log::error!("Failed to read series for vidcollections_mapeo: {}", error);
                                         continue;
                                     }
                                 };
@@ -1630,14 +1630,14 @@ pub fn collection(
                                         e.episode = val;
                                     }
                                     Err(error) => {
-                                        log::error!("Failed to read id for video: {}", error);
+                                        log::error!("Failed to read episode for collections_map: {}", error);
                                         continue;
                                     }
                                 };
                                 match row.get(3) {
                                     Ok(val) => e.title = val,
                                     Err(error) => {
-                                        log::error!("Failed to read runtime for video: {}", error);
+                                        log::error!("Failed to read title for collections_map: {}", error);
                                         continue;
                                     }
                                 };
@@ -1647,21 +1647,21 @@ pub fn collection(
                                         e.path = PathBuf::from(&path);
                                     },
                                     Err(error) => {
-                                        log::error!("Failed to read runtime for video: {}", error);
+                                        log::error!("Failed to read path for collections_map: {}", error);
                                         continue;
                                     }
                                 };
                                 match row.get(5) {
                                     Ok(val) => e.poster = val,
                                     Err(error) => {
-                                        log::error!("Failed to read runtime for video: {}", error);
+                                        log::error!("Failed to read poster for collections_map: {}", error);
                                         continue;
                                     }
                                 };
                                 match row.get(6) {
                                     Ok(val) => e.thumb = val,
                                     Err(error) => {
-                                        log::error!("Failed to read runtime for video: {}", error);
+                                        log::error!("Failed to read thumb for collections_map: {}", error);
                                         continue;
                                     }
                                 };
@@ -2416,49 +2416,49 @@ pub fn video_by_id(
                                 match row.get(3) {
                                     Ok(val) => v.poster = val,
                                     Err(error) => {
-                                        log::error!("Failed to read runtime for video: {}", error);
+                                        log::error!("Failed to read poster for video: {}", error);
                                         continue;
                                     }
                                 }
                                 match row.get(4) {
                                     Ok(val) => v.duration = val,
                                     Err(error) => {
-                                        log::error!("Failed to read runtime for video: {}", error);
+                                        log::error!("Failed to read duration for video: {}", error);
                                         continue;
                                     }
                                 }
                                 match row.get(5) {
                                     Ok(val) => v.width = val,
                                     Err(error) => {
-                                        log::error!("Failed to read runtime for video: {}", error);
+                                        log::error!("Failed to read width for video: {}", error);
                                         continue;
                                     }
                                 }
                                 match row.get(6) {
                                     Ok(val) => v.height = val,
                                     Err(error) => {
-                                        log::error!("Failed to read runtime for video: {}", error);
+                                        log::error!("Failed to read height for video: {}", error);
                                         continue;
                                     }
                                 }
                                 match row.get(7) {
                                     Ok(val) => v.framerate = val,
                                     Err(error) => {
-                                        log::error!("Failed to read runtime for video: {}", error);
+                                        log::error!("Failed to read framerate for video: {}", error);
                                         continue;
                                     }
                                 }
                                 match row.get(8) {
                                     Ok(val) => v.description = val,
                                     Err(error) => {
-                                        log::error!("Failed to read runtime for video: {}", error);
+                                        log::error!("Failed to read description for video: {}", error);
                                         continue;
                                     }
                                 }
                                 match row.get(9) {
                                     Ok(val) => v.thumb = val,
                                     Err(error) => {
-                                        log::error!("Failed to read runtime for video: {}", error);
+                                        log::error!("Failed to read thumb for video: {}", error);
                                         continue;
                                     }
                                 }
@@ -2775,49 +2775,49 @@ pub fn video(
                                 match row.get(3) {
                                     Ok(val) => v.poster = val,
                                     Err(error) => {
-                                        log::error!("Failed to read runtime for video: {}", error);
+                                        log::error!("Failed to read poster for video: {}", error);
                                         continue;
                                     }
                                 }
                                 match row.get(4) {
                                     Ok(val) => v.duration = val,
                                     Err(error) => {
-                                        log::error!("Failed to read runtime for video: {}", error);
+                                        log::error!("Failed to read duration for video: {}", error);
                                         continue;
                                     }
                                 }
                                 match row.get(5) {
                                     Ok(val) => v.width = val,
                                     Err(error) => {
-                                        log::error!("Failed to read runtime for video: {}", error);
+                                        log::error!("Failed to read width for video: {}", error);
                                         continue;
                                     }
                                 }
                                 match row.get(6) {
                                     Ok(val) => v.height = val,
                                     Err(error) => {
-                                        log::error!("Failed to read runtime for video: {}", error);
+                                        log::error!("Failed to read height for video: {}", error);
                                         continue;
                                     }
                                 }
                                 match row.get(7) {
                                     Ok(val) => v.framerate = val,
                                     Err(error) => {
-                                        log::error!("Failed to read runtime for video: {}", error);
+                                        log::error!("Failed to read framerate for video: {}", error);
                                         continue;
                                     }
                                 }
                                 match row.get(8) {
                                     Ok(val) => v.description = val,
                                     Err(error) => {
-                                        log::error!("Failed to read runtime for video: {}", error);
+                                        log::error!("Failed to read description for video: {}", error);
                                         continue;
                                     }
                                 }
                                 match row.get(9) {
                                     Ok(val) => v.thumb = val,
                                     Err(error) => {
-                                        log::error!("Failed to read runtime for video: {}", error);
+                                        log::error!("Failed to read thumb for video: {}", error);
                                         continue;
                                     }
                                 }
@@ -5016,14 +5016,14 @@ pub fn file_by_id(
                                         v.filepath = PathBuf::from(&st);
                                     }
                                     Err(error) => {
-                                        log::error!("Failed to read id for video: {}", error);
+                                        log::error!("Failed to read id for file: {}", error);
                                         continue;
                                     }
                                 }
                                 match row.get(1) {
                                     Ok(val) => v.creation_time = val,
                                     Err(error) => {
-                                        log::error!("Failed to read video_id for video: {}", error);
+                                        log::error!("Failed to read creation_time for file: {}", error);
                                         continue;
                                     }
                                 }
@@ -5031,7 +5031,7 @@ pub fn file_by_id(
                                     Ok(val) => v.modification_time = val,
                                     Err(error) => {
                                         log::error!(
-                                            "Failed to read screenshot_id for video: {}",
+                                            "Failed to read modification_time for file: {}",
                                             error
                                         );
                                         continue;
@@ -5040,14 +5040,14 @@ pub fn file_by_id(
                                 match row.get(3) {
                                     Ok(val) => v.file_type = val,
                                     Err(error) => {
-                                        log::error!("Failed to read runtime for video: {}", error);
+                                        log::error!("Failed to read file_type for file: {}", error);
                                         continue;
                                     }
                                 }
                                 match row.get(4) {
                                     Ok(val) => v.metadata_id = val,
                                     Err(error) => {
-                                        log::error!("Failed to read runtime for video: {}", error);
+                                        log::error!("Failed to read metadata_id for file: {}", error);
                                         continue;
                                     }
                                 }
@@ -5107,14 +5107,14 @@ pub fn file(
                                         v.filepath = PathBuf::from(&st);
                                     }
                                     Err(error) => {
-                                        log::error!("Failed to read id for video: {}", error);
+                                        log::error!("Failed to read filepath for file: {}", error);
                                         continue;
                                     }
                                 }
                                 match row.get(1) {
                                     Ok(val) => v.creation_time = val,
                                     Err(error) => {
-                                        log::error!("Failed to read video_id for video: {}", error);
+                                        log::error!("Failed to read creation_time for file: {}", error);
                                         continue;
                                     }
                                 }
@@ -5122,7 +5122,7 @@ pub fn file(
                                     Ok(val) => v.modification_time = val,
                                     Err(error) => {
                                         log::error!(
-                                            "Failed to read screenshot_id for video: {}",
+                                            "Failed to read modification_time for file: {}",
                                             error
                                         );
                                         continue;
@@ -5131,14 +5131,14 @@ pub fn file(
                                 match row.get(3) {
                                     Ok(val) => v.file_type = val,
                                     Err(error) => {
-                                        log::error!("Failed to read runtime for video: {}", error);
+                                        log::error!("Failed to read file_type for file: {}", error);
                                         continue;
                                     }
                                 }
                                 match row.get(4) {
                                     Ok(val) => v.metadata_id = val,
                                     Err(error) => {
-                                        log::error!("Failed to read runtime for video: {}", error);
+                                        log::error!("Failed to read metadata_id for file: {}", error);
                                         continue;
                                     }
                                 }
@@ -5198,14 +5198,14 @@ pub fn files(
                                         s.filepath = PathBuf::from(&st);
                                     }
                                     Err(error) => {
-                                        log::error!("Failed to read id for video: {}", error);
+                                        log::error!("Failed to read filepath for file: {}", error);
                                         continue;
                                     }
                                 }
                                 match row.get(1) {
                                     Ok(val) => s.creation_time = val,
                                     Err(error) => {
-                                        log::error!("Failed to read video_id for video: {}", error);
+                                        log::error!("Failed to read creation_time for file: {}", error);
                                         continue;
                                     }
                                 }
@@ -5213,7 +5213,7 @@ pub fn files(
                                     Ok(val) => s.modification_time = val,
                                     Err(error) => {
                                         log::error!(
-                                            "Failed to read screenshot_id for video: {}",
+                                            "Failed to read modification_time for file: {}",
                                             error
                                         );
                                         continue;
@@ -5222,14 +5222,14 @@ pub fn files(
                                 match row.get(3) {
                                     Ok(val) => s.file_type = val,
                                     Err(error) => {
-                                        log::error!("Failed to read runtime for video: {}", error);
+                                        log::error!("Failed to read file_type for file: {}", error);
                                         continue;
                                     }
                                 }
                                 match row.get(4) {
                                     Ok(val) => s.metadata_id = val,
                                     Err(error) => {
-                                        log::error!("Failed to read runtime for video: {}", error);
+                                        log::error!("Failed to read metadata_id for file: {}", error);
                                         continue;
                                     }
                                 }
