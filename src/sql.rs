@@ -1301,6 +1301,7 @@ pub struct EpisodeMetadata {
     pub path: PathBuf,
     pub poster: String,
     pub thumb: String,
+    pub title: String,
 }
 
 impl Default for EpisodeMetadata {
@@ -1312,6 +1313,7 @@ impl Default for EpisodeMetadata {
             path: PathBuf::new(),
             poster: String::new(),
             thumb: String::new(),
+            title: String::new(),
         }
     }
 }
@@ -1337,13 +1339,15 @@ pub fn insert_collection(
         }
     };
     metadata.id = file_id;
+    let path = crate::parsers::osstr_to_string(metadata.path.clone().into_os_string());
     match connection.execute(
-        "INSERT INTO collections (file_id, collection_name, poster, description) VALUES (?1, ?2, ?3, ?4)",
+        "INSERT INTO collections (file_id, collection_name, poster, description, path) VALUES (?1, ?2, ?3, ?4, ?5)",
         params![
             &metadata.id,
             &metadata.name,
             &metadata.poster,
-            &metadata.description
+            &metadata.description,
+            &path,
         ],
     ) {
         Ok(_retval) => {} //log::warn!("Inserted {} video with ID {} and location {} into candidates.", video.id, video.index, candidate_id),
@@ -1380,13 +1384,18 @@ pub fn insert_collection(
         }
     }
     for i in 0..metadata.episodes.len() {
+        let path = crate::parsers::osstr_to_string(metadata.episodes[i].path.clone().into_os_string());
         match connection.execute(
-            "INSERT INTO collections_map (collection_id, episode_id, series, episode) VALUES (?1, ?2, ?3, ?4)",
+            "INSERT INTO collections_map (collection_id, episode_id, series, episode, title, path, poster, thumb) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
             params![
                 &collection_id,
                 &metadata.episodes[i].file_id,
                 &metadata.episodes[i].series,
-                &metadata.episodes[i].episode
+                &metadata.episodes[i].episode,
+                &metadata.episodes[i].title,
+                &path,
+                &metadata.episodes[i].poster,
+                &metadata.episodes[i].thumb,
             ],
         ) {
             Ok(_retval) => {} //log::warn!("Inserted {} video with ID {} and location {} into candidates.", video.id, video.index, candidate_id),
@@ -1497,11 +1506,10 @@ pub fn collection(
         }
     };
     v.path = PathBuf::from(filepath);
-    let collection_id = filedata.metadata_id;
-    let query = "SELECT collection_id, file_id, collection_name, poster, description FROM collections WHERE file_id = ?1";
+    let query = "SELECT collection_id, file_id, collection_name, poster, thumb, description, path FROM collections WHERE file_id = ?1";
     match connection.prepare(query) {
         Ok(mut statement) => {
-            match statement.query(params![&collection_id]) {
+            match statement.query(params![&filedata.metadata_id]) {
                 Ok(mut rows) => {
                     loop {
                         match rows.next() {
@@ -1538,12 +1546,29 @@ pub fn collection(
                                     }
                                 }
                                 match row.get(4) {
+                                    Ok(val) => v.thumb = val,
+                                    Err(error) => {
+                                        log::error!("Failed to read runtime for video: {}", error);
+                                        continue;
+                                    }
+                                }
+                                match row.get(5) {
                                     Ok(val) => v.description = val,
                                     Err(error) => {
                                         log::error!("Failed to read runtime for video: {}", error);
                                         continue;
                                     }
                                 }
+                                match row.get(6) {
+                                    Ok(val) => {
+                                        let path: String = val;
+                                        v.path = PathBuf::from(&path);
+                                    },
+                                    Err(error) => {
+                                        log::error!("Failed to read runtime for video: {}", error);
+                                        continue;
+                                    }
+                                };
                             }
                             Ok(None) => {
                                 //log::warn!("No data read from indices.");
@@ -1568,8 +1593,10 @@ pub fn collection(
             log::error!("could not prepare SQL statement: {}", err);
         }
     }
+    let collection_id = v.id;
+
     let mut episodes = Vec::new();
-    let query = "SELECT episode_id, series, episode FROM collections_map WHERE collection_id = ?1 ORDER BY series ASC, episode ASC";
+    let query = "SELECT episode_id, series, episode, title, path, poster, thumb FROM collections_map WHERE collection_id = ?1 ORDER BY series ASC, episode ASC";
     match connection.prepare(query) {
         Ok(mut statement) => {
             match statement.query(params![&collection_id]) {
@@ -1604,6 +1631,37 @@ pub fn collection(
                                     }
                                     Err(error) => {
                                         log::error!("Failed to read id for video: {}", error);
+                                        continue;
+                                    }
+                                };
+                                match row.get(3) {
+                                    Ok(val) => e.title = val,
+                                    Err(error) => {
+                                        log::error!("Failed to read runtime for video: {}", error);
+                                        continue;
+                                    }
+                                };
+                                match row.get(4) {
+                                    Ok(val) => {
+                                        let path: String = val;
+                                        e.path = PathBuf::from(&path);
+                                    },
+                                    Err(error) => {
+                                        log::error!("Failed to read runtime for video: {}", error);
+                                        continue;
+                                    }
+                                };
+                                match row.get(5) {
+                                    Ok(val) => e.poster = val,
+                                    Err(error) => {
+                                        log::error!("Failed to read runtime for video: {}", error);
+                                        continue;
+                                    }
+                                };
+                                match row.get(6) {
+                                    Ok(val) => e.thumb = val,
+                                    Err(error) => {
+                                        log::error!("Failed to read runtime for video: {}", error);
                                         continue;
                                     }
                                 };
@@ -6101,7 +6159,9 @@ pub fn connect() -> Result<rusqlite::Connection, rusqlite::Error> {
             file_id INTEGER,
             collection_name TEXT,
             poster TEXT,
+            thumb TEXT,
             description TEXT,
+            path TEXT,
             PRIMARY KEY(collection_id AUTOINCREMENT)
         )",
             [],
@@ -6141,6 +6201,10 @@ pub fn connect() -> Result<rusqlite::Connection, rusqlite::Error> {
                 episode_id INTEGER, 
                 series INTEGER,
                 episode INTEGER,
+                title TEXT,
+                path TEXT,
+                poster TEXT,
+                thumb TEXT,
                 PRIMARY KEY(entry_id AUTOINCREMENT)
             )",
             [],

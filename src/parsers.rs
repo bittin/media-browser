@@ -2421,6 +2421,14 @@ pub fn scan_tvshow(
             log::warn!("failed to read directory {:?}: {}", path, err);
         }
     }
+    // parse the tvshow.nfo
+    let mut videometadata = crate::sql::VideoMetadata {
+        ..Default::default()
+    };
+    parse_nfo(&nfo_file, &mut videometadata);
+    meta_data.description = videometadata.description;
+    meta_data.name = videometadata.title;
+    // parse episodes in subdirectories
     contents.clear();
     for path in dirs {
         match std::fs::read_dir(path.clone()) {
@@ -2469,6 +2477,7 @@ pub fn scan_tvshow(
                     path: PathBuf::from(&video.path),
                     poster: video.poster,
                     thumb: video.thumb,
+                    title: video.name,
                 };
                 meta_data.episodes.push(e);
             }
