@@ -49,6 +49,30 @@ impl ScanMetaData {
             Err(error) => log::error!("could not lock known_files for insert! {}", error),
         }
     }
+    pub fn known_files_extend(&self, v: std::collections::BTreeMap<PathBuf, crate::sql::FileMetadata>) {
+        match self.known_files.lock() {
+            Ok(mut bm) => {
+                bm.extend(v);
+            }
+            Err(error) => log::error!("could not lock known_files for insert! {}", error),
+        }
+    }
+
+    pub fn known_files_clone(&self) -> std::collections::BTreeMap<PathBuf, crate::sql::FileMetadata> {
+        match self.known_files.lock() {
+            Ok(bm) => {
+                let mut b = std::collections::BTreeMap::new();
+                for (k, v) in bm.iter() {
+                    b.insert(k.to_owned(), v.to_owned());
+                }
+                return b;
+            }
+            Err(error) => {
+                log::error!("could not lock known_files for clone! {}", error);
+                std::collections::BTreeMap::new()
+            }
+        }
+    }
     pub fn known_files_remove(&self, p: PathBuf) {
         match self.known_files.lock() {
             Ok(mut bm) => {
@@ -65,12 +89,35 @@ impl ScanMetaData {
             Err(error) => log::error!("could not lock special_files for insert! {}", error),
         }
     }
+    pub fn special_files_extend(&self, v: std::collections::BTreeSet<PathBuf>) {
+        match self.special_files.lock() {
+            Ok(mut bm) => {
+                bm.extend(v);
+            }
+            Err(error) => log::error!("could not lock known_files for insert! {}", error),
+        }
+    }
     pub fn special_files_remove(&self, p: PathBuf) {
         match self.special_files.lock() {
             Ok(mut bm) => {
                 bm.remove(&p);
             }
             Err(error) => log::error!("could not lock special_files for remove! {}", error),
+        }
+    }
+    pub fn special_files_clone(&self) -> std::collections::BTreeSet<PathBuf> {
+        match self.special_files.lock() {
+            Ok(bm) => {
+                let mut v = std::collections::BTreeSet::new();
+                for k in bm.iter() {
+                    v.insert(k.to_owned());
+                }
+                return v;
+            }
+            Err(error) => {
+                log::error!("could not lock known_files for clone! {}", error);
+                std::collections::BTreeSet::new()
+            }
         }
     }
     pub fn items_clone(&self) -> Vec<Item> {
@@ -103,8 +150,7 @@ impl ScanMetaData {
                     return None;
                 }
                 let last = bm.len() - 1;
-                let item = bm[last].clone();
-                bm.remove(last);
+                let item = bm.remove(last);
                 return Some(item);
             }
             Err(error) => log::error!("could not lock items for push! {}", error),

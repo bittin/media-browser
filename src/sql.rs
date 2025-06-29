@@ -1264,12 +1264,12 @@ pub fn fill_chapters(
     (v, s)
 }
 
-#[derive(Clone, Debug, PartialEq, PartialOrd)]
+#[derive(Clone, Debug, PartialEq, PartialOrd, Eq, Hash)]
 pub struct CollectionMetadata {
     pub id: u32,
     pub name: String,
     pub file_id: u32,
-    pub path: String,
+    pub path: PathBuf,
     pub poster: String,
     pub thumb: String,
     pub description: String,
@@ -1283,7 +1283,7 @@ impl Default for CollectionMetadata {
             id: 0,
             name: String::new(),
             file_id: 0,
-            path: String::new(),
+            path: PathBuf::new(),
             poster: String::new(),
             thumb: String::new(),
             description: String::new(),
@@ -1293,13 +1293,14 @@ impl Default for CollectionMetadata {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, PartialOrd)]
+#[derive(Clone, Debug, PartialEq, PartialOrd, Eq, Hash)]
 pub struct EpisodeMetadata {
-    pub series: u32,
-    pub episode: u32,
+    pub series: i32,
+    pub episode: i32,
     pub file_id: u32,
-    pub video: VideoMetadata,
-    pub file: FileMetadata,
+    pub path: PathBuf,
+    pub poster: String,
+    pub thumb: String,
 }
 
 impl Default for EpisodeMetadata {
@@ -1308,12 +1309,9 @@ impl Default for EpisodeMetadata {
             series: 1,
             episode: 1,
             file_id: 0,
-            video: VideoMetadata {
-                ..Default::default()
-            },
-            file: FileMetadata {
-                ..Default::default()
-            },
+            path: PathBuf::new(),
+            poster: String::new(),
+            thumb: String::new(),
         }
     }
 }
@@ -1324,7 +1322,13 @@ pub fn insert_collection(
     statdata: &std::fs::Metadata,
     data: &crate::scanmetadata::ScanMetaData,
 ) {
-    let file_id = insert_file(sql_connection.clone(), &metadata.path, statdata, 2, data);
+    let file_id = insert_file(
+        sql_connection.clone(),
+        &crate::parsers::osstr_to_string(metadata.path.clone().into_os_string()),
+        statdata,
+        2,
+        data,
+    );
     let connection = match sql_connection.lock() {
         Ok(conn) => conn,
         Err(error) => {
@@ -1334,7 +1338,7 @@ pub fn insert_collection(
     };
     metadata.id = file_id;
     match connection.execute(
-        "INSERT INTO collections (file_id, name, poster, description) VALUES (?1, ?2, ?3, ?4)",
+        "INSERT INTO collections (file_id, collection_name, poster, description) VALUES (?1, ?2, ?3, ?4)",
         params![
             &metadata.id,
             &metadata.name,
@@ -1377,7 +1381,7 @@ pub fn insert_collection(
     }
     for i in 0..metadata.episodes.len() {
         match connection.execute(
-            "INSERT INTO collections_map (collection_id, episode_id, series, episode) VALUES (?1)",
+            "INSERT INTO collections_map (collection_id, episode_id, series, episode) VALUES (?1, ?2, ?3, ?4)",
             params![
                 &collection_id,
                 &metadata.episodes[i].file_id,
@@ -1413,7 +1417,9 @@ pub fn delete_collection(
     let mut collection_id: u32 = 0;
     let query = "SELECT metadata_id FROM file_metadata WHERE filepath = ?1";
     match connection.prepare(query) {
-        Ok(mut statement) => match statement.query(params![&metadata.path]) {
+        Ok(mut statement) => match statement.query(params![&crate::parsers::osstr_to_string(
+            metadata.path.clone().into_os_string()
+        )]) {
             Ok(mut rows) => {
                 while let Ok(Some(row)) = rows.next() {
                     let s_opt = row.get(1);
@@ -1429,7 +1435,7 @@ pub fn delete_collection(
         Err(error) => {
             log::error!(
                 "Failed to get file_id for {} from database: {}",
-                metadata.path,
+                &crate::parsers::osstr_to_string(metadata.path.clone().into_os_string()),
                 error
             );
             return;
@@ -1455,10 +1461,10 @@ pub fn delete_collection(
     // clear the entry in the candidates list without deleting it
     let ret = connection.execute(
         "DELETE FROM file_metadata WHERE filepath = ?1",
-        params![&metadata.path],
+        params![&crate::parsers::osstr_to_string(metadata.path.clone().into_os_string())],
     );
     if ret.is_err() {
-        log::error!("Failed to delete candidate {}!", metadata.path);
+        log::error!("Failed to delete candidate {:?}!", metadata.path);
         return;
     }
     data.known_files_remove(PathBuf::from(&metadata.path));
@@ -1490,7 +1496,7 @@ pub fn collection(
             return v;
         }
     };
-    v.path = filepath.to_string();
+    v.path = PathBuf::from(filepath);
     let collection_id = filedata.metadata_id;
     let query = "SELECT collection_id, file_id, collection_name, poster, description FROM collections WHERE file_id = ?1";
     match connection.prepare(query) {
@@ -1675,12 +1681,15 @@ pub fn collection(
     }
 
     for mut e in episodes {
-        e.file = file_by_id(sql_connection.clone(), e.file_id as i64);
-        e.video = video_by_id(
+        let file = file_by_id(sql_connection.clone(), e.file_id as i64);
+        let video = video_by_id(
             sql_connection.clone(),
-            &&crate::parsers::osstr_to_string(e.file.filepath.clone().into_os_string()),
+            &crate::parsers::osstr_to_string(file.filepath.clone().into_os_string()),
             e.file_id as i64,
         );
+        e.path = PathBuf::from(&video.path);
+        e.poster = video.poster;
+        e.thumb = video.thumb;
         v.episodes.push(e);
     }
 
@@ -1712,6 +1721,8 @@ pub struct VideoMetadata {
     pub actors: Vec<String>,
     pub chapters: Vec<Chapter>,
     pub tags: Vec<Tag>,
+    pub season: i32,
+    pub episode: i32,
 }
 
 impl Default for VideoMetadata {
@@ -1737,6 +1748,8 @@ impl Default for VideoMetadata {
             actors: Vec::new(),
             chapters: Vec::new(),
             tags: Vec::new(),
+            season: 0,
+            episode: 0,
         }
     }
 }
@@ -4896,7 +4909,7 @@ pub fn image(
     v
 }
 
-#[derive(Clone, Debug, PartialEq, PartialOrd)]
+#[derive(Clone, Debug, PartialEq, PartialOrd, Eq, Hash)]
 pub struct FileMetadata {
     pub filepath: PathBuf,
     pub creation_time: u64,
@@ -6100,7 +6113,7 @@ pub fn connect() -> Result<rusqlite::Connection, rusqlite::Error> {
             }
         }
         match connection.execute(
-            "CREATE INDEX collection_file_id ON collection (file_id)",
+            "CREATE INDEX collection_file_id ON collections (file_id)",
             (),
         ) {
             Ok(_ret) => {}
@@ -6110,7 +6123,7 @@ pub fn connect() -> Result<rusqlite::Connection, rusqlite::Error> {
             }
         }
         match connection.execute(
-            "CREATE INDEX collection_collection_name ON collection (collection_name)",
+            "CREATE INDEX collection_collection_name ON collections (collection_name)",
             (),
         ) {
             Ok(_ret) => {}
@@ -6139,7 +6152,7 @@ pub fn connect() -> Result<rusqlite::Connection, rusqlite::Error> {
             }
         }
         match connection.execute(
-            "CREATE INDEX collection_map_episode_id ON collection_map (episode_id)",
+            "CREATE INDEX collection_map_episode_id ON collections_map (episode_id)",
             (),
         ) {
             Ok(_ret) => {}
