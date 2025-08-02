@@ -2039,6 +2039,31 @@ pub fn scan_audiotags(
     let mut meta_data = crate::sql::AudioMetadata {
         ..Default::default()
     };
+    let lyricsopt = match audio.file_stem() {
+        Some(stem) => {
+            if let Some(path) = audio.parent() {
+                let mut lyricsstring = osstr_to_string(stem.to_os_string());
+                lyricsstring.push_str(".lrc");
+                let filepath = path.to_path_buf().join(lyricsstring);
+                if filepath.is_file() {
+                    Some(filepath)
+                } else {
+                    None
+                }
+            } else {
+                None
+            }
+        },
+        None => {
+            None
+        }
+    };
+    match lyricsopt {
+        Some(file) => {
+            meta_data.lyrics.push(osstr_to_string(file.into_os_string()))
+        },
+        None => {},
+    }
     meta_data.path = osstr_to_string(audio.clone().into_os_string());
     if meta_data.path.len() == 0 {
         return ControlFlow::Break(());
