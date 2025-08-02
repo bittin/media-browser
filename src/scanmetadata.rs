@@ -49,10 +49,14 @@ impl ScanMetaData {
             Err(error) => log::error!("could not lock known_files for insert! {}", error),
         }
     }
-    pub fn known_files_extend(&self, v: std::collections::BTreeMap<PathBuf, crate::sql::FileMetadata>) {
+    pub fn known_files_extend(&self, b: std::collections::BTreeMap<PathBuf, crate::sql::FileMetadata>) {
         match self.known_files.lock() {
             Ok(mut bm) => {
-                bm.extend(v);
+                for (k, v) in b.iter() {
+                    if !bm.contains_key(k) {
+                        bm.insert(k.to_path_buf(), v.to_owned());
+                    }
+                }
             }
             Err(error) => log::error!("could not lock known_files for insert! {}", error),
         }
@@ -92,6 +96,11 @@ impl ScanMetaData {
     pub fn special_files_extend(&self, v: std::collections::BTreeSet<PathBuf>) {
         match self.special_files.lock() {
             Ok(mut bm) => {
+                for k in v.iter() {
+                    if !bm.contains(k) {
+                        bm.insert(k.to_path_buf());
+                    }
+                }
                 bm.extend(v);
             }
             Err(error) => log::error!("could not lock known_files for insert! {}", error),
