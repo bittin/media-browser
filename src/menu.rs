@@ -99,7 +99,7 @@ pub fn context_menu<'a>(
     match (&tab.mode, &tab.location) {
         (
             tab::Mode::Audio | tab::Mode::Image | tab::Mode::Video,
-            Location::DBSearch(_) | Location::Tag(_) | Location::Path(_) | Location::Search(_, _, _, _) | Location::Recents,
+            Location::DBSearch(_) | Location::Tag(_) | Location::Collection(_) | Location::Path(_) | Location::Search(_, _, _, _) | Location::Recents,
         ) => {
         }
         (
@@ -124,7 +124,7 @@ pub fn context_menu<'a>(
         }
         (
             tab::Mode::App | tab::Mode::Desktop | tab::Mode::Browser,
-            Location::Path(_) | Location::Search(_, _, _, _) | Location::Recents,
+            Location::Path(_) | Location::Collection(_) | Location::Search(_, _, _, _) | Location::Recents,
         ) => {
             children.push(menu_item(fl!("search-context"), Action::SearchDB).into());
             if selected > 0 {
@@ -173,7 +173,7 @@ pub fn context_menu<'a>(
         }
         (
             tab::Mode::Dialog(dialog_kind),
-            Location::DBSearch(_) | Location::Tag(_) | Location::Path(_) | Location::Search(_, _, _, _) | Location::Recents,
+            Location::DBSearch(_) | Location::Tag(_) | Location::Collection(_) | Location::Path(_) | Location::Search(_, _, _, _) | Location::Recents,
         ) => {
             if selected > 0 {
                 if selected_dir == 1 && selected == 1 || selected_dir == 0 {

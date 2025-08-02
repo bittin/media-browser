@@ -484,6 +484,8 @@ pub fn scan_path_runner(
                     dirs.push(path.clone());
                 } else {
                     all.push(path.clone());
+                    let mime = crate::mime_icon::mime_for_path(path.clone());
+
                     if let Some(ext) = path.extension() {
                         let extension = crate::parsers::osstr_to_string(ext.to_os_string())
                             .to_ascii_lowercase();
@@ -491,20 +493,13 @@ pub fn scan_path_runner(
                             if let Some(basename) = path.file_stem() {
                                 nfos.push(crate::parsers::osstr_to_string(basename.to_os_string()));
                             }
-                        } else if &extension == "mp3" || &extension == "m4a" || &extension == "flac"
+                        } else if mime.type_() == mime_guess::mime::AUDIO
                         {
                             audios.push(path.clone());
-                        } else if &extension == "mkv" || &extension == "mp4" || &extension == "webm"
+                        } else if mime.type_() == mime_guess::mime::VIDEO
                         {
                             videos.push(path.clone());
-                        } else if &extension == "jpg"
-                            || &extension == "jpeg"
-                            || &extension == "jfif"
-                            || &extension == "tif"
-                            || &extension == "tiff"
-                            || &extension == "gif"
-                            || &extension == "webp"
-                            || &extension == "png"
+                        } else if mime.type_() == mime_guess::mime::IMAGE
                         {
                             images.push(path.clone());
                         }
@@ -563,7 +558,7 @@ pub fn scan_path_runner(
             let tvshows = data.tvshows_clone();
             for path in tvshows {
                 if let ControlFlow::Break(_) =
-                    crate::parsers::scan_tvshow(path, &all, data, sizes, sql_connection.clone())
+                    crate::parsers::scan_tvshow(path, data, sizes, sql_connection.clone())
                 {
                     continue;
                 }
@@ -662,7 +657,7 @@ fn sort_items_media_browser(items: Vec<Item>) -> Vec<Item> {
     sorted
 }
 
-fn sort_items_from_search(items: Vec<Item>, search: &crate::sql::SearchData) -> Vec<Item> {
+fn sort_items_from_search(items: Vec<Item>, _search: &crate::sql::SearchData) -> Vec<Item> {
     let mut sorted = Vec::new();
     //    if search.album {
     // sort audio content from the same album in order of track id
@@ -964,6 +959,7 @@ pub enum Location {
     Recents,
     Search(PathBuf, String, bool, Instant),
     DBSearch(crate::sql::SearchData),
+    Collection(crate::sql::CollectionMetadata),
     Trash,
 }
 
@@ -980,6 +976,13 @@ impl std::fmt::Display for Location {
                     f,
                     "search {} in database for selected entries.",
                     search.display()
+                )
+            }
+            Self::Collection(collection) => {
+                write!(
+                    f,
+                    "Directory {:?} containing a TV Series with multiple episodes.",
+                    collection
                 )
             }
             Self::Trash => write!(f, "trash"),
@@ -1017,6 +1020,12 @@ impl Location {
                 // Search is done incrementally
                 Vec::new()
             }
+            Self::Collection(collection) => scan_path(
+                sql_connection.clone(),
+                &PathBuf::from(&collection.path),
+                sizes,
+                false,
+            ),
             Self::Tag(t) => scan_tags(sql_connection.clone(), t.clone()),
             Self::Trash => scan_trash(sizes),
             Self::Recents => scan_recents(sizes),
@@ -1225,6 +1234,15 @@ impl ItemThumbnail {
                 Some((image.width, image.height)),
             );
         }
+        if let Some(collection) = item.collection_opt.as_ref() {
+            if collection.thumb.len() == 0 {
+                return ItemThumbnail::NotImage;
+            }
+            return ItemThumbnail::Image(
+                widget::image::Handle::from_path(PathBuf::from(&collection.thumb)),
+                Some((254, 254)),
+            );
+        }
 
         ItemThumbnail::NotImage
     }
@@ -1237,7 +1255,7 @@ pub struct Item {
     pub metadata: ItemMetadata,
     pub hidden: bool,
     pub location_opt: Option<Location>,
-    pub mime: Mime,
+    pub mime: mime_guess::Mime,
     pub icon_handle_grid: widget::icon::Handle,
     pub icon_handle_list: widget::icon::Handle,
     pub icon_handle_list_condensed: widget::icon::Handle,
@@ -1298,6 +1316,14 @@ impl Item {
                 if let Some(video) = self.video_opt.as_ref() {
                     if video.thumb.len() > 0 {
                         let path = PathBuf::from(&video.thumb);
+                        return widget::image(widget::image::Handle::from_path(path)).into();
+                    } else {
+                        return icon;
+                    }
+                }
+                if let Some(collection) = self.collection_opt.as_ref() {
+                    if collection.thumb.len() > 0 {
+                        let path = PathBuf::from(&collection.thumb);
                         return widget::image(widget::image::Handle::from_path(path)).into();
                     } else {
                         return icon;
@@ -1451,7 +1477,27 @@ impl Item {
         let settings;
         match &self.metadata {
             ItemMetadata::Path { metadata, children } => {
-                if metadata.is_dir() {
+                if let Some(collection) = self.collection_opt.as_ref() {
+                    let path = PathBuf::from(&collection.path);
+
+                    (details, settings) =
+                        self.file_details(&path, &self.name, &mime_for_path(path.clone()));
+
+                    details = details.push(widget::text::body(collection.description.clone()));
+
+                    details = details.push(widget::text::body(format!(
+                        "{} episodes",
+                        collection.episodes.len()
+                    )));
+
+                    for l in collection.tags.iter() {
+                        details = details.push(
+                            widget::button::link(fl!("item-media-tag", text = l.tag.clone()))
+                                .on_press(crate::app::Message::LaunchSearch(ST::Tag, l.tag.clone()))
+                                .padding(0),
+                        );
+                    }
+                } else if metadata.is_dir() {
                     if let Some(path) = self.path_opt() {
                         (details, settings) = self.file_details(path, &self.name, &self.mime);
                         details = details.push(widget::text::body(fl!("items", items = children)));
@@ -2031,6 +2077,9 @@ impl Tab {
                 } else {
                     format!("Search {}", search.search_id)
                 }
+            }
+            Location::Collection(collection) => {
+                format!("Collection \"{}\"", collection.name)
             }
             Location::Network(_uri, display_name) => display_name.clone(),
         }
@@ -2858,6 +2907,9 @@ impl Tab {
                             commands.push(Command::Open(path.clone()));
                         }
                     }
+                    Location::Collection(_collection) => {
+                        cd = Some(location);
+                    }
                     _ => {
                         cd = Some(location);
                     }
@@ -2868,6 +2920,12 @@ impl Tab {
                 // Does nothing if path is root or location is Trash
                 if let Location::Path(ref path) = self.location {
                     if let Some(parent) = path.parent() {
+                        cd = Some(Location::Path(parent.to_owned()));
+                    }
+                }
+                if let Location::Collection(collection) = self.location.clone() {
+                    // change to the parent directory
+                    if let Some(parent) = PathBuf::from(&collection.path).parent() {
                         cd = Some(Location::Path(parent.to_owned()));
                     }
                 }
@@ -3601,8 +3659,9 @@ impl Tab {
                     .padding(space_xxs)
                     .class(theme::Button::Icon),
                 );
+                let pathstring = crate::parsers::osstr_to_string(path.clone().into_os_string());
                 row = row.push(
-                    widget::text_input("", path.to_string_lossy())
+                    widget::text_input("", pathstring)
                         .id(self.edit_location_id.clone())
                         .on_input(|input| {
                             Message::EditLocation(Some(location.with_path(PathBuf::from(input))))
@@ -3610,14 +3669,14 @@ impl Tab {
                         .on_submit(Message::Location(location.clone()))
                         .line_height(1.0),
                 );
-                let mut column = widget::column::with_capacity(4).padding([0, space_s]);
-                column = column.push(row);
-                column = column.push(accent_rule);
+                let mut column3 = widget::column::with_capacity(4).padding([0, space_s]);
+                column3 = column3.push(row);
+                column3 = column3.push(accent_rule);
                 if self.config.view == View::List && !condensed {
-                    column = column.push(heading_row);
-                    column = column.push(heading_rule);
+                    column3 = column3.push(heading_row);
+                    column3 = column3.push(heading_rule);
                 }
-                return column.into();
+                return column3.into();
             }
         } else if let Some(path) = self.location.path_opt() {
             row = row.push(
@@ -3634,6 +3693,90 @@ impl Tab {
 
         let mut children: Vec<Element<_>> = Vec::new();
         match &self.location {
+            Location::Collection(collection) => {
+                let excess_str = "...";
+                let excess_width = text_width_body(excess_str);
+                for (index, ancestor) in collection.path.ancestors().enumerate() {
+                    let (name, found_home) = folder_name(&ancestor);
+                    let (name_width, name_text) = if children.is_empty() {
+                        (
+                            text_width_heading(&name),
+                            widget::text::heading(name).wrapping(text::Wrapping::None),
+                        )
+                    } else {
+                        children.push(
+                            widget::icon::from_name("go-next-symbolic")
+                                .size(16)
+                                .icon()
+                                .into(),
+                        );
+                        w += 16.0;
+                        (
+                            text_width_body(&name),
+                            widget::text::body(name).wrapping(text::Wrapping::None),
+                        )
+                    };
+
+                    // Add padding for mouse area
+                    w += 2.0 * space_xxxs as f32;
+
+                    let mut row = widget::row::with_capacity(2)
+                        .align_y(Alignment::Center)
+                        .spacing(space_xxxs);
+                    //TODO: figure out why this hardcoded offset is needed after the first item is ellipsed
+                    let overflow_offset = 32.0;
+                    let overflow = w + name_width + overflow_offset > size.width && index > 0;
+                    if overflow {
+                        row = row.push(widget::text::body(excess_str));
+                        w += excess_width;
+                    } else {
+                        row = row.push(name_text);
+                        w += name_width;
+                    }
+
+                    let location = match &self.location {
+                        Location::Path(_) => Location::Path(ancestor.to_path_buf()),
+                        Location::Search(_, term, _, _) => Location::Search(
+                            ancestor.to_path_buf(),
+                            term.clone(),
+                            false,
+                            Instant::now(),
+                        ),
+                        other => other.clone(),
+                    };
+
+                    let mut mouse_area = crate::mouse_area::MouseArea::new(
+                        widget::button::custom(row)
+                            .padding(space_xxxs)
+                            .class(theme::Button::Link)
+                            .on_press(Message::Location(location.clone())),
+                    );
+
+                    if self.location_context_menu_index.is_some() {
+                        mouse_area = mouse_area.on_right_press(move |_point_opt| {
+                            Message::LocationContextMenuIndex(None)
+                        })
+                    } else {
+                        mouse_area = mouse_area.on_right_press_no_capture(move |_point_opt| {
+                            Message::LocationContextMenuIndex(Some(index))
+                        })
+                    }
+
+                    let mouse_area = if let Location::Path(_) = &self.location {
+                        mouse_area
+                            .on_middle_press(move |_| Message::OpenInNewTab(ancestor.to_path_buf()))
+                    } else {
+                        mouse_area
+                    };
+
+                    children.push(self.dnd_dest(&location, mouse_area));
+
+                    if found_home || overflow {
+                        break;
+                    }
+                }
+                children.reverse();
+            }
             Location::Path(path) => {
                 /*children.push(
                     widget::button::custom(widget::text::heading(crate::parsers::osstr_to_string(
@@ -4651,7 +4794,7 @@ impl Tab {
         dnd_dest.into()
     }
 
-    pub fn view<'a>(&'a self, key_binds: &'a HashMap<KeyBind, Action>) -> Element<Message> {
+    pub fn view<'a>(&'a self, key_binds: &'a HashMap<KeyBind, Action>) -> Element<'a, Message> {
         widget::responsive(|size| self.view_responsive(key_binds, size)).into()
     }
 
