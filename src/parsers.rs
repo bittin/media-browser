@@ -2415,6 +2415,7 @@ pub fn scan_tvshow(
                         nfo_names.push(osstr_to_string(path.clone().into_os_string()));
                     }
                 }
+                data.special_files_insert(path.clone());
             }
         }
         Err(err) => {
@@ -2461,9 +2462,19 @@ pub fn scan_tvshow(
             }
         }
     }
+    let localdata = crate::scanmetadata::ScanMetaData::new();
+    let knownfiles = data.known_files_clone();
+    let specialfiles = data.special_files_clone();
+    localdata.known_files_extend(knownfiles);
+    localdata.special_files_extend(specialfiles);
     for nfo in nfo_names {
-        let localdata = crate::scanmetadata::ScanMetaData::new();
-        let ret = scan_nfos_in_dir(nfo, &mut contents, &localdata, sizes, sql_connection.clone());
+        let ret = scan_nfos_in_dir(
+            nfo,
+            &mut contents,
+            &localdata,
+            sizes,
+            sql_connection.clone(),
+        );
         if ret == ControlFlow::Break(()) {
             continue;
         }
@@ -2482,11 +2493,11 @@ pub fn scan_tvshow(
                 meta_data.episodes.push(e);
             }
         }
-        let knownfiles = localdata.known_files_clone();
-        let specialfiles = localdata.special_files_clone();
-        data.known_files_extend(knownfiles);
-        data.special_files_extend(specialfiles);
     }
+    let knownfiles2 = localdata.known_files_clone();
+    let specialfiles2 = localdata.special_files_clone();
+    data.known_files_extend(knownfiles2);
+    data.special_files_extend(specialfiles2);
     if !PathBuf::from(&nfo_file).exists() {
         return ControlFlow::Break(());
     }
