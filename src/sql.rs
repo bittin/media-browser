@@ -1341,13 +1341,14 @@ pub fn insert_collection(
     metadata.id = file_id;
     let path = crate::parsers::osstr_to_string(metadata.path.clone().into_os_string());
     match connection.execute(
-        "INSERT INTO collections (file_id, collection_name, poster, description, path) VALUES (?1, ?2, ?3, ?4, ?5)",
+        "INSERT INTO collections (file_id, collection_name, poster, description, path, thumb) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
         params![
             &metadata.id,
             &metadata.name,
             &metadata.poster,
             &metadata.description,
             &path,
+            &metadata.thumb,
         ],
     ) {
         Ok(_retval) => {} //log::warn!("Inserted {} video with ID {} and location {} into candidates.", video.id, video.index, candidate_id),
