@@ -87,7 +87,7 @@ pub fn downscale_image(
                 nwidth = nheight * width as u32 / height as u32;
             }
             let newimg = img.resize(nwidth, nheight, image::imageops::FilterType::Lanczos3);
-            let newpath = crate::thumbnails::downscale_path(&path);
+            let newpath = downscale_path(&path);
             if newpath.is_file() {
                 match std::fs::remove_file(newpath.clone()) {
                     Ok(()) => {}
@@ -133,10 +133,15 @@ pub fn create_thumbnail(path: &std::path::PathBuf, max_size: u32) -> String {
                 );
 
                 thumbstring = crate::parsers::osstr_to_string(thumbpath.clone().into_os_string());
-                let ret = thumb.save(thumbstring.clone());
-                if ret.is_err() {
-                    log::error!("Failed to create thumbnail for file {}!", path.display());
-                    return String::new();
+                let file = std::fs::File::create(thumbpath.clone()).unwrap();
+                let mut buff = std::io::BufWriter::new(file);
+                let encoder = image::codecs::png::PngEncoder::new(&mut buff);
+                match thumb.write_with_encoder(encoder) {
+                    Ok(()) => return thumbstring,
+                    Err(error) => {
+                        log::error!("Failed to create thumbnail for file {}: {}!", path.display(), error);
+                        return String::new();
+                    }
                 }
             }
             Err(error) => {
@@ -150,8 +155,6 @@ pub fn create_thumbnail(path: &std::path::PathBuf, max_size: u32) -> String {
         },
         Err(_error) => return thumbstring,
     }
-
-    thumbstring
 }
 
 pub fn create_thumbnail_downscale_if_necessary(
