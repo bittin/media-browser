@@ -2139,6 +2139,13 @@ pub fn scan_single_nfo_dir(
     let mut contents = Vec::new();
     let mut movie_name = String::new();
     let mut nfo_names = Vec::new();
+    // test if we have a directory with a TV Show
+    let tvshow_nfo_file = dp.clone().join("tvshow.nfo");
+    if tvshow_nfo_file.exists() {
+        data.tvshows_push(dp.to_path_buf());
+        return ControlFlow::Break(());
+    }
+
     match std::fs::read_dir(dp) {
         Ok(entries) => {
             for entry_res in entries {
@@ -2162,7 +2169,7 @@ pub fn scan_single_nfo_dir(
                 let f = osstr_to_string(path.clone().into_os_string()).to_ascii_lowercase();
                 if f.contains("poster.") {
                     if poster > 0 {
-                        justdirs.push(dp.clone());
+                        justdirs.push(dp.to_path_buf());
                         return ControlFlow::Break(());
                     }
                     meta_data.poster = osstr_to_string(path.clone().into_os_string());
@@ -2181,14 +2188,14 @@ pub fn scan_single_nfo_dir(
                     return ControlFlow::Break(());
                 } else if f.contains(".nfo") {
                     if nfo > 1 {
-                        justdirs.push(dp.clone());
+                        justdirs.push(dp.to_path_buf());
                         return ControlFlow::Break(());
                     }
                     if !osstr_to_string(path.clone().into_os_string())
                         .to_ascii_lowercase()
                         .ends_with("movie.nfo")
                     {
-                        nfo_file = path.clone();
+                        nfo_file = path.to_path_buf();
                     }
                     if let Some(basename) = path.file_stem() {
                         nfo_names.push(osstr_to_string(basename.to_os_string()));
@@ -2198,7 +2205,7 @@ pub fn scan_single_nfo_dir(
                     nfo += 1;
                 } else if f.ends_with(".mkv") || f.ends_with(".mp4") || f.ends_with(".webm") {
                     if movie > 0 {
-                        justdirs.push(dp.clone());
+                        justdirs.push(dp.to_path_buf());
                         return ControlFlow::Break(());
                     }
                     meta_data.path = osstr_to_string(path.clone().into_os_string());
@@ -2222,7 +2229,7 @@ pub fn scan_single_nfo_dir(
                     }
                 }
                 if !movienamenfo {
-                    justdirs.push(dp.clone());
+                    justdirs.push(dp.to_path_buf());
                     return ControlFlow::Break(());
                 }
             }
@@ -2232,11 +2239,11 @@ pub fn scan_single_nfo_dir(
         }
     }
     if !PathBuf::from(&nfo_file).exists() {
-        justdirs.push(dp.clone());
+        justdirs.push(dp.to_path_buf());
         return ControlFlow::Break(());
     }
     if meta_data.path.len() == 0 {
-        justdirs.push(dp.clone());
+        justdirs.push(dp.to_path_buf());
         return ControlFlow::Break(());
     }
     if meta_data.poster.len() == 0 {
@@ -2311,7 +2318,7 @@ pub fn scan_nfos_in_dir(
                 meta_data.subtitles.push(f.clone());
             } else if f.ends_with(".nfo") {
                 if !nfo_file.exists() {
-                    nfo_file = fp.clone();
+                    nfo_file = fp.to_path_buf();
                 }
             } else if f.ends_with(".mkv") || f.ends_with(".mp4") || f.ends_with(".webm") {
                 meta_data.path = osstr_to_string(fp.clone().into_os_string());
@@ -2430,6 +2437,7 @@ pub fn scan_tvshow(
     meta_data.description = videometadata.description;
     meta_data.name = videometadata.title;
     // parse episodes in subdirectories
+    // searches for NFO files to send to the general video functionality
     contents.clear();
     for path in dirs {
         match std::fs::read_dir(path.clone()) {
@@ -2462,12 +2470,12 @@ pub fn scan_tvshow(
             }
         }
     }
-    let localdata = crate::scanmetadata::ScanMetaData::new();
-    let knownfiles = data.known_files_clone();
-    let specialfiles = data.special_files_clone();
-    localdata.known_files_extend(knownfiles);
-    localdata.special_files_extend(specialfiles);
     for nfo in nfo_names {
+        let localdata = crate::scanmetadata::ScanMetaData::new();
+        let knownfiles = data.known_files_clone();
+        let specialfiles = data.special_files_clone();
+        localdata.known_files_extend(knownfiles);
+        localdata.special_files_extend(specialfiles);
         let ret = scan_nfos_in_dir(
             nfo,
             &mut contents,
@@ -2493,17 +2501,19 @@ pub fn scan_tvshow(
                 meta_data.episodes.push(e);
             }
         }
+        let knownfiles2 = localdata.known_files_clone();
+        let specialfiles2 = localdata.special_files_clone();
+        data.known_files_extend(knownfiles2);
+        data.special_files_extend(specialfiles2);
     }
-    let knownfiles2 = localdata.known_files_clone();
-    let specialfiles2 = localdata.special_files_clone();
-    data.known_files_extend(knownfiles2);
-    data.special_files_extend(specialfiles2);
     if !PathBuf::from(&nfo_file).exists() {
         return ControlFlow::Break(());
     }
     data.special_files_insert(path.clone());
-    for path in contents.iter() {
-        data.special_files_insert(path.clone());
+    for p in contents {
+        if !data.special_files_contains(p.clone()) {
+            data.special_files_insert(p);
+        }
     }
     let thumbpath = PathBuf::from(&meta_data.poster);
     if thumbpath.exists() {

@@ -190,4 +190,12 @@ impl ScanMetaData {
             Err(error) => log::error!("could not lock justdirs for push! {}", error),
         }
     }
+    pub fn tvshows_clear(&self) {
+        match self.tvshows.lock() {
+            Ok(mut bm) => {
+                bm.clear();
+            }
+            Err(error) => log::error!("could not lock justdirs for push! {}", error),
+        }
+    }
 }

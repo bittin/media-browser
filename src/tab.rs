@@ -462,6 +462,12 @@ pub fn scan_path_runner(
     if recursive {
         log::warn!("Scanning directory {}", tab_path.display());
     }
+    //let mut movie_nfo_file = tab_path.clone().join("movie.nfo");
+    let tvshow_nfo_file = tab_path.clone().join("tvshow.nfo");
+    if tvshow_nfo_file.exists() {
+        data.tvshows_push(tab_path.to_path_buf());
+        return Vec::new();
+    }
     match fs::read_dir(tab_path) {
         Ok(entries) => {
             let mut all: Vec<PathBuf> = Vec::new();
@@ -563,6 +569,7 @@ pub fn scan_path_runner(
                     continue;
                 }
             }
+            data.tvshows_clear();
             for path in justdirs.iter() {
                 if recursive {
                     if let Some(dirname) = path.file_stem() {
