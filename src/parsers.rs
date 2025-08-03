@@ -1478,7 +1478,7 @@ fn audio_metadata(
                 meta_data.lyrics.push(lyrics_1.clone());
                 data.special_files_insert(PathBuf::from(lyrics_1.clone()));
             }
-            if PathBuf::from(lyrics_1.clone()).is_file() {
+            if PathBuf::from(lyrics_2.clone()).is_file() {
                 meta_data.lyrics.push(lyrics_2.clone());
                 data.special_files_insert(PathBuf::from(lyrics_2.clone()));
             }
@@ -2039,31 +2039,6 @@ pub fn scan_audiotags(
     let mut meta_data = crate::sql::AudioMetadata {
         ..Default::default()
     };
-    let lyricsopt = match audio.file_stem() {
-        Some(stem) => {
-            if let Some(path) = audio.parent() {
-                let mut lyricsstring = osstr_to_string(stem.to_os_string());
-                lyricsstring.push_str(".lrc");
-                let filepath = path.to_path_buf().join(lyricsstring);
-                if filepath.is_file() {
-                    Some(filepath)
-                } else {
-                    None
-                }
-            } else {
-                None
-            }
-        },
-        None => {
-            None
-        }
-    };
-    match lyricsopt {
-        Some(file) => {
-            meta_data.lyrics.push(osstr_to_string(file.into_os_string()))
-        },
-        None => {},
-    }
     meta_data.path = osstr_to_string(audio.clone().into_os_string());
     if meta_data.path.len() == 0 {
         return ControlFlow::Break(());
@@ -2274,9 +2249,9 @@ pub fn scan_single_nfo_dir(
             return ControlFlow::Break(());
         }
     }
-    data.special_files_insert(dp.clone());
+    data.special_files_insert(dp.to_path_buf());
     for path in contents.iter() {
-        data.special_files_insert(path.clone());
+        data.special_files_insert(path.to_path_buf());
     }
     let thumbpath = PathBuf::from(&meta_data.poster);
     if thumbpath.exists() {
@@ -2341,7 +2316,7 @@ pub fn scan_nfos_in_dir(
             } else if f.ends_with(".mkv") || f.ends_with(".mp4") || f.ends_with(".webm") {
                 meta_data.path = osstr_to_string(fp.clone().into_os_string());
             }
-            data.special_files_insert(fp.clone());
+            data.special_files_insert(fp.to_path_buf());
         }
     }
     if meta_data.path.len() == 0 {
@@ -2440,7 +2415,7 @@ pub fn scan_tvshow(
                         nfo_names.push(osstr_to_string(path.clone().into_os_string()));
                     }
                 }
-                data.special_files_insert(path.clone());
+                data.special_files_insert(path.to_path_buf());
             }
         }
         Err(err) => {
