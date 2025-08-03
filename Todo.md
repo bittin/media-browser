@@ -49,12 +49,13 @@ Positions ended with a ? are *stretch goals*. If it is possible AND somebody doe
 - Search results do not change sort order
 - Check that updates to the database actually work
 - deactivate creation time and access time for files
+- Parsing directory structures of TV Series does not ignore unnecessary metadata
+- for single Movie directories thumbnails are generated for unused metadata images instead of just the poster
 
 #### Open Bugs
 
+- Displaying a TV show has no way back to normal view. Directory view stays empty.
 - PNG crashes while reading PNG file it should not try to read.
-- Parsing directory structures of TV Series does not ignore unnecessary metadata
-- for single Movie directories thumbnails are generated for unused metadata images instead of just the poster
 - Automatically close Popup GUI after 5 Seconds of no activity?
 - key bindings only work in browser mode
 
