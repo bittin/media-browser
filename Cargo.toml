@@ -8,7 +8,7 @@ readme = "README.md"
 license = "GPL-3.0"
 homepage = "https://github.com/fangornsrealm/media-browser"
 repository = "https://github.com/fangornsrealm/media-browser.git"
-rust-version = "1.71"
+rust-version = "1.80"
 
 [build-dependencies]
 vergen = { version = "8", features = ["git", "gitcl"] }
@@ -54,6 +54,7 @@ rustc-hash = "2.1.0"
 serde = { version = "1", features = ["serde_derive"] }
 shlex = { version = "1.3" }
 thiserror = "2.0.11"
+tikv-jemallocator = { version = "0.6", optional = true }
 tokio = { version = "1", features = ["sync", "time"] }
 trash = { git = "https://github.com/jackpot51/trash-rs.git", branch = "cosmic" }
 url = "2"
@@ -105,6 +106,7 @@ features = ["serde"]
 default = ["advanced", "bzip2", "desktop", "liblzma", "notify", "winit", "wgpu", "gvfs"]
 advanced = []
 desktop = ["libcosmic/desktop", "dep:xdg"]
+jemalloc = ["dep:tikv-jemallocator"]
 notify = ["dep:notify-rust"]
 wayland = ["libcosmic/wayland", "dep:wayland-client"]
 winit = ["libcosmic/winit"]
