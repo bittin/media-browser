@@ -988,9 +988,9 @@ pub fn item_from_video(
                         &PathBuf::from(&videometadata.poster),
                         254,
                     );
-                    crate::sql::update_video(sql_connection, videometadata, statdata, data);
+                    crate::sql::update_video(sql_connection.clone(), videometadata, statdata, data);
                 } else {
-                    *videometadata = crate::sql::video(sql_connection, &filepath, data);
+                    *videometadata = crate::sql::video(sql_connection.clone(), &filepath, data);
                 }
             }
         } else {
@@ -1008,7 +1008,7 @@ pub fn item_from_video(
             }
             videometadata.thumb =
                 crate::thumbnails::create_thumbnail(&PathBuf::from(&videometadata.poster), 254);
-            crate::sql::insert_video(sql_connection, videometadata, statdata, data);
+            crate::sql::insert_video(sql_connection.clone(), videometadata, statdata, data);
         }
     }
 
@@ -1184,9 +1184,9 @@ pub fn item_from_nfo(
                     metadata.thumb =
                         crate::thumbnails::create_thumbnail(&PathBuf::from(&metadata.poster), 254);
                     metadata.name = basename.clone();
-                    crate::sql::update_video(sql_connection, metadata, statdata, data);
+                    crate::sql::update_video(sql_connection.clone(), metadata, statdata, data);
                 } else {
-                    *metadata = crate::sql::video(sql_connection, &metadata.path, data);
+                    *metadata = crate::sql::video(sql_connection.clone(), &metadata.path, data);
                 }
             }
         } else {
@@ -1206,7 +1206,7 @@ pub fn item_from_nfo(
             metadata.thumb =
                 crate::thumbnails::create_thumbnail(&PathBuf::from(&metadata.poster), 254);
             metadata.name = basename.clone();
-            crate::sql::insert_video(sql_connection, metadata, statdata, data);
+            crate::sql::insert_video(sql_connection.clone(), metadata, statdata, data);
         }
     }
 
@@ -1289,170 +1289,6 @@ pub fn item_from_nfo(
         video_opt: Some(metadata.clone()),
         audio_opt: None,
         collection_opt: None,
-    };
-    item.thumbnail_opt = Some(crate::tab::ItemThumbnail::new(item.clone()));
-    item
-}
-
-/// create an item to put into our tabmodel from a video with NFO metadata
-pub fn item_from_tvshow(
-    nfo_file: PathBuf,
-    metadata: &mut crate::sql::CollectionMetadata,
-    statdata: &std::fs::Metadata,
-    sizes: IconSizes,
-    data: &crate::scanmetadata::ScanMetaData,
-    sql_connection: std::sync::Arc<std::sync::Mutex<rusqlite::Connection>>,
-    from_db: bool,
-) -> Item {
-    let filepath = PathBuf::from(&metadata.path);
-    let basename;
-    if let Some(bn) = filepath.file_stem() {
-        basename = osstr_to_string(bn.to_os_string());
-    } else {
-        if let Some(bn) = filepath.file_name() {
-            basename = osstr_to_string(bn.to_os_string());
-        } else {
-            basename = osstr_to_string(filepath.clone().into_os_string());
-        }
-    }
-    if !from_db {
-        let mut video = crate::sql::VideoMetadata {
-            ..Default::default()
-        };
-        if data.known_files_contains(filepath.clone()) {
-            let mut refresh = false;
-            if let Ok(modified) = statdata.modified() {
-                if let Ok(new_date) = modified.duration_since(UNIX_EPOCH) {
-                    let filedata = &data.known_files_get(filepath.clone());
-                    let new_seconds_since_epoch = new_date.as_secs();
-                    if new_seconds_since_epoch > filedata.modification_time {
-                        refresh = true;
-                    }
-                }
-                if refresh {
-                    // file is newer
-                    parse_nfo(&nfo_file, &mut video);
-                    if video.date.num_days_from_ce() < 100 {
-                        if let Ok(created) = statdata.created() {
-                            if let Ok(nsecs) = created.duration_since(UNIX_EPOCH) {
-                                if let Some(ndt) =
-                                    chrono::DateTime::from_timestamp(nsecs.as_secs() as i64, 0)
-                                {
-                                    video.date = ndt.date_naive();
-                                }
-                            }
-                        }
-                    }
-                    metadata.thumb =
-                        crate::thumbnails::create_thumbnail(&PathBuf::from(&metadata.poster), 254);
-                    crate::sql::update_collection(sql_connection, metadata, statdata, data);
-                } else {
-                    *metadata = crate::sql::collection(
-                        sql_connection,
-                        &osstr_to_string(metadata.path.clone().into_os_string()),
-                        data,
-                    );
-                }
-            }
-        } else {
-            video.poster = metadata.poster.clone();
-            parse_nfo(&nfo_file, &mut video);
-            if video.date.num_days_from_ce() < 100 {
-                if let Ok(created) = statdata.created() {
-                    if let Ok(nsecs) = created.duration_since(UNIX_EPOCH) {
-                        if let Some(ndt) =
-                            chrono::DateTime::from_timestamp(nsecs.as_secs() as i64, 0)
-                        {
-                            video.date = ndt.date_naive();
-                        }
-                    }
-                }
-            }
-            metadata.thumb =
-                crate::thumbnails::create_thumbnail(&PathBuf::from(&video.poster), 254);
-            crate::sql::insert_collection(sql_connection, metadata, statdata, data);
-        }
-    }
-
-    let name;
-    if metadata.name.len() == 0 {
-        name = basename.clone();
-    } else {
-        name = metadata.name.clone();
-    }
-
-    let display_name = Item::display_name(&name);
-
-    let hidden = name.starts_with(".") || hidden_attribute(&statdata);
-
-    let (mime, icon_handle_grid, icon_handle_list, icon_handle_list_condensed) = {
-        let thumbpath = PathBuf::from(&metadata.thumb);
-        let thumbmime = mime_for_path(thumbpath.clone());
-        let filemime = mime_for_path(filepath.clone());
-        if metadata.thumb.len() > 0 {
-            (
-                filemime.clone(),
-                widget::icon::from_path(thumbpath.clone()),
-                widget::icon::from_path(thumbpath.clone()),
-                widget::icon::from_path(thumbpath.clone()),
-            )
-        } else {
-            (
-                filemime.clone(),
-                mime_icon(thumbmime.clone(), sizes.grid()),
-                mime_icon(thumbmime.clone(), sizes.list()),
-                mime_icon(thumbmime.clone(), sizes.list_condensed()),
-            )
-        }
-    };
-
-    let open_with = mime_apps(&mime);
-
-    let children = if statdata.is_dir() {
-        //TODO: calculate children in the background (and make it cancellable?)
-        match std::fs::read_dir(PathBuf::from(&metadata.path)) {
-            Ok(entries) => entries.count(),
-            Err(err) => {
-                log::warn!("failed to read directory {:?}: {}", metadata.path, err);
-                0
-            }
-        }
-    } else {
-        0
-    };
-
-    let dir_size = if statdata.is_dir() {
-        DirSize::Calculating(crate::operation::controller::Controller::new())
-    } else {
-        DirSize::NotDirectory
-    };
-
-    let mut item = Item {
-        name,
-        display_name,
-        metadata: ItemMetadata::Path {
-            metadata: statdata.clone(),
-            children,
-        },
-        hidden,
-        location_opt: Some(Location::Collection(metadata.clone())),
-        mime,
-        icon_handle_grid,
-        icon_handle_list,
-        icon_handle_list_condensed,
-        open_with,
-        thumbnail_opt: Some(ItemThumbnail::NotImage),
-        button_id: widget::Id::unique(),
-        pos_opt: Cell::new(None),
-        rect_opt: Cell::new(None),
-        selected: false,
-        highlighted: false,
-        overlaps_drag_rect: false,
-        dir_size,
-        image_opt: None,
-        video_opt: None,
-        audio_opt: None,
-        collection_opt: Some(metadata.clone()),
     };
     item.thumbnail_opt = Some(crate::tab::ItemThumbnail::new(item.clone()));
     item
@@ -1569,9 +1405,9 @@ pub fn item_from_audiotags(
                             }
                         }
                     }
-                    crate::sql::update_audio(sql_connection, metadata, statdata, data);
+                    crate::sql::update_audio(sql_connection.clone(), metadata, statdata, data);
                 } else {
-                    *metadata = crate::sql::audio(sql_connection, &metadata.path, data);
+                    *metadata = crate::sql::audio(sql_connection.clone(), &metadata.path, data);
                     audio_metadata(audio, data, metadata);
                 }
             }
@@ -1604,7 +1440,7 @@ pub fn item_from_audiotags(
                     }
                 }
             }
-            crate::sql::insert_audio(sql_connection, metadata, statdata, data);
+            crate::sql::insert_audio(sql_connection.clone(), metadata, statdata, data);
         }
     }
 
@@ -1771,9 +1607,9 @@ pub fn item_from_exif(
                         }
                     }
                     metadata.name = basename.clone();
-                    crate::sql::update_image(sql_connection, metadata, statdata, data);
+                    crate::sql::update_image(sql_connection.clone(), metadata, statdata, data);
                 } else {
-                    *metadata = crate::sql::image(sql_connection, &metadata.path, data);
+                    *metadata = crate::sql::image(sql_connection.clone(), &metadata.path, data);
                 }
             }
         } else {
@@ -1799,7 +1635,7 @@ pub fn item_from_exif(
                 }
             }
             metadata.name = basename.clone();
-            crate::sql::insert_image(sql_connection, metadata, statdata, data);
+            crate::sql::insert_image(sql_connection.clone(), metadata, statdata, data);
         }
     }
 
@@ -2020,7 +1856,7 @@ pub fn scan_videos(
         &statdata,
         sizes,
         data,
-        sql_connection,
+        sql_connection.clone(),
         false,
     );
     data.items_push(item);
@@ -2063,7 +1899,7 @@ pub fn scan_audiotags(
         &mut meta_data,
         &statdata,
         sizes,
-        sql_connection,
+        sql_connection.clone(),
         false,
     );
     data.items_push(item);
@@ -2111,7 +1947,7 @@ pub fn scan_exif(
         &statdata,
         sizes,
         data,
-        sql_connection,
+        sql_connection.clone(),
         false,
     );
     data.items_push(item);
@@ -2159,13 +1995,18 @@ pub fn scan_single_nfo_dir(
                 let path = entry.path();
                 contents.push(path);
             }
-            /*
-            if contents.len() > 13 {
+            if contents.len() > 15 {
                 justdirs.push(dp.clone());
                 return ControlFlow::Break(());
             }
-            */
             for path in contents.iter() {
+                if path.is_dir() {
+                    justdirs.push(dp.clone());
+                    return ControlFlow::Break(());
+                }
+                let mime = crate::mime_icon::mime_for_path(path.clone());
+                let lowercase = osstr_to_string(path.clone().into_os_string())
+                    .to_ascii_lowercase();
                 let f = osstr_to_string(path.clone().into_os_string()).to_ascii_lowercase();
                 if f.contains("poster.") {
                     if poster > 0 {
@@ -2176,9 +2017,7 @@ pub fn scan_single_nfo_dir(
                     poster += 1;
                 } else if f.contains(".srt") {
                     meta_data.subtitles.push(f.clone());
-                } else if osstr_to_string(path.clone().into_os_string())
-                    .to_ascii_lowercase()
-                    .ends_with("tvshow.nfo")
+                } else if lowercase.ends_with("tvshow.nfo")
                 {
                     if let Some(basepath) = path.parent() {
                         data.tvshows_push(basepath.to_path_buf());
@@ -2191,9 +2030,7 @@ pub fn scan_single_nfo_dir(
                         justdirs.push(dp.to_path_buf());
                         return ControlFlow::Break(());
                     }
-                    if !osstr_to_string(path.clone().into_os_string())
-                        .to_ascii_lowercase()
-                        .ends_with("movie.nfo")
+                    if !lowercase.ends_with("movie.nfo")
                     {
                         nfo_file = path.to_path_buf();
                     }
@@ -2203,7 +2040,7 @@ pub fn scan_single_nfo_dir(
                         nfo_names.push(osstr_to_string(path.clone().into_os_string()));
                     }
                     nfo += 1;
-                } else if f.ends_with(".mkv") || f.ends_with(".mp4") || f.ends_with(".webm") {
+                } else if mime.type_() == mime_guess::mime::VIDEO {
                     if movie > 0 {
                         justdirs.push(dp.to_path_buf());
                         return ControlFlow::Break(());
@@ -2285,7 +2122,7 @@ pub fn scan_single_nfo_dir(
         &statdata,
         sizes,
         data,
-        sql_connection,
+        sql_connection.clone(),
         false,
     );
     data.items_push(item);
@@ -2306,6 +2143,7 @@ pub fn scan_nfos_in_dir(
     };
     let mut nfo_file = PathBuf::from(&format!("{}.nfo", video));
     for fp in all.iter() {
+        let mime = crate::mime_icon::mime_for_path(fp.clone());
         let f = osstr_to_string(fp.clone().into_os_string());
         //if re.is_match(&f) {
         if f.contains(&video) {
@@ -2320,7 +2158,7 @@ pub fn scan_nfos_in_dir(
                 if !nfo_file.exists() {
                     nfo_file = fp.to_path_buf();
                 }
-            } else if f.ends_with(".mkv") || f.ends_with(".mp4") || f.ends_with(".webm") {
+            } else if mime.type_() == mime_guess::mime::VIDEO {
                 meta_data.path = osstr_to_string(fp.clone().into_os_string());
             }
             data.special_files_insert(fp.to_path_buf());
@@ -2359,27 +2197,27 @@ pub fn scan_nfos_in_dir(
         &statdata,
         sizes,
         data,
-        sql_connection,
+        sql_connection.clone(),
         false,
     );
     data.items_push(item);
     ControlFlow::Continue(())
 }
 
-pub fn scan_tvshow(
-    path: PathBuf,
+pub fn parse_tv_show_episodes(
+    nfo_file: PathBuf,
+    meta_data: &mut crate::sql::CollectionMetadata,
     data: &crate::scanmetadata::ScanMetaData,
     sizes: IconSizes,
     sql_connection: std::sync::Arc<std::sync::Mutex<rusqlite::Connection>>,
-) -> ControlFlow<()> {
-    if data.special_files_contains(path.clone()) {
-        return ControlFlow::Break(());
-    }
-    let mut meta_data = crate::sql::CollectionMetadata {
-        ..Default::default()
+) {
+    let path = match nfo_file.parent() {
+        Some(ok) => ok.to_path_buf(),
+        None => return,
     };
-    meta_data.path = path.clone();
-    let mut nfo_file = path.clone().join("tvshow.nfo");
+    if data.special_files_contains(path.clone()) {
+        return;
+    }
     let mut contents = Vec::new();
     let mut nfo_names = Vec::new();
     let mut dirs = Vec::new();
@@ -2413,7 +2251,7 @@ pub fn scan_tvshow(
                     .to_ascii_lowercase()
                     .ends_with("tvshow.nfo")
                 {
-                    nfo_file = path.to_path_buf();
+                    continue;
                 } else if f.contains(".nfo") {
                     // episode in the current directory
                     if let Some(basename) = path.file_stem() {
@@ -2507,7 +2345,7 @@ pub fn scan_tvshow(
         data.special_files_extend(specialfiles2);
     }
     if !PathBuf::from(&nfo_file).exists() {
-        return ControlFlow::Break(());
+        return;
     }
     data.special_files_insert(path.clone());
     for p in contents {
@@ -2522,6 +2360,192 @@ pub fn scan_tvshow(
             meta_data.thumb = thumb.clone();
         }
     }
+
+}
+
+/// create an item to put into our tabmodel from a video with NFO metadata
+pub fn item_from_tvshow(
+    nfo_file: PathBuf,
+    metadata: &mut crate::sql::CollectionMetadata,
+    statdata: &std::fs::Metadata,
+    sizes: IconSizes,
+    data: &crate::scanmetadata::ScanMetaData,
+    sql_connection: std::sync::Arc<std::sync::Mutex<rusqlite::Connection>>,
+    from_db: bool,
+) -> Item {
+    let filepath = PathBuf::from(&metadata.path);
+    let basename;
+    if let Some(bn) = filepath.file_stem() {
+        basename = osstr_to_string(bn.to_os_string());
+    } else {
+        if let Some(bn) = filepath.file_name() {
+            basename = osstr_to_string(bn.to_os_string());
+        } else {
+            basename = osstr_to_string(filepath.clone().into_os_string());
+        }
+    }
+    if !from_db {
+        let mut video = crate::sql::VideoMetadata {
+            ..Default::default()
+        };
+        if data.known_files_contains(filepath.clone()) {
+            let mut refresh = false;
+            if let Ok(modified) = statdata.modified() {
+                if let Ok(new_date) = modified.duration_since(UNIX_EPOCH) {
+                    let filedata = &data.known_files_get(filepath.clone());
+                    let new_seconds_since_epoch = new_date.as_secs();
+                    if new_seconds_since_epoch > filedata.modification_time {
+                        refresh = true;
+                    }
+                }
+                if refresh {
+                    // file is newer
+                    parse_tv_show_episodes(nfo_file.clone(), metadata, data, sizes, sql_connection.clone());
+                    parse_nfo(&nfo_file, &mut video);
+                    if video.date.num_days_from_ce() < 100 {
+                        if let Ok(created) = statdata.created() {
+                            if let Ok(nsecs) = created.duration_since(UNIX_EPOCH) {
+                                if let Some(ndt) =
+                                    chrono::DateTime::from_timestamp(nsecs.as_secs() as i64, 0)
+                                {
+                                    video.date = ndt.date_naive();
+                                }
+                            }
+                        }
+                    }
+                    metadata.thumb =
+                        crate::thumbnails::create_thumbnail(&PathBuf::from(&metadata.poster), 254);
+                    crate::sql::update_collection(sql_connection.clone(), metadata, statdata, data);
+                } else {
+                    *metadata = crate::sql::collection(
+                        sql_connection.clone(),
+                        &osstr_to_string(metadata.path.clone().into_os_string()),
+                        data,
+                    );
+                }
+            }
+        } else {
+            parse_tv_show_episodes(nfo_file.clone(), metadata, data, sizes, sql_connection.clone());
+            video.poster = metadata.poster.clone();
+            parse_nfo(&nfo_file, &mut video);
+            if video.date.num_days_from_ce() < 100 {
+                if let Ok(created) = statdata.created() {
+                    if let Ok(nsecs) = created.duration_since(UNIX_EPOCH) {
+                        if let Some(ndt) =
+                            chrono::DateTime::from_timestamp(nsecs.as_secs() as i64, 0)
+                        {
+                            video.date = ndt.date_naive();
+                        }
+                    }
+                }
+            }
+            metadata.thumb =
+                crate::thumbnails::create_thumbnail(&PathBuf::from(&video.poster), 254);
+            crate::sql::insert_collection(sql_connection.clone(), metadata, statdata, data);
+        }
+    } else {
+        *metadata = crate::sql::collection(
+            sql_connection.clone(),
+            &osstr_to_string(metadata.path.clone().into_os_string()),
+            data,
+        );
+    }
+
+    let name;
+    if metadata.name.len() == 0 {
+        name = basename.clone();
+    } else {
+        name = metadata.name.clone();
+    }
+
+    let display_name = Item::display_name(&name);
+
+    let hidden = name.starts_with(".") || hidden_attribute(&statdata);
+
+    let (mime, icon_handle_grid, icon_handle_list, icon_handle_list_condensed) = {
+        let thumbpath = PathBuf::from(&metadata.thumb);
+        let thumbmime = mime_for_path(thumbpath.clone());
+        let filemime = mime_for_path(filepath.clone());
+        if metadata.thumb.len() > 0 {
+            (
+                filemime.clone(),
+                widget::icon::from_path(thumbpath.clone()),
+                widget::icon::from_path(thumbpath.clone()),
+                widget::icon::from_path(thumbpath.clone()),
+            )
+        } else {
+            (
+                filemime.clone(),
+                mime_icon(thumbmime.clone(), sizes.grid()),
+                mime_icon(thumbmime.clone(), sizes.list()),
+                mime_icon(thumbmime.clone(), sizes.list_condensed()),
+            )
+        }
+    };
+
+    let open_with = mime_apps(&mime);
+
+    let children = if statdata.is_dir() {
+        //TODO: calculate children in the background (and make it cancellable?)
+        match std::fs::read_dir(PathBuf::from(&metadata.path)) {
+            Ok(entries) => entries.count(),
+            Err(err) => {
+                log::warn!("failed to read directory {:?}: {}", metadata.path, err);
+                0
+            }
+        }
+    } else {
+        0
+    };
+
+    let dir_size = if statdata.is_dir() {
+        DirSize::Calculating(crate::operation::controller::Controller::new())
+    } else {
+        DirSize::NotDirectory
+    };
+
+    let mut item = Item {
+        name,
+        display_name,
+        metadata: ItemMetadata::Path {
+            metadata: statdata.clone(),
+            children,
+        },
+        hidden,
+        location_opt: Some(Location::Collection(metadata.clone())),
+        mime,
+        icon_handle_grid,
+        icon_handle_list,
+        icon_handle_list_condensed,
+        open_with,
+        thumbnail_opt: Some(ItemThumbnail::NotImage),
+        button_id: widget::Id::unique(),
+        pos_opt: Cell::new(None),
+        rect_opt: Cell::new(None),
+        selected: false,
+        highlighted: false,
+        overlaps_drag_rect: false,
+        dir_size,
+        image_opt: None,
+        video_opt: None,
+        audio_opt: None,
+        collection_opt: Some(metadata.clone()),
+    };
+    item.thumbnail_opt = Some(crate::tab::ItemThumbnail::new(item.clone()));
+    item
+}
+
+pub fn scan_tvshow(
+    path: PathBuf,
+    data: &crate::scanmetadata::ScanMetaData,
+    sizes: IconSizes,
+    sql_connection: std::sync::Arc<std::sync::Mutex<rusqlite::Connection>>,
+) -> ControlFlow<()> {
+    let nfo_file = path.clone().join("tvshow.nfo");
+    let mut meta_data = crate::sql::CollectionMetadata {
+        ..Default::default()
+    };
+    meta_data.path = path.clone();
 
     let statdata = match std::fs::metadata(&meta_data.path) {
         Ok(ok) => ok,
