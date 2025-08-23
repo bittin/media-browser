@@ -9,7 +9,7 @@ use cosmic::{
     cosmic_theme,
     iced::keyboard::{Key, Modifiers},
     //iced::Subscription,
-    widget::menu::action::MenuAction,
+    //widget::menu::action::MenuAction,
 };
 pub use gstreamer as gst;
 //pub use gstreamer_app as gst_app;
@@ -49,6 +49,7 @@ fn language_name(code: &str) -> Option<String> {
     Some(name.to_string())
 }
 
+/*
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Action {
     _FileClose,
@@ -75,6 +76,7 @@ impl MenuAction for Action {
         }
     }
 }
+*/
 
 #[derive(Clone)]
 pub struct _Flags {
