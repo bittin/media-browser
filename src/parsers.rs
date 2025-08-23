@@ -2598,9 +2598,9 @@ pub fn item_from_collection_episode(
     };
     let name;
     if metadata.title.len() == 0 {
-        name = metadata.name.clone();
+        name = format!("S{:02}E{:02} {}", metadata.season, metadata.episode, metadata.name);
     } else {
-        name = metadata.title.clone();
+        name = format!("S{:02}E{:02} {}", metadata.season, metadata.episode, metadata.title);
     }
 
     let display_name = Item::display_name(&name);

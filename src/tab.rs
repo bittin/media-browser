@@ -458,10 +458,12 @@ pub fn scan_collection(
     for e in metadata.episodes.iter() {
         let path = crate::parsers::osstr_to_string(e.path.clone().into_os_string());
         let mut videometadata = crate::sql::video(sql_connection.clone(), &path, &data);
+        videometadata.season = e.series;
+        videometadata.episode = e.episode;
         crate::parsers::item_from_collection_episode(&mut videometadata, sizes, &data);
     }
     if !recursive {
-        let mut items = data.items_clone();
+        let items = data.items_clone();
         return items;
     } else {
         return Vec::new();
@@ -2119,7 +2121,7 @@ impl Tab {
                 }
             }
             Location::Collection(collection) => {
-                format!("Collection \"{}\"", collection.name)
+                format!("{}", collection.name)
             }
             Location::Network(_uri, display_name) => display_name.clone(),
         }
@@ -2947,8 +2949,12 @@ impl Tab {
                             commands.push(Command::Open(path.clone()));
                         }
                     }
-                    Location::Collection(_collection) => {
-                        cd = Some(location);
+                    Location::Collection(collection) => {
+                        if collection.path.is_dir() {
+                            cd = Some(location);
+                        } else {
+                            commands.push(Command::Open(collection.path.clone()));
+                        }
                     }
                     _ => {
                         cd = Some(location);
@@ -3688,49 +3694,99 @@ impl Tab {
         let heading_rule = widget::container(horizontal_rule(1))
             .padding([0, theme::active().cosmic().corner_radii.radius_xs[0] as u16]);
 
-        if let Some(location) = &self.edit_location {
-            //TODO: allow editing other locations
-            if let Some(path) = location.path_opt() {
-                row = row.push(
-                    widget::button::custom(
-                        widget::icon::from_name("window-close-symbolic").size(16),
-                    )
-                    .on_press(Message::EditLocation(None))
-                    .padding(space_xxs)
-                    .class(theme::Button::Icon),
-                );
-                let pathstring = crate::parsers::osstr_to_string(path.clone().into_os_string());
-                row = row.push(
-                    widget::text_input("", pathstring)
-                        .id(self.edit_location_id.clone())
-                        .on_input(|input| {
-                            Message::EditLocation(Some(location.with_path(PathBuf::from(input))))
-                        })
-                        .on_submit(Message::Location(location.clone()))
-                        .line_height(1.0),
-                );
-                let mut column3 = widget::column::with_capacity(4).padding([0, space_s]);
-                column3 = column3.push(row);
-                column3 = column3.push(accent_rule);
-                if self.config.view == View::List && !condensed {
-                    column3 = column3.push(heading_row);
-                    column3 = column3.push(heading_rule);
+        match &self.edit_location {
+            Some(location) => {
+                //TODO: allow editing other locations
+                match location {
+                    Location::Path(path) => {
+                        row = row.push(
+                            widget::button::custom(
+                                widget::icon::from_name("window-close-symbolic").size(16),
+                            )
+                            .on_press(Message::EditLocation(None))
+                            .padding(space_xxs)
+                            .class(theme::Button::Icon),
+                        );
+                        let pathstring = crate::parsers::osstr_to_string(path.clone().into_os_string());
+                        row = row.push(
+                            widget::text_input("", pathstring)
+                                .id(self.edit_location_id.clone())
+                                .on_input(|input| {
+                                    Message::EditLocation(Some(location.with_path(PathBuf::from(input))))
+                                })
+                                .on_submit(Message::Location(location.clone()))
+                                .line_height(1.0),
+                        );
+                        let mut column3 = widget::column::with_capacity(4).padding([0, space_s]);
+                        column3 = column3.push(row);
+                        column3 = column3.push(accent_rule);
+                        if self.config.view == View::List && !condensed {
+                            column3 = column3.push(heading_row);
+                            column3 = column3.push(heading_rule);
+                        }
+                        return column3.into();
+                    },
+                    Location::Collection(collection) => {
+                        row = row.push(
+                            widget::button::custom(
+                                widget::icon::from_name("window-close-symbolic").size(16),
+                            )
+                            .on_press(Message::EditLocation(None))
+                            .padding(space_xxs)
+                            .class(theme::Button::Icon),
+                        );
+                        let pathstring = crate::parsers::osstr_to_string(collection.path.clone().into_os_string());
+                        row = row.push(
+                            widget::text_input("", pathstring)
+                                .id(self.edit_location_id.clone())
+                                .on_input(|input| {
+                                    Message::EditLocation(Some(location.with_path(PathBuf::from(input))))
+                                })
+                                .on_submit(Message::Location(location.clone()))
+                                .line_height(1.0),
+                        );
+                        let mut column3 = widget::column::with_capacity(4).padding([0, space_s]);
+                        column3 = column3.push(row);
+                        column3 = column3.push(accent_rule);
+                        if self.config.view == View::List && !condensed {
+                            column3 = column3.push(heading_row);
+                            column3 = column3.push(heading_rule);
+                        }
+                        return column3.into();
+                    },
+                    _ => {}
                 }
-                return column3.into();
+            },
+            _ => {
+                match &self.location {
+                    Location::Path(path) => {
+                        row = row.push(
+                            crate::mouse_area::MouseArea::new(
+                                widget::button::custom(widget::icon::from_name("edit-symbolic").size(16))
+                                    .padding(space_xxs)
+                                    .class(theme::Button::Icon)
+                                    .on_press(Message::EditLocation(Some(self.location.clone()))),
+                            )
+                            .on_middle_press(move |_| Message::OpenInNewTab(path.clone())),
+                        );
+                        w += 16.0 + 2.0 * space_xxs as f32;
+                    },
+                    Location::Collection(collection) => {
+                        row = row.push(
+                            crate::mouse_area::MouseArea::new(
+                                widget::button::custom(widget::icon::from_name("edit-symbolic").size(16))
+                                    .padding(space_xxs)
+                                    .class(theme::Button::Icon)
+                                    .on_press(Message::EditLocation(Some(self.location.clone()))),
+                            )
+                            .on_middle_press(move |_| Message::OpenInNewTab(collection.path.clone())),
+                        );
+                        w += 16.0 + 2.0 * space_xxs as f32;
+                    },
+                    _ => {}
+                }
             }
-        } else if let Some(path) = self.location.path_opt() {
-            row = row.push(
-                crate::mouse_area::MouseArea::new(
-                    widget::button::custom(widget::icon::from_name("edit-symbolic").size(16))
-                        .padding(space_xxs)
-                        .class(theme::Button::Icon)
-                        .on_press(Message::EditLocation(Some(self.location.clone()))),
-                )
-                .on_middle_press(move |_| Message::OpenInNewTab(path.clone())),
-            );
-            w += 16.0 + 2.0 * space_xxs as f32;
         }
-
         let mut children: Vec<Element<_>> = Vec::new();
         match &self.location {
             Location::Collection(collection) => {
