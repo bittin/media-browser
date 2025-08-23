@@ -51,11 +51,12 @@ Positions ended with a ? are *stretch goals*. If it is possible AND somebody doe
 - deactivate creation time and access time for files
 - Parsing directory structures of TV Series does not ignore unnecessary metadata
 - for single Movie directories thumbnails are generated for unused metadata images instead of just the poster
-
+- When parsing TV Show metadata PNG crashes while reading PNG file it should not try to read.
+- TV Shows show no episodes
+- 
 #### Open Bugs
 
 - Displaying a TV show has no way back to normal view. Directory view stays empty.
-- PNG crashes while reading PNG file it should not try to read.
 - Automatically close Popup GUI after 5 Seconds of no activity?
 - key bindings only work in browser mode
 

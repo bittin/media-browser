@@ -2572,3 +2572,110 @@ pub fn scan_tvshow(
 
     ControlFlow::Continue(())
 }
+
+pub fn item_from_collection_episode(
+    metadata: &mut crate::sql::VideoMetadata,
+    sizes: IconSizes,
+    data: &crate::scanmetadata::ScanMetaData,
+) {
+    let filepath = PathBuf::from(&metadata.path);
+    let file_stem = match filepath.clone().file_stem() {
+        Some(stem ) => crate::parsers::osstr_to_string(stem.to_os_string()),
+        None => return,
+    };
+    let mut nfo_file = file_stem.clone();
+    nfo_file.extend(".nfo".to_string().chars());
+    let statdata = match std::fs::metadata(&metadata.path) {
+        Ok(ok) => ok,
+        Err(err) => {
+            log::warn!(
+                "failed to read metadata for entry at {:?}: {}",
+                metadata.path,
+                err
+            );
+            return;
+        }
+    };
+    let name;
+    if metadata.title.len() == 0 {
+        name = metadata.name.clone();
+    } else {
+        name = metadata.title.clone();
+    }
+
+    let display_name = Item::display_name(&name);
+
+    let hidden = name.starts_with(".") || hidden_attribute(&statdata);
+
+    let (mime, icon_handle_grid, icon_handle_list, icon_handle_list_condensed) = {
+        let thumbpath = PathBuf::from(&metadata.thumb);
+        let thumbmime = mime_for_path(thumbpath.clone());
+        let filemime = mime_for_path(filepath.clone());
+        if metadata.thumb.len() > 0 {
+            (
+                filemime.clone(),
+                widget::icon::from_path(thumbpath.clone()),
+                widget::icon::from_path(thumbpath.clone()),
+                widget::icon::from_path(thumbpath.clone()),
+            )
+        } else {
+            (
+                filemime.clone(),
+                mime_icon(thumbmime.clone(), sizes.grid()),
+                mime_icon(thumbmime.clone(), sizes.list()),
+                mime_icon(thumbmime.clone(), sizes.list_condensed()),
+            )
+        }
+    };
+
+    let open_with = mime_apps(&mime);
+
+    let children = if statdata.is_dir() {
+        //TODO: calculate children in the background (and make it cancellable?)
+        match std::fs::read_dir(PathBuf::from(&metadata.path)) {
+            Ok(entries) => entries.count(),
+            Err(err) => {
+                log::warn!("failed to read directory {:?}: {}", metadata.path, err);
+                0
+            }
+        }
+    } else {
+        0
+    };
+
+    let dir_size = if statdata.is_dir() {
+        DirSize::Calculating(crate::operation::controller::Controller::new())
+    } else {
+        DirSize::NotDirectory
+    };
+
+    let mut item = Item {
+        name,
+        display_name,
+        metadata: ItemMetadata::Path {
+            metadata: statdata.clone(),
+            children,
+        },
+        hidden,
+        location_opt: Some(Location::Path(PathBuf::from(&metadata.path))),
+        mime,
+        icon_handle_grid,
+        icon_handle_list,
+        icon_handle_list_condensed,
+        open_with,
+        thumbnail_opt: Some(ItemThumbnail::NotImage),
+        button_id: widget::Id::unique(),
+        pos_opt: Cell::new(None),
+        rect_opt: Cell::new(None),
+        selected: false,
+        highlighted: false,
+        overlaps_drag_rect: false,
+        dir_size,
+        image_opt: None,
+        video_opt: Some(metadata.clone()),
+        audio_opt: None,
+        collection_opt: None,
+    };
+    item.thumbnail_opt = Some(crate::tab::ItemThumbnail::new(item.clone()));
+    data.items_push(item);
+}

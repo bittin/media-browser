@@ -437,6 +437,38 @@ pub fn scan_path_recursive(
     log::warn!("Done Scanning path {} recursively.", tab_path.display());
 }
 
+pub fn scan_collection(
+    sql_connection: std::sync::Arc<std::sync::Mutex<rusqlite::Connection>>,
+    tab_path: &PathBuf,
+    sizes: IconSizes,
+    recursive: bool,
+) -> Vec<Item> {
+    let data = crate::scanmetadata::ScanMetaData::new();
+
+    let files = crate::sql::files(sql_connection.clone());
+    for (k, v) in files.iter() {
+        data.known_files_insert(k.to_path_buf(), v.to_owned());
+    }
+    // generate list of episodes
+    let metadata = crate::sql::collection(
+            sql_connection.clone(),
+            &crate::parsers::osstr_to_string(tab_path.clone().into_os_string()),
+            &data,
+        );
+    for e in metadata.episodes.iter() {
+        let path = crate::parsers::osstr_to_string(e.path.clone().into_os_string());
+        let mut videometadata = crate::sql::video(sql_connection.clone(), &path, &data);
+        crate::parsers::item_from_collection_episode(&mut videometadata, sizes, &data);
+    }
+    if !recursive {
+        let mut items = data.items_clone();
+        return items;
+    } else {
+        return Vec::new();
+    }
+}
+
+
 pub fn scan_path(
     sql_connection: std::sync::Arc<std::sync::Mutex<rusqlite::Connection>>,
     tab_path: &PathBuf,
@@ -1002,6 +1034,7 @@ impl Location {
         match self {
             Self::Path(path) => Some(&path),
             Self::Search(path, ..) => Some(&path),
+            Self::Collection(collection) => Some(&collection.path),
             _ => None,
         }
     }
@@ -1027,7 +1060,7 @@ impl Location {
                 // Search is done incrementally
                 Vec::new()
             }
-            Self::Collection(collection) => scan_path(
+            Self::Collection(collection) => scan_collection(
                 sql_connection.clone(),
                 &PathBuf::from(&collection.path),
                 sizes,
