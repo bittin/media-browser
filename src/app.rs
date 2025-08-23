@@ -1050,7 +1050,7 @@ impl App {
         Task::none()
     }
 
-    fn about(&self) -> Element<Message> {
+    fn about(&self) -> Element<'_, Message> {
         let cosmic_theme::Spacing { space_xxs, .. } = theme::active().cosmic().spacing;
         let repository = "https://github.com/fangornsrealm/media-browser";
         let hash = env!("VERGEN_GIT_SHA");
@@ -1085,7 +1085,7 @@ impl App {
         .into()
     }
 
-    fn network_drive(&self) -> Element<Message> {
+    fn network_drive(&self) -> Element<'_, Message> {
         let cosmic_theme::Spacing {
             space_xxs, space_m, ..
         } = theme::active().cosmic().spacing;
@@ -1116,7 +1116,7 @@ impl App {
         .into()
     }
 
-    fn _open_with(&self) -> Element<Message> {
+    fn _open_with(&self) -> Element<'_, Message> {
         let children = Vec::new();
         let entity = self.tab_model.active();
         if let Some(tab) = self.tab_model.data::<Tab>(entity) {
@@ -1134,7 +1134,7 @@ impl App {
         widget::settings::view_column(children).into()
     }
 
-    fn edit_history(&self) -> Element<Message> {
+    fn edit_history(&self) -> Element<'_, Message> {
         let cosmic_theme::Spacing { space_m, .. } = theme::active().cosmic().spacing;
 
         let mut children = Vec::new();
@@ -1277,7 +1277,7 @@ impl App {
             .into()
     }
 
-    fn search_database(&self) -> Element<Message> {
+    fn search_database(&self) -> Element<'_, Message> {
         let cosmic_theme::Spacing { space_m, .. } = theme::active().cosmic().spacing;
 
         let mut column = widget::column().spacing(space_m);
@@ -1459,7 +1459,7 @@ impl App {
         .into()
     }
 
-    fn settings(&self) -> Element<Message> {
+    fn settings(&self) -> Element<'_, Message> {
         // TODO: Should dialog be updated here too?
         let app_theme_selected = match self.config.app_theme {
             AppTheme::Dark => 1,
@@ -1551,7 +1551,7 @@ impl App {
         }
     }
 
-    fn view_image_view(&self) -> Element<<App as cosmic::Application>::Message> {
+    fn view_image_view(&self) -> Element<'_, <App as cosmic::Application>::Message> {
         let cosmic_theme::Spacing {
             space_xxs,
             space_xs,
@@ -1716,7 +1716,7 @@ impl App {
             .into()
     }
 
-    fn view_video_view(&self) -> Element<<App as cosmic::Application>::Message> {
+    fn view_video_view(&self) -> Element<'_, <App as cosmic::Application>::Message> {
         let cosmic_theme::Spacing {
             space_xxs,
             space_xs,
@@ -2105,7 +2105,7 @@ impl App {
             .into()
     }
 
-    fn view_audio_view(&self) -> Element<<App as cosmic::Application>::Message> {
+    fn view_audio_view(&self) -> Element<'_, <App as cosmic::Application>::Message> {
         let cosmic_theme::Spacing {
             space_xxs,
             space_xs,
@@ -2497,7 +2497,7 @@ impl App {
             .into()
     }
 
-    fn view_browser_view(&self) -> Element<<App as cosmic::Application>::Message> {
+    fn view_browser_view(&self) -> Element<'_, <App as cosmic::Application>::Message> {
         let cosmic_theme::Spacing {
             space_xxs, space_s, ..
         } = theme::active().cosmic().spacing;
@@ -2828,7 +2828,7 @@ impl Application for App {
         (app, Task::batch(commands))
     }
 
-    fn nav_bar(&self) -> Option<Element<message::Message<Self::Message>>> {
+    fn nav_bar(&self) -> Option<Element<'_, message::Message<Self::Message>>> {
         if !self.core().nav_bar_active() {
             return None;
         }
@@ -2870,7 +2870,7 @@ impl Application for App {
     fn nav_context_menu(
         &self,
         entity: widget::nav_bar::Id,
-    ) -> Option<Vec<widget::menu::Tree<cosmic::app::Message<Self::Message>>>> {
+    ) -> Option<Vec<widget::menu::Tree<'_, cosmic::app::Message<Self::Message>>>> {
         let favorite_index_opt = self.nav_model.data::<FavoriteIndex>(entity);
         let location_opt = self.nav_model.data::<Location>(entity);
 
@@ -5758,7 +5758,7 @@ impl Application for App {
         Task::none()
     }
 
-    fn context_drawer(&self) -> Option<context_drawer::ContextDrawer<Message>> {
+    fn context_drawer(&self) -> Option<context_drawer::ContextDrawer<'_, Message>> {
         if !self.core.window.show_context {
             return None;
         }
@@ -5829,7 +5829,7 @@ impl Application for App {
         })
     }
 
-    fn dialog(&self) -> Option<Element<Message>> {
+    fn dialog(&self) -> Option<Element<'_, Message>> {
         //TODO: should gallery view just be a dialog?
         let entity = self.tab_model.active();
 
@@ -6298,7 +6298,7 @@ impl Application for App {
         Some(dialog.into())
     }
 
-    fn footer(&self) -> Option<Element<Message>> {
+    fn footer(&self) -> Option<Element<'_, Message>> {
         if self.progress_operations.is_empty() {
             return None;
         }
@@ -6415,7 +6415,7 @@ impl Application for App {
         Some(container.into())
     }
 
-    fn header_start(&self) -> Vec<Element<Self::Message>> {
+    fn header_start(&self) -> Vec<Element<'_, Self::Message>> {
         vec![menu::menu_bar(
             self.tab_model.active_data::<Tab>(),
             &self.config,
@@ -6424,7 +6424,7 @@ impl Application for App {
         .into()]
     }
 
-    fn header_end(&self) -> Vec<Element<Self::Message>> {
+    fn header_end(&self) -> Vec<Element<'_, Self::Message>> {
         let mut elements = Vec::with_capacity(2);
 
         if let Some(term) = self.search_get() {
@@ -6460,7 +6460,7 @@ impl Application for App {
     }
 
     /// Creates a view after each update.
-    fn view(&self) -> Element<Self::Message> {
+    fn view(&self) -> Element<'_, Self::Message> {
         let cosmic_theme::Spacing {
             space_xxs, space_s, ..
         } = theme::active().cosmic().spacing;
@@ -6534,7 +6534,7 @@ impl Application for App {
         }
     }
 
-    fn view_window(&self, id: WindowId) -> Element<Self::Message> {
+    fn view_window(&self, id: WindowId) -> Element<'_, Self::Message> {
         let content = match self.windows.get(&id) {
             Some(WindowKind::Desktop(entity)) => {
                 let mut tab_column = widget::column::with_capacity(3);

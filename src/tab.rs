@@ -1390,7 +1390,7 @@ impl Item {
         }
     }
 
-    pub fn preview_header(&self) -> Vec<Element<app::Message>> {
+    pub fn preview_header(&self) -> Vec<Element<'_, app::Message>> {
         let mut row = Vec::with_capacity(3);
         row.push(
             widget::button::icon(widget::icon::from_name("go-previous-symbolic"))
@@ -3586,7 +3586,7 @@ impl Tab {
         container.into()
     }
 
-    pub fn location_view(&self) -> Element<Message> {
+    pub fn location_view(&self) -> Element<'_, Message> {
         //TODO: responsiveness is done in a hacky way, potentially move this to a custom widget?
         fn text_width<'a>(
             content: &'a str,
@@ -4079,7 +4079,7 @@ impl Tab {
         popover.into()
     }
 
-    pub fn empty_view(&self, has_hidden: bool) -> Element<Message> {
+    pub fn empty_view(&self, has_hidden: bool) -> Element<'_, Message> {
         let cosmic_theme::Spacing { space_xxs, .. } = theme::active().cosmic().spacing;
 
         //TODO: left clicking on an empty folder does not clear context menu
@@ -4113,7 +4113,7 @@ impl Tab {
         .into()
     }
 
-    pub fn grid_view(&self) -> (Option<Element<'static, Message>>, Element<Message>, bool) {
+    pub fn grid_view(&self) -> (Option<Element<'static, Message>>, Element<'_, Message>, bool) {
         let cosmic_theme::Spacing {
             space_m,
             space_xxs,
@@ -4415,7 +4415,7 @@ impl Tab {
         )
     }
 
-    pub fn list_view(&self) -> (Option<Element<'static, Message>>, Element<Message>, bool) {
+    pub fn list_view(&self) -> (Option<Element<'static, Message>>, Element<'_, Message>, bool) {
         let cosmic_theme::Spacing {
             space_m,
             space_s,
@@ -4752,7 +4752,7 @@ impl Tab {
         &self,
         key_binds: &HashMap<KeyBind, Action>,
         size: Size,
-    ) -> Element<Message> {
+    ) -> Element<'_, Message> {
         // Update cached size
         self.size_opt.set(Some(size));
 
