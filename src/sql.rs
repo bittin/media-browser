@@ -1738,7 +1738,7 @@ pub fn collection(
             log::error!("could not prepare SQL statement: {}", err);
         }
     }
-
+    drop(connection);
     for mut e in episodes {
         let file = file_by_id(sql_connection.clone(), e.file_id as i64);
         let video = video_by_id(
