@@ -2701,12 +2701,27 @@ impl Tab {
                 None => {}
             },
             Message::EditLocation(edit_location) => {
+                match edit_location.clone() {
+                    Some(location) => {
+                        match location {
+                            Location::Path(_path) => {
+                                self.edit_location = edit_location.clone();
+                            },
+                            Location::Collection(collection) => {
+                                self.edit_location = Some(Location::Path(collection.path.clone()));
+                            },
+                            _ => {
+                                self.edit_location = edit_location.clone();
+                            }
+                        }
+                    },
+                    None => {}
+                }
                 if self.edit_location.is_none() && edit_location.is_some() {
                     commands.push(Command::Iced(
                         widget::text_input::focus(self.edit_location_id.clone()).into(),
                     ));
                 }
-                self.edit_location = edit_location;
             }
             Message::EditLocationEnable => {
                 commands.push(Command::Iced(
@@ -2950,10 +2965,15 @@ impl Tab {
                         }
                     }
                     Location::Collection(collection) => {
-                        if collection.path.is_dir() {
-                            cd = Some(location);
-                        } else {
-                            commands.push(Command::Open(collection.path.clone()));
+                        match collection.path.clone().parent() {
+                            Some(path) => {
+                                if path.is_dir() {
+                                    cd = Some(Location::Path(path.to_path_buf()));
+                                } else {
+                                    commands.push(Command::Open(collection.path.clone()));
+                                }
+                            },
+                            None => {}
                         }
                     }
                     _ => {

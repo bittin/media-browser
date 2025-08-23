@@ -54,10 +54,10 @@ Positions ended with a ? are *stretch goals*. If it is possible AND somebody doe
 - When parsing TV Show metadata PNG crashes while reading PNG file it should not try to read.
 - TV Shows show no episodes
 - Collection episode view back button works
+- Collection episode view breadcrumbs do not work and path is not editable.
 
 #### Open Bugs
 
-- Collection episode view breadcrumbs do not work and path is not editable.
 - Automatically close Popup GUI after 5 Seconds of no activity?
 - key bindings only work in browser mode
 
