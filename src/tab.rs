@@ -520,6 +520,14 @@ pub fn scan_path_runner(
                 };
 
                 let path = entry.path();
+                let filename = match path.file_name() {
+                    Some(name) => name,
+                    None => continue,
+                };
+                if crate::parsers::osstr_to_string(filename.to_os_string()).starts_with(".") {
+                    continue;
+                }
+
                 if path.is_dir() {
                     dirs.push(path.clone());
                 } else {

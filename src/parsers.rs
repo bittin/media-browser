@@ -1993,6 +1993,13 @@ pub fn scan_single_nfo_dir(
                     }
                 };
                 let path = entry.path();
+                let filename = match path.file_name() {
+                    Some(name) => name,
+                    None => continue,
+                };
+                if osstr_to_string(filename.to_os_string()).starts_with(".") {
+                    continue;
+                }
                 contents.push(path);
             }
             if contents.len() > 15 {
@@ -2232,6 +2239,13 @@ pub fn parse_tv_show_episodes(
                     }
                 };
                 let path = entry.path();
+                let filename = match path.file_name() {
+                    Some(name) => name,
+                    None => continue,
+                };
+                if osstr_to_string(filename.to_os_string()).starts_with(".") {
+                    continue;
+                }
                 if path.is_dir() {
                     dirs.push(path);
                 } else {
@@ -2289,6 +2303,13 @@ pub fn parse_tv_show_episodes(
                         }
                     };
                     let filepath = entry.path();
+                    let filename = match filepath.file_name() {
+                        Some(name) => name,
+                        None => continue,
+                    };
+                    if osstr_to_string(filename.to_os_string()).starts_with(".") {
+                        continue;
+                    }
                     contents.push(filepath);
                 }
                 for filepath in contents.iter() {
