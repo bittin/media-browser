@@ -3866,6 +3866,7 @@ impl Tab {
                             false,
                             Instant::now(),
                         ),
+                        Location::Collection(_) => Location::Path(ancestor.to_path_buf()),
                         other => other.clone(),
                     };
 
@@ -3960,6 +3961,7 @@ impl Tab {
                             false,
                             Instant::now(),
                         ),
+                        Location::Collection(_) => Location::Path(ancestor.to_path_buf()),
                         other => other.clone(),
                     };
 
