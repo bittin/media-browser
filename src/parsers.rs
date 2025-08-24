@@ -2313,6 +2313,10 @@ pub fn parse_tv_show_episodes(
                     contents.push(filepath);
                 }
                 for filepath in contents.iter() {
+                    if data.known_files_contains(filepath.to_owned()) {
+                        continue;
+                    }
+
                     let f = osstr_to_string(filepath.clone().into_os_string()).to_ascii_lowercase();
                     if f.contains(".nfo") {
                         // episode in the current directory

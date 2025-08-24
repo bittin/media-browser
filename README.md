@@ -158,7 +158,6 @@ just build-deb
 just build-rpm
 ```
 
-
 ## Build the project from source
 
 ```sh
