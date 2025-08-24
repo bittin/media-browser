@@ -75,6 +75,8 @@ You could select media and *File->Move to Trash*. But this will currently only d
 
 The player can navigate by chapters (if available) or seek by button or mouse-wheel. The mouse can also pick the scrubber and navigate that way. The home key will jump to the beginning.
 
+You can pick from available audio and subtitle languages and modify the volume.
+
 ![media-browser player navigation](res/media-browseor.png)
 
 The image viewer, video and audio player each provide a navigation strip to prewiew the other files besides the current one. Be it from a diretory or a search result. The file preview can be navigated by seleting via mouse or by Previous/Next buttons on the left or PageUp/PageDown Keys. If there are different media types selected, the viewer changes with the selected file.
@@ -96,7 +98,8 @@ The Image viewer GUI is inspired by [gthumb](https://gitlab.gnome.org/GNOME/gthu
 
 ## Required dependencies
 
-The DEB and RPM packages built below should automatically pull in all dependencies when installing it.
+> [!NOTE]
+> The DEB and RPM packages built below should automatically pull in all dependencies when installing it. But as COSMIC Desktop is currently not standard in distributions, these dependencies cannot be included. Installed like that - without the full COSMIC Desktop available - the program will *work*. But there will most likely be effects due to missing theming features.
 
 Video and audio playback requires [GStreamer](https://gstreamer.freedesktop.org/).
 
