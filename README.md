@@ -10,6 +10,8 @@ Search results and existing directories are navigatable with keyboard or picking
 
 ## Features
 
+### Directory navigation and preview
+
 ![media-browser preview](res/media-browsewr.png)
 
 Directory navigation displays media in the local directory. Detail information is available in the Preview. Some entries are directly searchable by clicking on the highlighted text. If you are currently watching the movie, the search result is opening in the background.
@@ -27,6 +29,8 @@ Depending on how many directories there are to scan and the number of media this
 journalctl -f  /usr/bin/media-browser
 ```
 
+### Search
+
 ![media-browser search](res/media-browsesr.png)
 
 A search mask with all the options is also available. Right-click into a tab and use `Search the Database` from the context-menu or use `File -> Search the Database` from the menu to start the search mask.
@@ -39,9 +43,13 @@ If the type is specific for one type of media, this type will automatically be s
 
 The play button in the bottom starts the search. The result will open as a new tab.
 
+### Tab navigation
+
 ![media-browser Metadata search preview](res/media-browsear.png)
 
-Search results present the same view as the directory view. And they behave just the same. If you can do something on a list of files in a directory, you can also do it on a list of media from the database.
+Search results open as a new tab. No matter if you use the search mask, click a link the preview window or list the contents of a tag. Each tab presents the same view as the directory view. And they behave just the same. If you can do something on a list of files in a directory, you can also do it on a list of media from the database.
+
+### Navigation panel
 
 ![media-browser directory navigation](res/media-browsew.png)
 
@@ -54,6 +62,8 @@ Right-click on an entry to get the option to delete it.
 Bookmark the currently selected directory by pressing `Ctrl-D` or by right-clicking and selecting `Add to sidebar` from the context-menu or `File -> Add to sidebar` from the menu. You can open a bookmark by clicking onto the bookmark or by right-clicking it and selecting `Open in new tab` from the context-menu.
 
 Your list of automatically available entries will vary, depending on what your machine has available in storage.
+
+### User defined Tags
 
 ![media-browser Tags preview](res/media-browset.png)
 
@@ -73,15 +83,36 @@ MediaBrowser is intended for viewing and searching media. If you need to add or 
 
 You could select media and *File->Move to Trash*. But this will currently only delete the media file. Not it's external metadata, the thumbnails or database entries.
 
+### Playback
+
 ![media-browser player controls](res/media-browsepr.png)
 
 The player can navigate by chapters (if available) or seek by button or mouse-wheel. The mouse can also pick the scrubber and navigate that way. The home key will jump to the beginning.
 
-You can pick from available audio and subtitle languages and modify the volume.
+The buttons from left to right have the following functions:
 
-![media-browser player navigation](res/media-browseor.png)
+- `Up` close the player window - or press the `Esc` key.
+- `Left` jump to the previous file in the list - or press `Page Up` key.
+- `Right` jump ot the next file in the list - or press the `Page Down` key.
+- `Play/Pause` start or pause the playback - or left-click into the player window.
+- `Three dots` open or close the navigation strip - also closes when clicking on the header of the navigation strip.
+- `skip back` seek backwards a few seconds - or scroll down on the mouse.
+- `skip forward` seek forward a few seconds - or scroll up on the mouse.
+- `scrubber` displays the position in the playback - grab the dot and move it to roughly navigate to a position.
+- `chapters` displays a list of chapters (if available) that you can navigate to.
+- `languages` displays a list of audio and subtitle (if available) languages you can select.
+- `fullscreen` maximizes/unmaximizes the window.
+- `loudspeaker` lets you mute of change the volume of the audio.
 
-The image viewer, video and audio player each provide a navigation strip to prewiew the other files besides the current one. Be it from a diretory or a search result. The file preview can be navigated by seleting via mouse or by Previous/Next buttons on the left or PageUp/PageDown Keys. If there are different media types selected, the viewer changes with the selected file.
+### Navigate nearby files / results
+
+![media-browser list navigation](res/media-browseor.png)
+
+The image viewer, video and audio player each provide a navigation strip (which can be opened clicking the three vertical dots) to prewiew the other files besides the current one. Be it from a diretory or a search result.
+
+The file preview can be navigated by seleting via mouse or by Previous/Next buttons on the left or PageUp/PageDown Keys. If there are different media types selected, the viewer changes with the selected file.
+
+## Development status
 
 This project is developed and tested on Linux using Wayland and Pipewire. Gstreamer supports any audio and video pipeline. But the GUI is based on libcosmic, which needs to be installed to make the UI work properly. If compiled with `winit` feature, it will run on both X11 and Wayland.
 
@@ -139,7 +170,9 @@ If you have problems to build on a system that does not have the COSMIC Desktop 
 sudo apt install just rustc libglvnd-dev libwayland-dev libseat-dev libxkbcommon-dev libinput-dev udev dbus libdbus-1-dev libsystemd-dev libpixman-1-dev libssl-dev libflatpak-dev libpulse-dev pop-launcher libexpat1-dev libfontconfig-dev libfreetype-dev mold cargo libgbm-dev libclang-dev libpipewire-0.3-dev libpam0g-dev -y
 ```
 
-## Install media-browser
+## Getting MediaBrowser
+
+### Install media-browser
 
 ```sh
 # Clone the project using `git`
@@ -152,7 +185,7 @@ just build-release
 sudo just install
 ```
 
-## Packaging media-browser
+### Packaging media-browser
 
 ```sh
 # Clone the project using `git`
@@ -168,7 +201,7 @@ just build-deb
 just build-rpm
 ```
 
-## Build the project from source
+### Build the project from source
 
 ```sh
 # Clone the project using `git`
