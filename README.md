@@ -4,11 +4,7 @@ Media browser with database backend for the COSMIC desktop environment. It manag
 
 Infuse (MacOS/IOS video player) was an inspiration. Wanted to write that program for Linux for a while. But if I had to write the metadata browsing and media display engine anyway, why restrict the app to video content only? So we ended up with an Image viewer, video and audio player with a database backend.
 
-EXIF metadata for images, NFO file metadata for videos (XBMC/Kodi style) and ID3/MP4tag metadata for audio files are stored in a database and can be searched to produce a list of files matching, regardless where they are stored. Collections of videos are currently supported for the episodes of TV shows.
-
-EXIF and ID3 Tags are embedded in images / audio files.
-
-NFO files are additional files besides your media files. They need to follow rules to be found and to be correctly parsed. As long as the NFO has exactly the same name as the video, it will be found. But poster, subtitles and other stuff make this quite messy if all videos are in one directory. Best results will be achieved if your collection of movies, series and other stuff is managed and reorganised by a tool like [tinyMediaManager](https://www.tinymediamanager.org/), [mediaCompanion](https://mediacompanion.sourceforge.io/) or [mediaElch](https://www.mediaelch.de/mediaelch/). These take care to not only generate a correct NFO file, at least tinyMediaManager also offers to rename and reorganize the files. In my experience Movies work best if each has it's own directory to store media, NFO, images, subtitles and other stuff. TV series should have their own directory containing a directory per season. All the files should follow a very strict naming pattern. [on NFO generation](https://kodi.wiki/view/NFO_files/Creating) [on Movie naming and directory structures](https://kodi.wiki/view/Naming_video_files/Movies).
+EXIF metadata for images, NFO file metadata for videos (XBMC/Kodi style) and ID3/MP4tag metadata for audio files are stored in a database and can be searched to produce a list of files matching, regardless where they are stored. Collections of videos are currently supported for the episodes of TV shows. See the part about meta data.
 
 Search results and existing directories are navigatable with keyboard or picking files in preview.
 
@@ -99,6 +95,14 @@ The file manager part is a modification of [COSMIC files](https://github.com/pop
 The GUI of the video / audio player is a clone of [COSMIC player](https://github.com/pop-os/cosmic-player) with a few extra features. The player itself is a modification of [iced-video-player](https://github.com/jazzfool/iced_video_player).
 
 The Image viewer GUI is inspired by [gthumb](https://gitlab.gnome.org/GNOME/gthumb). We ripped off their navigation strip and generalized it for all media types. The viewer component is the image viewer provided by the [iced](https://github.com/iced-rs/iced) project.
+
+## Meta data
+
+EXIF data is usually written by modern cameras / phones while you take a picture. If you have photos that do not include EXIF data, it can be quite tedious. There are solutions for writing the geo-location the photo was taken into the image file. But reconstructing the date it was taken and the camera parameters if they are missing is detective work you have to want to do.
+
+ID3 Tags should be embedded in audio files. If your music does not have them you can use for example [MusicBranz Picard](https://picard.musicbrainz.org/) to identify and tag your music.
+
+NFO files are additional files besides your media files. They need to follow rules to be found and to be correctly parsed. As long as the NFO has exactly the same name as the video, it will be found. But poster, subtitles and other stuff make this quite messy if all videos are in one directory. Best results will be achieved if your collection of movies, series and other stuff is managed and reorganised by a tool like [tinyMediaManager](https://www.tinymediamanager.org/), [mediaCompanion](https://mediacompanion.sourceforge.io/) or [mediaElch](https://www.mediaelch.de/mediaelch/). These take care to not only generate a correct NFO file, at least [tinyMediaManager](https://www.tinymediamanager.org/) also offers to rename and reorganize the files. In my experience Movies work best if each has it's own directory to store media, NFO, images, subtitles and other stuff. TV series should have their own directory containing a directory per season. All the files should follow a very strict naming pattern. [on NFO generation](https://kodi.wiki/view/NFO_files/Creating) [on Movie naming and directory structures](https://kodi.wiki/view/Naming_video_files/Movies).
 
 ## Required dependencies
 
