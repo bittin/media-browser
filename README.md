@@ -8,6 +8,8 @@ EXIF metadata for images, NFO file metadata for videos (XBMC/Kodi style) and ID3
 
 Search results and existing directories are navigatable with keyboard or picking files in preview.
 
+## Features
+
 ![media-browser preview](res/media-browsewr.png)
 
 Directory navigation displays media in the local directory. Detail information is available in the Preview. Some entries are directly searchable by clicking on the highlighted text. If you are currently watching the movie, the search result is opening in the background.
@@ -41,7 +43,7 @@ The play button in the bottom starts the search. The result will open as a new t
 
 Search results present the same view as the directory view. And they behave just the same. If you can do something on a list of files in a directory, you can also do it on a list of media from the database.
 
-![media-browser Tags preview](res/media-browsew.png)
+![media-browser directory navigation](res/media-browsew.png)
 
 In the upper left corner you can activate the navigation panel. As the name implies it can be used to navigate the filesystem / the tab that opens at startup. By default you get the most recently visited locations as well as default locations like your home, Documents, Music, Videos, and so on.
 
@@ -98,9 +100,9 @@ The Image viewer GUI is inspired by [gthumb](https://gitlab.gnome.org/GNOME/gthu
 
 ## Meta data
 
-EXIF data is usually written by modern cameras / phones while you take a picture. If you have photos that do not include EXIF data, it can be quite tedious. There are solutions for writing the geo-location the photo was taken into the image file. But reconstructing the date it was taken and the camera parameters if they are missing is detective work you have to want to do.
+EXIF data is usually written by modern cameras / phones while you take a picture. If you have photos that do not include EXIF data, it can be quite tedious. There are solutions for writing the geo-location the photo was taken into the image file. But reconstructing the date it was taken and the camera parameters if they are missing is detective work gets annoying quickly if there are more than a handful of files that need that treatment.
 
-ID3 Tags should be embedded in audio files. If your music does not have them you can use for example [MusicBranz Picard](https://picard.musicbrainz.org/) to identify and tag your music.
+ID3 Tags should be embedded in audio files. If your music does not have them you can use for example [MusicBrainz Picard](https://picard.musicbrainz.org/) to identify and tag your music.
 
 NFO files are additional files besides your media files. They need to follow rules to be found and to be correctly parsed. As long as the NFO has exactly the same name as the video, it will be found. But poster, subtitles and other stuff make this quite messy if all videos are in one directory. Best results will be achieved if your collection of movies, series and other stuff is managed and reorganised by a tool like [tinyMediaManager](https://www.tinymediamanager.org/), [mediaCompanion](https://mediacompanion.sourceforge.io/) or [mediaElch](https://www.mediaelch.de/mediaelch/). These take care to not only generate a correct NFO file, at least [tinyMediaManager](https://www.tinymediamanager.org/) also offers to rename and reorganize the files. In my experience Movies work best if each has it's own directory to store media, NFO, images, subtitles and other stuff. TV series should have their own directory containing a directory per season. All the files should follow a very strict naming pattern. [on NFO generation](https://kodi.wiki/view/NFO_files/Creating) [on Movie naming and directory structures](https://kodi.wiki/view/Naming_video_files/Movies).
 
