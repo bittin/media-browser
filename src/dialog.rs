@@ -39,7 +39,7 @@ use std::{
 
 use crate::{
     app::{Action, ContextPage, Message as AppMessage, PreviewItem, PreviewKind},
-    config::{Config, Favorite, IconSizes, TabConfig},
+    config::{Config, MediaFavorite as Favorite, IconSizes, MediaTabConfig as TabConfig},
     fl, home_dir,
     key_bind::key_binds,
     localize::LANGUAGE_SORTER,
@@ -158,7 +158,7 @@ impl<M: Send + 'static> Dialog<M> {
         //TODO: only do this once somehow?
         crate::localize::localize();
 
-        let (config_handler, config) = Config::load();
+        let (_config_handler, config) = Config::load();
 
         let mut settings = window::Settings::default();
         settings.decorations = false;
@@ -189,7 +189,7 @@ impl<M: Send + 'static> Dialog<M> {
                     }
                 }),
             window_id,
-            config_handler,
+            _config_handler,
             config,
         };
 
@@ -275,7 +275,7 @@ impl<M: Send + 'static> Dialog<M> {
         }
     }
 
-    pub fn view(&self, window_id: window::Id) -> Element<M> {
+    pub fn view(&self, window_id: window::Id) -> Element<'_, M> {
         self.cosmic
             .view(window_id)
             .map(DialogMessage)
@@ -298,7 +298,7 @@ struct Flags {
     kind: DialogKind,
     path_opt: Option<PathBuf>,
     window_id: window::Id,
-    config_handler: Option<cosmic_config::Config>,
+    _config_handler: Option<cosmic_config::Config>,
     config: Config,
 }
 
@@ -403,7 +403,7 @@ struct App {
 }
 
 impl App {
-    fn button_view(&self) -> Element<Message> {
+    fn button_view(&self) -> Element<'_, Message> {
         let cosmic_theme::Spacing {
             space_xxs,
             space_xs,
@@ -513,7 +513,16 @@ impl App {
         Task::perform(
             async move {
                 let location2 = location.clone();
-                match tokio::task::spawn_blocking(move || location2.scan(icon_sizes)).await {
+                let sql_conmnection: rusqlite::Connection = match crate::sql::connect() {
+                    Ok(conn) => conn,
+                    Err(error) => {
+                        log::error!("Failed to open Database! {}", error);
+                        panic!("Ending the program as a database is required!");
+                    },
+                };
+                let sql_connection = std::sync::Arc::new(std::sync::Mutex::new(sql_conmnection));
+
+                match tokio::task::spawn_blocking(move || location2.scan(sql_connection, icon_sizes)).await {
                     Ok((parent_item_opt, items)) => {
                         message::app(Message::TabRescan(location, parent_item_opt, items))
                     }
@@ -797,7 +806,7 @@ impl Application for App {
         (app, commands)
     }
 
-    fn context_drawer(&self) -> Option<context_drawer::ContextDrawer<Message>> {
+    fn context_drawer(&self) -> Option<context_drawer::ContextDrawer<'_, Message>> {
         if !self.core.window.show_context {
             return None;
         }
@@ -828,7 +837,7 @@ impl Application for App {
         }
     }
 
-    fn dialog(&self) -> Option<Element<Message>> {
+    fn dialog(&self) -> Option<Element<'_, Message>> {
         let cosmic_theme::Spacing { space_xxs, .. } = theme::active().cosmic().spacing;
 
         let dialog_page = match self.dialog_pages.front() {
@@ -910,11 +919,11 @@ impl Application for App {
         Some(dialog.into())
     }
 
-    fn footer(&self) -> Option<Element<Message>> {
+    fn footer(&self) -> Option<Element<'_, Message>> {
         Some(self.button_view())
     }
 
-    fn header_end(&self) -> Vec<Element<Message>> {
+    fn header_end(&self) -> Vec<Element<'_, Message>> {
         let mut elements = Vec::with_capacity(3);
 
         if let Some(term) = self.search_get() {
@@ -968,7 +977,7 @@ impl Application for App {
         elements
     }
 
-    fn nav_bar(&self) -> Option<Element<message::Message<Self::Message>>> {
+    fn nav_bar(&self) -> Option<Element<'_, message::Message<Self::Message>>> {
         if !self.core().nav_bar_active() {
             return None;
         }
@@ -1557,7 +1566,7 @@ impl Application for App {
     }
 
     /// Creates a view after each update.
-    fn view(&self) -> Element<Message> {
+    fn view(&self) -> Element<'_, Message> {
         let cosmic_theme::Spacing { space_xxs, .. } = theme::active().cosmic().spacing;
 
         let mut col = widget::column::with_capacity(2);

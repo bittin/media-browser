@@ -279,7 +279,7 @@ pub fn mime_apps(mime: &Mime) -> Vec<MimeApp> {
     mime_app_cache.get(mime)
 }
 
-pub fn terminal() -> Option<MimeApp> {
+pub fn _terminal() -> Option<MimeApp> {
     let mime_app_cache = MIME_APP_CACHE.lock().unwrap();
 
     //TODO: consider rules in https://github.com/Vladimir-csp/xdg-terminal-exec

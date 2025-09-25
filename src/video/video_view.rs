@@ -5,16 +5,16 @@
 // Copyright 2024 Alexander Schwarzkopf
 
 use cosmic::{
-    cosmic_config::{self},
+    //cosmic_config::{self},
     cosmic_theme,
     iced::keyboard::{Key, Modifiers},
-    widget::menu::action::MenuAction,
+    //widget::menu::action::MenuAction,
 };
 pub use gstreamer as gst;
-pub use gstreamer_app as gst_app;
+//pub use gstreamer_app as gst_app;
 use gstreamer::prelude::*;
 use crate::video::video::Video;
-use crate::video::video_player::VideoPlayer;
+//use crate::video::video_player::VideoPlayer;
 /*
 use iced_video_player::{
     gst::{self, prelude::*},
@@ -48,6 +48,7 @@ fn language_name(code: &str) -> Option<String> {
     Some(name.to_string())
 }
 
+/*
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Action {
     FileClose,
@@ -81,6 +82,7 @@ pub struct Flags {
     config: Config,
     url_opt: Option<url::Url>,
 }
+    */
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum DropdownKind {
@@ -357,8 +359,10 @@ impl VideoView {
                     video.set_paused(true);
                     let duration = Duration::try_from_secs_f64(self.position).unwrap_or_default();
                     video.seek(duration, true).expect("seek");
-                    self.update_controls(true);
+                    video.set_paused(false);
+                    self.dragging = false;
                 }
+                self.update_controls(true);
             }
             Message::SeekRelative(secs) => {
                 if let Some(video) = &mut self.video_opt {
@@ -367,6 +371,7 @@ impl VideoView {
                         Duration::try_from_secs_f64(self.position + secs).unwrap_or_default();
                     video.seek(duration, true).expect("seek");
                 }
+                self.update_controls(true);
             }
             Message::SeekRelease => {
                 //TODO: cleanest way to close dropdowns

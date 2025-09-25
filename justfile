@@ -1,5 +1,5 @@
 name := 'media-browser'
-export APPID := 'com.fangornsrealm.MediaBrowser'
+export APPID := 'eu.fangornsrealm.MediaBrowser'
 
 rootdir := ''
 prefix := '/usr'
@@ -11,10 +11,6 @@ export INSTALL_DIR := base-dir / 'share'
 cargo-target-dir := env('CARGO_TARGET_DIR', 'target')
 bin-src := cargo-target-dir / 'release' / name
 bin-dst := base-dir / 'bin' / name
-
-applet-name := name + '-applet'
-applet-src := cargo-target-dir / 'release' / applet-name
-applet-dst := base-dir / 'bin' / applet-name
 
 desktop := APPID + '.desktop'
 desktop-src := 'res' / desktop
@@ -44,7 +40,6 @@ clean-dist: clean clean-vendor
 # Compiles with debug profile
 build-debug *args:
     cargo build {{args}}
-    cargo build --package {{applet-name}} {{args}}
 
 # Compiles with release profile
 build-release *args: (build-debug '--release' args)
@@ -67,7 +62,7 @@ dev *args:
 # Run with debug logs
 run *args:
     cargo build --release
-    env RUST_LOG=cosmic_media_browser=info RUST_BACKTRACE=full {{bin-src}} {{args}}
+    env RUST_LOG=media_browser=info RUST_BACKTRACE=full {{bin-src}} {{args}}
 
 # Run tests
 test *args:
@@ -76,7 +71,6 @@ test *args:
 # Installs files
 install:
     install -Dm0755 {{bin-src}} {{bin-dst}}
-    install -Dm0755 {{applet-src}} {{applet-dst}}
     install -Dm0644 {{desktop-src}} {{desktop-dst}}
     install -Dm0644 {{metainfo-src}} {{metainfo-dst}}
     for size in `ls {{icons-src}}`; do \
@@ -85,7 +79,42 @@ install:
 
 # Uninstalls installed files
 uninstall:
-    rm -f {{bin-dst}} {{applet-dst}}
+    rm -f {{bin-dst}}
+
+# Installs files locally
+[no-cd]
+install-local:
+    install -Dm0755 {{bin-src}} ~/.local/bin/{{bin-dst}}
+    install -Dm0644 {{desktop-src}} ${XDG_DATA_HOME:-~/.local/share}/{{desktop-dst}}
+    install -Dm0644 {{metainfo-src}} ${XDG_DATA_HOME:-~/.local/share}/{{metainfo-dst}}
+    install -Dm0644 {{icons-src}} ${XDG_DATA_HOME:-~/.local/share}/{{icons-dst}}
+
+# Uninstalls locally installed files
+uninstall-local:
+    rm ~/.local/bin/{{bin-dst}}
+    rm ${XDG_DATA_HOME:-~/.local/share}/{{desktop-dst}}
+    rm ${XDG_DATA_HOME:-~/.local/share}/{{metainfo-dst}}
+    rm ${XDG_DATA_HOME:-~/.local/share}/{{icons-dst}}
+
+# Compiles and packages deb with release profile
+build-deb:
+    command -v cargo-deb || cargo install cargo-deb
+    cargo deb
+
+[no-cd]
+install-deb:
+    apt install --reinstall ./target/debian/*.deb
+
+# Compiles and packages rpm with release profile
+[no-cd]
+build-rpm: build-release
+    command -v cargo-generate-rpm || cargo install cargo-generate-rpm
+    strip -s {{bin-src}}
+    cargo generate-rpm
+
+[no-cd]
+install-rpm:
+    dnf install ./target/generate-rpm/*.rpm
 
 # Vendor dependencies locally
 vendor:

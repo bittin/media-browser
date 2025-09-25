@@ -27,7 +27,7 @@ use cosmic::{
         keyboard::{Event as KeyEvent, Key, Modifiers},
         stream,
         window::{self, Event as WindowEvent, Id as WindowId},
-        Alignment, Event, Length, Point, Rectangle, Size, Subscription,
+        Alignment, Event, Length, Rectangle, Size, Subscription,
     },
     iced_runtime::clipboard,
     style, theme,
@@ -50,7 +50,7 @@ use slotmap::Key as SlotMapKey;
 use std::{
     any::TypeId,
     collections::{BTreeMap, BTreeSet, HashMap, HashSet, VecDeque},
-    env, fmt, fs, io,
+    env, fmt, fs,
     num::NonZeroU16,
     path::PathBuf,
     process,
@@ -79,7 +79,7 @@ use wayland_client::{protocol::wl_output::WlOutput, Proxy};
 
 use crate::{
     clipboard::{ClipboardCopy, ClipboardKind, ClipboardPaste},
-    config::{AppTheme, Config, Favorite, IconSizes, TabConfig},
+    config::{AppTheme, Config, IconSizes, MediaFavorite as Favorite, MediaTabConfig as TabConfig},
     fl, home_dir,
     key_bind::key_binds,
     localize::LANGUAGE_SORTER,
@@ -116,6 +116,7 @@ pub enum Action {
     OpenAudio,
     About,
     AddToSidebar,
+    AddTagToSidebar,
     AudioMuteToggle,
     Copy,
     Cut,
@@ -178,6 +179,7 @@ impl Action {
         match self {
             Action::About => Message::ToggleContextPage(ContextPage::About),
             Action::AddToSidebar => Message::AddToSidebar(entity_opt),
+            Action::AddTagToSidebar => Message::AddTagToSidebar(entity_opt),
             Action::AudioMuteToggle => Message::AudioMuteToggle,
             Action::OpenBrowser => Message::Browser,
             Action::OpenImage => Message::Image(crate::image::image_view::Message::ToImage),
@@ -279,8 +281,10 @@ pub enum PreviewKind {
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub enum NavMenuAction {
     Open(segmented_button::Entity),
+    OpenTag(segmented_button::Entity),
     Preview(segmented_button::Entity),
     RemoveFromSidebar(segmented_button::Entity),
+    RemoveTagFromSidebar(segmented_button::Entity),
     EmptyTrash,
 }
 
@@ -300,6 +304,8 @@ pub enum Message {
     Video(crate::video::video_view::Message),
     Audio(crate::audio::audio_view::Message),
     AddToSidebar(Option<Entity>),
+    AddTagToContents(crate::sql::Tag, ClipboardPaste),
+    AddTagToSidebar(Option<Entity>),
     AppTheme(AppTheme),
     AudioMessage(crate::audio::audio_view::Message),
     AudioMuteToggle,
@@ -330,6 +336,7 @@ pub enum Message {
     LaunchUrl(String),
     LaunchSearch(crate::sql::SearchType, String),
     MaybeExit,
+    MetadataDelete,
     Modifiers(Modifiers),
     MoveToTrash(Option<Entity>),
     MounterItems(MounterKey, MounterItems),
@@ -390,6 +397,7 @@ pub enum Message {
     SearchSearchToValueSubmit,
     SearchFilepath(bool),
     SearchTitle(bool),
+    SearchTag(bool),
     SearchDescription(bool),
     SearchActor(bool),
     SearchDirector(bool),
@@ -492,6 +500,9 @@ pub enum DialogPage {
         name: String,
         dir: bool,
     },
+    NewTag {
+        tag: String,
+    },
     OpenWith {
         path: PathBuf,
         mime: mime_guess::Mime,
@@ -572,7 +583,7 @@ pub struct App {
     network_drive_input: String,
     #[cfg(feature = "notify")]
     notification_opt: Option<Arc<Mutex<notify_rust::NotificationHandle>>>,
-    overlap: HashMap<String, (window::Id, Rectangle)>,
+    _overlap: HashMap<String, (window::Id, Rectangle)>,
     pending_operation_id: u64,
     pending_operations: BTreeMap<u64, (Operation, Controller)>,
     progress_operations: BTreeSet<u64>,
@@ -598,6 +609,7 @@ pub struct App {
     tab_dnd_hover: Option<(Entity, Instant)>,
     nav_drag_id: DragId,
     tab_drag_id: DragId,
+    sql_connection: std::sync::Arc<std::sync::Mutex<rusqlite::Connection>>,
 }
 
 impl App {
@@ -694,10 +706,15 @@ impl App {
     ) -> Task<Message> {
         log::info!("rescan_tab {entity:?} {location:?} {selection_paths:?}");
         let icon_sizes = self.config.tab.icon_sizes;
+        let sql_connection = self.sql_connection.clone();
         Task::perform(
             async move {
                 let location2 = location.clone();
-                match tokio::task::spawn_blocking(move || location2.scan(icon_sizes)).await {
+                match tokio::task::spawn_blocking(move || {
+                    location2.scan(sql_connection, icon_sizes)
+                })
+                .await
+                {
                     Ok((parent_item_opt, items)) => message::app(Message::TabRescan(
                         entity,
                         location,
@@ -926,6 +943,16 @@ impl App {
                 b
             });
         }
+        for (tag_i, tag) in self.config.tags.iter().enumerate() {
+            if tag.tag.len() > 0 {
+                let name = tag.tag.clone();
+                nav_model = nav_model.insert(move |b| {
+                    b.text(name.clone())
+                        .data(Location::Tag(tag.to_owned()))
+                        .data(FavoriteIndex(tag_i))
+                });
+            }
+        }
 
         self.nav_model = nav_model.build();
 
@@ -1023,7 +1050,7 @@ impl App {
         Task::none()
     }
 
-    fn about(&self) -> Element<Message> {
+    fn about(&self) -> Element<'_, Message> {
         let cosmic_theme::Spacing { space_xxs, .. } = theme::active().cosmic().spacing;
         let repository = "https://github.com/fangornsrealm/media-browser";
         let hash = env!("VERGEN_GIT_SHA");
@@ -1058,7 +1085,7 @@ impl App {
         .into()
     }
 
-    fn network_drive(&self) -> Element<Message> {
+    fn network_drive(&self) -> Element<'_, Message> {
         let cosmic_theme::Spacing {
             space_xxs, space_m, ..
         } = theme::active().cosmic().spacing;
@@ -1089,7 +1116,7 @@ impl App {
         .into()
     }
 
-    fn open_with(&self) -> Element<Message> {
+    fn _open_with(&self) -> Element<'_, Message> {
         let children = Vec::new();
         let entity = self.tab_model.active();
         if let Some(tab) = self.tab_model.data::<Tab>(entity) {
@@ -1107,7 +1134,7 @@ impl App {
         widget::settings::view_column(children).into()
     }
 
-    fn edit_history(&self) -> Element<Message> {
+    fn edit_history(&self) -> Element<'_, Message> {
         let cosmic_theme::Spacing { space_m, .. } = theme::active().cosmic().spacing;
 
         let mut children = Vec::new();
@@ -1250,7 +1277,7 @@ impl App {
             .into()
     }
 
-    fn search_database(&self) -> Element<Message> {
+    fn search_database(&self) -> Element<'_, Message> {
         let cosmic_theme::Spacing { space_m, .. } = theme::active().cosmic().spacing;
 
         let mut column = widget::column().spacing(space_m);
@@ -1263,19 +1290,21 @@ impl App {
             )
             .into(),
             widget::horizontal_space().into(),
-            widget::tooltip(widget::button::icon(
-                widget::icon::from_name("checkbox-checked-symbolic").size(16))
-                .on_press(Message::SearchPreviousSelect), 
-                widget::text::body(fl!("search-select")), 
-                widget::tooltip::Position::Top,)
-                .into(),
-            widget::tooltip(widget::button::icon(
-                widget::icon::from_name("edit-delete-symbolic").size(16))
-                .on_press(Message::SearchPreviousDelete), 
-                widget::text::body(fl!("search-delete")), 
-                widget::tooltip::Position::Top,)
-                .into(),
-            ]));
+            widget::tooltip(
+                widget::button::icon(widget::icon::from_name("checkbox-checked-symbolic").size(16))
+                    .on_press(Message::SearchPreviousSelect),
+                widget::text::body(fl!("search-select")),
+                widget::tooltip::Position::Top,
+            )
+            .into(),
+            widget::tooltip(
+                widget::button::icon(widget::icon::from_name("edit-delete-symbolic").size(16))
+                    .on_press(Message::SearchPreviousDelete),
+                widget::text::body(fl!("search-delete")),
+                widget::tooltip::Position::Top,
+            )
+            .into(),
+        ]));
 
         column = column.push(widget::text::heading(fl!("search-mediatypes")));
         column = column.push(widget::row::with_children(vec![
@@ -1324,6 +1353,10 @@ impl App {
             widget::horizontal_space().into(),
             widget::checkbox(fl!("search-title"), self.search.title)
                 .on_toggle(move |value| Message::SearchTitle(value))
+                .into(),
+            widget::horizontal_space().into(),
+            widget::checkbox(fl!("search-tag"), self.search.tags)
+                .on_toggle(move |value| Message::SearchTag(value))
                 .into(),
         ]));
         column = column.push(widget::row::with_children(vec![
@@ -1426,33 +1459,99 @@ impl App {
         .into()
     }
 
-    fn settings(&self) -> Element<Message> {
+    fn settings(&self) -> Element<'_, Message> {
         // TODO: Should dialog be updated here too?
-        widget::column::with_children(vec![widget::settings::section()
-            .title(fl!("appearance"))
-            .add({
-                let app_theme_selected = match self.config.app_theme {
-                    AppTheme::Dark => 1,
-                    AppTheme::Light => 2,
-                    AppTheme::System => 0,
-                };
-                widget::settings::item::builder(fl!("theme")).control(widget::dropdown(
-                    &self.app_themes,
-                    Some(app_theme_selected),
-                    move |index| {
-                        Message::AppTheme(match index {
-                            1 => AppTheme::Dark,
-                            2 => AppTheme::Light,
-                            _ => AppTheme::System,
-                        })
-                    },
-                ))
-            })
-            .into()])
-        .into()
+        let app_theme_selected = match self.config.app_theme {
+            AppTheme::Dark => 1,
+            AppTheme::Light => 2,
+            AppTheme::System => 0,
+        };
+        let mut metadata_path;
+        match dirs::data_local_dir() {
+            Some(pb) => {
+                metadata_path = pb;
+                if !metadata_path.exists() {
+                    let ret = std::fs::create_dir_all(metadata_path.clone());
+                    if ret.is_err() {
+                        log::warn!("Failed to create directory {}", metadata_path.display());
+                        metadata_path = dirs::home_dir().unwrap();
+                    }
+                }
+            }
+            None => {
+                metadata_path = dirs::home_dir().unwrap();
+            }
+        }
+        let appearance_section = widget::settings::section().title(fl!("appearance")).add(
+            widget::settings::item::builder(fl!("theme")).control(widget::dropdown(
+                &self.app_themes,
+                Some(app_theme_selected),
+                move |index| {
+                    Message::AppTheme(match index {
+                        1 => AppTheme::Dark,
+                        2 => AppTheme::Light,
+                        _ => AppTheme::System,
+                    })
+                },
+            )),
+        );
+
+        if let Ok(metadata_item) =
+            crate::parsers::item_from_path(metadata_path, IconSizes::default())
+        {
+            match &metadata_item.metadata {
+                ItemMetadata::Path { metadata, children } => {
+                    if metadata.is_dir() {
+                        if let Some(path) = metadata_item.path_opt() {
+                            let metadata_location =
+                                crate::parsers::osstr_to_string(path.clone().into_os_string());
+                            let metadata_items = children.to_owned();
+                            let metadata_size = match &metadata_item.dir_size {
+                                crate::tab::DirSize::Calculating(_) => fl!("calculating"),
+                                crate::tab::DirSize::Directory(size) => {
+                                    crate::tab::format_size(*size)
+                                }
+                                crate::tab::DirSize::NotDirectory => String::new(),
+                                crate::tab::DirSize::Error(err) => err.clone(),
+                            };
+                            let metadata_section = widget::settings::section()
+                                .title(fl!("metadata"))
+                                .add(widget::text::body(fl!(
+                                    "metadata-details",
+                                    items = metadata_items,
+                                    size = metadata_size,
+                                    location = metadata_location
+                                )))
+                                .add(
+                                    widget::settings::item::builder(fl!("metadata-delete"))
+                                        .control(
+                                            widget::button::custom(
+                                                widget::icon::from_name("user-trash-symbolic")
+                                                    .size(16),
+                                            )
+                                            .on_press(Message::MetadataDelete),
+                                        ),
+                                );
+                            widget::column::with_children(vec![
+                                appearance_section.into(),
+                                metadata_section.into(),
+                            ])
+                            .into()
+                        } else {
+                            widget::column::with_children(vec![appearance_section.into()]).into()
+                        }
+                    } else {
+                        widget::column::with_children(vec![appearance_section.into()]).into()
+                    }
+                }
+                _ => widget::column::with_children(vec![appearance_section.into()]).into(),
+            }
+        } else {
+            widget::column::with_children(vec![appearance_section.into()]).into()
+        }
     }
 
-    fn view_image_view(&self) -> Element<<App as cosmic::Application>::Message> {
+    fn view_image_view(&self) -> Element<'_, <App as cosmic::Application>::Message> {
         let cosmic_theme::Spacing {
             space_xxs,
             space_xs,
@@ -1466,7 +1565,7 @@ impl App {
         }
         let image_viewer = Container::new(
             cosmic::iced::widget::image::Viewer::new(crate::image::image::create_handle(
-self.image_view.image_path.clone(),
+                self.image_view.image_path.clone(),
             ))
             .width(self.image_view.width)
             .height(self.image_view.height)
@@ -1617,7 +1716,7 @@ self.image_view.image_path.clone(),
             .into()
     }
 
-    fn view_video_view(&self) -> Element<<App as cosmic::Application>::Message> {
+    fn view_video_view(&self) -> Element<'_, <App as cosmic::Application>::Message> {
         let cosmic_theme::Spacing {
             space_xxs,
             space_xs,
@@ -1770,10 +1869,11 @@ self.image_view.image_path.clone(),
                         items_right.push(widget::text::heading(fl!("chapters")).into());
                         items_right.push(
                             widget::dropdown(
-                                &self.video_view.chapters_str, 
-                                Some(self.video_view.current_chapter), 
-                                Message::Chapter)
-                                .into(),
+                                &self.video_view.chapters_str,
+                                Some(self.video_view.current_chapter),
+                                Message::Chapter,
+                            )
+                            .into(),
                         );
                     }
                 }
@@ -2005,7 +2105,7 @@ self.image_view.image_path.clone(),
             .into()
     }
 
-    fn view_audio_view(&self) -> Element<<App as cosmic::Application>::Message> {
+    fn view_audio_view(&self) -> Element<'_, <App as cosmic::Application>::Message> {
         let cosmic_theme::Spacing {
             space_xxs,
             space_xs,
@@ -2159,10 +2259,11 @@ self.image_view.image_path.clone(),
                         items_right.push(widget::text::heading(fl!("chapters")).into());
                         items_right.push(
                             widget::dropdown(
-                                &self.audio_view.chapters_str, 
-                                Some(self.audio_view.current_chapter), 
-                                Message::Chapter)
-                                .into(),
+                                &self.audio_view.chapters_str,
+                                Some(self.audio_view.current_chapter),
+                                Message::Chapter,
+                            )
+                            .into(),
                         );
                     }
                 }
@@ -2396,7 +2497,7 @@ self.image_view.image_path.clone(),
             .into()
     }
 
-    fn view_browser_view(&self) -> Element<<App as cosmic::Application>::Message> {
+    fn view_browser_view(&self) -> Element<'_, <App as cosmic::Application>::Message> {
         let cosmic_theme::Spacing {
             space_xxs, space_s, ..
         } = theme::active().cosmic().spacing;
@@ -2512,9 +2613,13 @@ self.image_view.image_path.clone(),
                                                 self.video_view.chapters_str.extend(s);
                                             }
                                             self.video_view.audio_codes.clear();
-                                            self.video_view.audio_codes.extend(video.audiolangs.clone());
+                                            self.video_view
+                                                .audio_codes
+                                                .extend(video.audiolangs.clone());
                                             self.video_view.text_codes.clear();
-                                            self.video_view.text_codes.extend(video.sublangs.clone());            
+                                            self.video_view
+                                                .text_codes
+                                                .extend(video.sublangs.clone());
                                         }
                                     }
                                 }
@@ -2585,7 +2690,7 @@ impl Application for App {
     type Message = Message;
 
     /// The unique application ID to supply to the window manager.
-    const APP_ID: &'static str = "com.system76.CosmicFiles";
+    const APP_ID: &'static str = "eu.fangornsrealm.MediaBrowser";
 
     fn core(&self) -> &Core {
         &self.core
@@ -2642,6 +2747,14 @@ impl Application for App {
 
         let window_id_opt = core.main_window_id();
 
+        let sql_conmnection: rusqlite::Connection = match crate::sql::connect() {
+            Ok(conn) => conn,
+            Err(error) => {
+                log::error!("Failed to open Database! {}", error);
+                panic!("Ending the program as a database is required!");
+            }
+        };
+
         let mut app = App {
             image_view: crate::image::image_view::ImageView::new(),
             video_view: crate::video::video_view::VideoView::new(),
@@ -2667,7 +2780,7 @@ impl Application for App {
             network_drive_input: String::new(),
             #[cfg(feature = "notify")]
             notification_opt: None,
-            overlap: HashMap::new(),
+            _overlap: HashMap::new(),
             pending_operation_id: 0,
             pending_operations: BTreeMap::new(),
             progress_operations: BTreeSet::new(),
@@ -2695,6 +2808,7 @@ impl Application for App {
             tab_dnd_hover: None,
             nav_drag_id: DragId::new(),
             tab_drag_id: DragId::new(),
+            sql_connection: std::sync::Arc::new(std::sync::Mutex::new(sql_conmnection)),
         };
         app.tab_model_id = app.tab_model.active();
         let mut commands = vec![app.update_config()];
@@ -2714,7 +2828,7 @@ impl Application for App {
         (app, Task::batch(commands))
     }
 
-    fn nav_bar(&self) -> Option<Element<message::Message<Self::Message>>> {
+    fn nav_bar(&self) -> Option<Element<'_, message::Message<Self::Message>>> {
         if !self.core().nav_bar_active() {
             return None;
         }
@@ -2756,37 +2870,58 @@ impl Application for App {
     fn nav_context_menu(
         &self,
         entity: widget::nav_bar::Id,
-    ) -> Option<Vec<widget::menu::Tree<cosmic::app::Message<Self::Message>>>> {
+    ) -> Option<Vec<widget::menu::Tree<'_, cosmic::app::Message<Self::Message>>>> {
         let favorite_index_opt = self.nav_model.data::<FavoriteIndex>(entity);
         let location_opt = self.nav_model.data::<Location>(entity);
 
         let mut items = Vec::new();
 
-        if location_opt
-            .and_then(|x| x.path_opt())
-            .map_or(false, |x| x.is_file())
-        {
-            items.push(cosmic::widget::menu::Item::Button(
-                fl!("open"),
-                None,
-                NavMenuAction::Open(entity),
-            ));
-            items.push(cosmic::widget::menu::Item::Button(
-                fl!("open-with"),
-                None,
-                NavMenuAction::Open(entity),
-            ));
-        } else {
-            items.push(cosmic::widget::menu::Item::Button(
-                fl!("open-in-new-tab"),
-                None,
-                NavMenuAction::Open(entity),
-            ));
-            items.push(cosmic::widget::menu::Item::Button(
-                fl!("open-in-new-window"),
-                None,
-                NavMenuAction::Open(entity),
-            ));
+        if let Some(location) = location_opt {
+            match location {
+                Location::Path(path) => {
+                    if path.is_file() {
+                        items.push(cosmic::widget::menu::Item::Button(
+                            fl!("open"),
+                            None,
+                            NavMenuAction::Open(entity),
+                        ));
+                        items.push(cosmic::widget::menu::Item::Button(
+                            fl!("open-with"),
+                            None,
+                            NavMenuAction::Open(entity),
+                        ));
+                    } else {
+                        items.push(cosmic::widget::menu::Item::Button(
+                            fl!("open"),
+                            None,
+                            NavMenuAction::Open(entity),
+                        ));
+                    }
+                    if favorite_index_opt.is_some() {
+                        items.push(cosmic::widget::menu::Item::Button(
+                            fl!("remove-from-sidebar"),
+                            None,
+                            NavMenuAction::RemoveFromSidebar(entity),
+                        ));
+                    }
+                }
+                Location::Tag(_t) => {
+                    items.push(cosmic::widget::menu::Item::Button(
+                        fl!("open-in-new-tab"),
+                        None,
+                        NavMenuAction::OpenTag(entity),
+                    ));
+                    items.push(cosmic::widget::menu::Item::Divider);
+                    if favorite_index_opt.is_some() {
+                        items.push(cosmic::widget::menu::Item::Button(
+                            fl!("remove-tag-from-sidebar"),
+                            None,
+                            NavMenuAction::RemoveTagFromSidebar(entity),
+                        ));
+                    }
+                }
+                _ => {}
+            }
         }
         items.push(cosmic::widget::menu::Item::Divider);
         items.push(cosmic::widget::menu::Item::Button(
@@ -2794,14 +2929,6 @@ impl Application for App {
             None,
             NavMenuAction::Preview(entity),
         ));
-        items.push(cosmic::widget::menu::Item::Divider);
-        if favorite_index_opt.is_some() {
-            items.push(cosmic::widget::menu::Item::Button(
-                fl!("remove-from-sidebar"),
-                None,
-                NavMenuAction::RemoveFromSidebar(entity),
-            ));
-        }
         if matches!(location_opt, Some(Location::Trash)) {
             items.push(cosmic::widget::menu::Item::Button(
                 fl!("empty-trash"),
@@ -2939,9 +3066,7 @@ impl Application for App {
 
         match message {
             Message::Open(_entity_opt, filepath) => {
-                if filepath.len() > 0 {
-
-                }
+                if filepath.len() > 0 {}
                 if let Some(tab) = self.tab_model.data_mut::<Tab>(self.tab_model_id) {
                     let v = tab.selected_file_paths();
                     for path in v {
@@ -3040,6 +3165,25 @@ impl Application for App {
                 config_set!(favorites, favorites);
                 return self.update_config();
             }
+            Message::AddTagToContents(to, contents) => {
+                for p in contents.paths {
+                    let file = crate::sql::file(
+                        self.sql_connection.clone(),
+                        &crate::parsers::osstr_to_string(p.clone().into_os_string()),
+                    );
+                    crate::sql::insert_media_tag(
+                        self.sql_connection.clone(),
+                        file.metadata_id as u32,
+                        to.tag_id,
+                    );
+                }
+            }
+            Message::AddTagToSidebar(_entity_opt) => {
+                self.dialog_pages.push_back(DialogPage::NewTag {
+                    tag: "unnamed".to_string(),
+                });
+                return widget::text_input::focus(self.dialog_text_input.clone());
+            }
             Message::AppTheme(app_theme) => {
                 config_set!(app_theme, app_theme);
                 return self.update_config();
@@ -3050,7 +3194,7 @@ impl Application for App {
                         crate::video::video_view::Message::AudioToggle,
                     ));
                 } else if self.active_view == Mode::Audio {
-                   let _ = self.update(Message::AudioMessage(
+                    let _ = self.update(Message::AudioMessage(
                         crate::audio::audio_view::Message::AudioToggle,
                     ));
                 } else {
@@ -3291,8 +3435,9 @@ impl Application for App {
                                 if item.selected {
                                     if let Some(Location::Path(path)) = &item.location_opt {
                                         let pathbuf = path.to_path_buf();
+                                        let sql_connection = self.sql_connection.clone();
                                         let _joinhandle = std::thread::spawn(move || {
-                                            crate::tab::scan_path_recursive(pathbuf)
+                                            crate::tab::scan_path_recursive(sql_connection, pathbuf)
                                         });
                                     }
                                 }
@@ -3607,6 +3752,22 @@ impl Application for App {
                                 Operation::NewFolder { path }
                             });
                         }
+                        DialogPage::NewTag { tag } => {
+                            let tag_id =
+                                crate::sql::insert_tag(self.sql_connection.clone(), 0, tag.clone())
+                                    as u32;
+                            let t = crate::sql::Tag {
+                                tag_id,
+                                tag: tag.clone(),
+                            };
+                            let mut tags = self.config.tags.clone();
+                            //let taglocation = Location::Tag(t);
+                            if !tags.iter().any(|f| f == &t) {
+                                tags.push(t);
+                            }
+                            config_set!(tags, tags);
+                            return self.update_config();
+                        }
                         DialogPage::OpenWith {
                             path,
                             apps,
@@ -3620,7 +3781,7 @@ impl Application for App {
                                             let _ = recently_used_xbel::update_recently_used(
                                                 &path,
                                                 App::APP_ID.to_string(),
-                                                "cosmic-files".to_string(),
+                                                "media-browser".to_string(),
                                                 None,
                                             );
                                         }
@@ -3678,7 +3839,9 @@ impl Application for App {
                 crate::image::image_view::Message::ToAudio => {}
                 crate::image::image_view::Message::Open(imagepath) => {
                     self.image_view.image_path = imagepath;
-                    self.image_view.handle_opt = Some(crate::image::image::Handle::from_path(self.image_view.image_path.clone()));
+                    self.image_view.handle_opt = Some(crate::image::image::Handle::from_path(
+                        self.image_view.image_path.clone(),
+                    ));
                     self.image_view.image_path_loaded = self.image_view.image_path.clone();
                     self.active_view = Mode::Image;
                     self.view();
@@ -3735,6 +3898,31 @@ impl Application for App {
                     process::exit(0);
                 }
             }
+            Message::MetadataDelete => {
+                let mut metadata_path;
+                match dirs::data_local_dir() {
+                    Some(pb) => {
+                        metadata_path = pb;
+                        if !metadata_path.exists() {
+                            let ret = std::fs::create_dir_all(metadata_path.clone());
+                            if ret.is_err() {
+                                log::warn!(
+                                    "Failed to create directory {}",
+                                    metadata_path.display()
+                                );
+                                metadata_path = dirs::home_dir().unwrap();
+                            }
+                        }
+                    }
+                    None => {
+                        metadata_path = dirs::home_dir().unwrap();
+                    }
+                }
+                let paths = vec![metadata_path];
+                if !paths.is_empty() {
+                    self.operation(Operation::Delete { paths });
+                }
+            }
             Message::LaunchUrl(url) => match open::that_detached(&url) {
                 Ok(()) => {}
                 Err(err) => {
@@ -3747,48 +3935,56 @@ impl Application for App {
                     ..Default::default()
                 };
                 self.search_previous.clear();
-                self.search_previous.extend(crate::sql::previous_searches());
+                self.search_previous
+                    .extend(crate::sql::searches(self.sql_connection.clone()));
                 match search_type {
                     ST::Director => {
                         self.search.director = true;
                         self.search.video = true;
                         self.search.from_string = search_term;
-                    },
+                    }
                     ST::Actor => {
                         self.search.actor = true;
                         self.search.video = true;
                         self.search.from_string = search_term;
-                    },
+                    }
                     ST::Artist => {
                         self.search.artist = true;
                         self.search.audio = true;
                         self.search.from_string = search_term;
-                    },
+                    }
                     ST::AlbumArtist => {
                         self.search.album_artist = true;
                         self.search.audio = true;
                         self.search.from_string = search_term;
-                    },
+                    }
                     ST::Album => {
                         self.search.album = true;
                         self.search.audio = true;
                         self.search.from_string = search_term;
-                    },
+                    }
                     ST::Composer => {
                         self.search.composer = true;
                         self.search.audio = true;
                         self.search.from_string = search_term;
-                    },
+                    }
                     ST::Genre => {
                         self.search.genre = true;
                         self.search.audio = true;
                         self.search.from_string = search_term;
-                    },
+                    }
+                    ST::Tag => {
+                        self.search.tags = true;
+                        self.search.audio = true;
+                        self.search.video = true;
+                        self.search.image = true;
+                        self.search.from_string = search_term;
+                    }
 
                     _ => return Task::none(),
                 }
                 return self.update(Message::SearchCommit);
-            },
+            }
             Message::Modifiers(modifiers) => {
                 self.modifiers = modifiers;
             }
@@ -4077,7 +4273,7 @@ impl Application for App {
                             None
                         }
                     },
-                ))
+                ));
             }
             Message::Paste(entity_opt) => {
                 let entity = entity_opt.unwrap_or_else(|| self.tab_model.active());
@@ -4232,7 +4428,7 @@ impl Application for App {
                             {
                                 // Use the dialog ID to make it float
                                 settings.platform_specific.application_id =
-                                    "com.system76.CosmicFilesDialog".to_string();
+                                    "eu.fangornsrealm.MediaBrowserDialog".to_string();
                             }
 
                             let (_id, command) = window::open(settings);
@@ -4327,7 +4523,7 @@ impl Application for App {
             Message::RenameWithPattern(entity_opt, pattern, start_val, numdigits) => {
                 let entity = entity_opt.unwrap_or_else(|| self.tab_model.active());
                 if let Some(tab) = self.tab_model.data_mut::<Tab>(entity) {
-                    if let Location::Path(parent) = &tab.location {
+                    if let Location::Path(_parent) = &tab.location {
                         if let Some(items) = tab.items_opt() {
                             let mut selected = Vec::new();
                             for item in items.iter() {
@@ -4409,7 +4605,8 @@ impl Application for App {
                     ..Default::default()
                 };
                 self.search_previous.clear();
-                self.search_previous.extend(crate::sql::previous_searches());
+                self.search_previous
+                    .extend(crate::sql::searches(self.sql_connection.clone()));
                 for s in self.search_previous.iter() {
                     self.search_previous_str.push(s.display());
                 }
@@ -4427,9 +4624,7 @@ impl Application for App {
                 let search = self.search_previous[self.search_previous_pos].clone();
                 self.search_previous_str.remove(self.search_previous_pos);
                 self.search_previous.remove(self.search_previous_pos);
-                if let Ok(mut connection) = crate::sql::connect() {
-                    crate::sql::delete_search(&mut connection, search);
-                }
+                crate::sql::delete_search(self.sql_connection.clone(), search);
             }
             Message::SearchImages(is_checked) => {
                 self.search.search_id = 0;
@@ -4511,6 +4706,10 @@ impl Application for App {
                 self.search.search_id = 0;
                 self.search.title = is_checked;
             }
+            Message::SearchTag(is_checked) => {
+                self.search.search_id = 0;
+                self.search.tags = is_checked;
+            }
             Message::SearchDescription(is_checked) => {
                 self.search.search_id = 0;
                 self.search.description = is_checked;
@@ -4549,8 +4748,8 @@ impl Application for App {
             Message::SearchAlbum(is_checked) => {
                 self.search.search_id = 0;
                 self.search.album = is_checked;
-                if !self.search.video {
-                    self.search.video = true;
+                if !self.search.audio {
+                    self.search.audio = true;
                 }
             }
             Message::SearchComposer(is_checked) => {
@@ -4640,12 +4839,13 @@ impl Application for App {
                     }
                 }
                 if s.search_id == 0 {
-                    s.store();
+                    s.store(self.sql_connection.clone());
                     self.search_previous.push(s.clone());
                 }
                 self.search = s.clone();
                 let location = Location::DBSearch(s);
-                let (parent_item_opt, items) = location.scan(IconSizes::default());
+                let (parent_item_opt, items) =
+                    location.scan(self.sql_connection.clone(), IconSizes::default());
                 let (entity, command) = self.open_tab_entity(location, true, None);
                 if let Some(tab) = self.tab_model.data_mut::<Tab>(entity) {
                     tab.parent_item_opt = parent_item_opt;
@@ -4813,10 +5013,10 @@ impl Application for App {
                 let entity = entity_opt.unwrap_or_else(|| self.tab_model.active());
 
                 //TODO: move to Task?
-                if let tab::Message::ContextMenu(_point_opt) = tab_message {
+                //if let tab::Message::ContextMenu(_point_opt) = tab_message {
                     // Disable side context page
-                    self.set_show_context(false);
-                }
+                //    self.set_show_context(false);
+                //}
 
                 let tab_commands = match self.tab_model.data_mut::<Tab>(entity) {
                     Some(tab) => tab.update(tab_message, self.modifiers),
@@ -4871,7 +5071,6 @@ impl Application for App {
                                 Some(command) => command,
                                 _ => Task::none(),
                             };
-    
                         }
                         tab::Command::OpenInExternalApp(path) => {
                             let mut found_desktop_exec = false;
@@ -5014,10 +5213,13 @@ impl Application for App {
 
                 let mut paths = Vec::with_capacity(recently_trashed.len());
                 let icon_sizes = self.config.tab.icon_sizes;
+                let sql_connection = self.sql_connection.clone();
 
                 return cosmic::task::future(async move {
-                    match tokio::task::spawn_blocking(move || Location::Trash.scan(icon_sizes))
-                        .await
+                    match tokio::task::spawn_blocking(move || {
+                        Location::Trash.scan(sql_connection, icon_sizes)
+                    })
+                    .await
                     {
                         Ok((_parent_item_opt, items)) => {
                             for path in &*recently_trashed {
@@ -5265,6 +5467,13 @@ impl Application for App {
                                 paths: data.paths,
                             },
                         )),
+                        Location::Tag(t) => self.update(Message::AddTagToContents(
+                            t.clone(),
+                            ClipboardPaste {
+                                kind: ClipboardKind::Copy,
+                                paths: data.paths,
+                            },
+                        )),
                         Location::Trash if matches!(action, DndAction::Move) => {
                             self.operation(Operation::Delete { paths: data.paths });
                             Task::none()
@@ -5371,22 +5580,37 @@ impl Application for App {
             // Applies selected nav bar context menu operation.
             Message::NavMenuAction(action) => match action {
                 NavMenuAction::Open(entity) => {
-                    match self
-                        .nav_model
-                        .data::<Location>(entity)
-                        .and_then(|x| x.path_opt())
-                        .map(|x| x.to_path_buf())
-                    {
-                        Some(path) => {
-                            let _ = self.update(Message::Open(
-                                Some(entity),
-                                crate::parsers::osstr_to_string(path.clone().into_os_string()),
-                            ));
+                    if let Some(location) = self.nav_model.data::<Location>(entity) {
+                        match location {
+                            Location::Path(path) => {
+                                let _ = self.update(Message::Open(
+                                    Some(entity),
+                                    crate::parsers::osstr_to_string(path.clone().into_os_string()),
+                                ));
+                            }
+                            Location::Tag(t) => {
+                                let _ = self.update(Message::LaunchSearch(
+                                    crate::sql::SearchType::Tag,
+                                    t.tag.clone(),
+                                ));
+                            }
+                            _ => {}
                         }
-                        None => {}
                     }
                 }
-
+                NavMenuAction::OpenTag(entity) => {
+                    if let Some(location) = self.nav_model.data::<Location>(entity) {
+                        match location {
+                            Location::Tag(t) => {
+                                let _ = self.update(Message::LaunchSearch(
+                                    crate::sql::SearchType::Tag,
+                                    t.tag.clone(),
+                                ));
+                            }
+                            _ => {}
+                        }
+                    }
+                }
                 NavMenuAction::RemoveFromSidebar(entity) => {
                     if let Some(FavoriteIndex(favorite_i)) =
                         self.nav_model.data::<FavoriteIndex>(entity)
@@ -5394,6 +5618,19 @@ impl Application for App {
                         let mut favorites = self.config.favorites.clone();
                         favorites.remove(*favorite_i);
                         config_set!(favorites, favorites);
+                        return self.update_config();
+                    }
+                }
+                NavMenuAction::RemoveTagFromSidebar(entity) => {
+                    if let Some(FavoriteIndex(tag_i)) = self.nav_model.data::<FavoriteIndex>(entity)
+                    {
+                        let mut tags = self.config.tags.clone();
+                        crate::sql::delete_tag(
+                            self.sql_connection.clone(),
+                            tags[*tag_i].tag.clone(),
+                        );
+                        tags.remove(*tag_i);
+                        config_set!(tags, tags);
                         return self.update_config();
                     }
                 }
@@ -5521,7 +5758,7 @@ impl Application for App {
         Task::none()
     }
 
-    fn context_drawer(&self) -> Option<context_drawer::ContextDrawer<Message>> {
+    fn context_drawer(&self) -> Option<context_drawer::ContextDrawer<'_, Message>> {
         if !self.core.window.show_context {
             return None;
         }
@@ -5592,7 +5829,7 @@ impl Application for App {
         })
     }
 
-    fn dialog(&self) -> Option<Element<Message>> {
+    fn dialog(&self) -> Option<Element<'_, Message>> {
         //TODO: should gallery view just be a dialog?
         let entity = self.tab_model.active();
 
@@ -5833,6 +6070,48 @@ impl Application for App {
                         .spacing(space_xxs),
                     )
             }
+            DialogPage::NewTag { tag } => {
+                let mut dialog = widget::dialog().title(fl!("create-new-tag"));
+
+                let complete_maybe = if tag.is_empty() {
+                    None
+                } else if tag.starts_with(".") {
+                    dialog = dialog.tertiary_action(widget::text::body(fl!(
+                        "name-invalid",
+                        filename = tag.as_str()
+                    )));
+                    None
+                } else if tag.contains('/') || tag.contains('.') {
+                    dialog = dialog.tertiary_action(widget::text::body(fl!("name-no-slashes")));
+                    None
+                } else {
+                    Some(Message::DialogComplete)
+                };
+
+                dialog
+                    .primary_action(
+                        widget::button::suggested(fl!("save"))
+                            .on_press_maybe(complete_maybe.clone()),
+                    )
+                    .secondary_action(
+                        widget::button::standard(fl!("cancel")).on_press(Message::DialogCancel),
+                    )
+                    .control(
+                        widget::column::with_children(vec![
+                            widget::text::body(fl!("tag-name")).into(),
+                            widget::text_input("", tag.as_str())
+                                .id(self.dialog_text_input.clone())
+                                .on_input(move |tag| {
+                                    Message::DialogUpdate(DialogPage::NewTag {
+                                        tag: tag.to_string(),
+                                    })
+                                })
+                                .on_submit_maybe(complete_maybe)
+                                .into(),
+                        ])
+                        .spacing(space_xxs),
+                    )
+            }
             DialogPage::OpenWith {
                 path,
                 apps,
@@ -6019,7 +6298,7 @@ impl Application for App {
         Some(dialog.into())
     }
 
-    fn footer(&self) -> Option<Element<Message>> {
+    fn footer(&self) -> Option<Element<'_, Message>> {
         if self.progress_operations.is_empty() {
             return None;
         }
@@ -6136,7 +6415,7 @@ impl Application for App {
         Some(container.into())
     }
 
-    fn header_start(&self) -> Vec<Element<Self::Message>> {
+    fn header_start(&self) -> Vec<Element<'_, Self::Message>> {
         vec![menu::menu_bar(
             self.tab_model.active_data::<Tab>(),
             &self.config,
@@ -6145,7 +6424,7 @@ impl Application for App {
         .into()]
     }
 
-    fn header_end(&self) -> Vec<Element<Self::Message>> {
+    fn header_end(&self) -> Vec<Element<'_, Self::Message>> {
         let mut elements = Vec::with_capacity(2);
 
         if let Some(term) = self.search_get() {
@@ -6181,7 +6460,7 @@ impl Application for App {
     }
 
     /// Creates a view after each update.
-    fn view(&self) -> Element<Self::Message> {
+    fn view(&self) -> Element<'_, Self::Message> {
         let cosmic_theme::Spacing {
             space_xxs, space_s, ..
         } = theme::active().cosmic().spacing;
@@ -6255,7 +6534,7 @@ impl Application for App {
         }
     }
 
-    fn view_window(&self, id: WindowId) -> Element<Self::Message> {
+    fn view_window(&self, id: WindowId) -> Element<'_, Self::Message> {
         let content = match self.windows.get(&id) {
             Some(WindowKind::Desktop(entity)) => {
                 let mut tab_column = widget::column::with_capacity(3);
@@ -6321,7 +6600,7 @@ impl Application for App {
         struct TrashWatcherSubscription;
 
         let mut subscriptions = vec![
-            event::listen_with(|event, status, window_id| match event {
+            event::listen_with(|event, status, _| match event {
                 Event::Keyboard(KeyEvent::KeyPressed { key, modifiers, .. }) => match status {
                     event::Status::Ignored => Some(Message::Key(modifiers, key)),
                     event::Status::Captured => None,
@@ -6654,8 +6933,8 @@ pub(crate) mod test_utils {
     use tempfile::{tempdir, TempDir};
 
     use crate::{
-        config::{IconSizes, TabConfig},
-        mounter::MounterMap,
+        config::{IconSizes, MediaTabConfig as TabConfig},
+        //mounter::MounterMap,
         tab::Item,
     };
 
@@ -6812,13 +7091,14 @@ pub(crate) mod test_utils {
         dirs: usize,
         nested: usize,
         name_len: usize,
+        sql_connection: std::sync::Arc<std::sync::Mutex<rusqlite::Connection>>,
     ) -> io::Result<(TempDir, Tab)> {
         let fs = simple_fs(files, hidden, dirs, nested, name_len)?;
         let path = fs.path();
 
         // New tab with items
         let location = Location::Path(path.to_owned());
-        let (parent_item_opt, items) = location.scan(IconSizes::default());
+        let (parent_item_opt, items) = location.scan(sql_connection.clone(), IconSizes::default());
         let mut tab = Tab::new(location, TabConfig::default());
         tab.parent_item_opt = parent_item_opt;
         tab.set_items(items);
@@ -6875,7 +7155,7 @@ pub(crate) mod test_utils {
     }
 
     /// Assert that tab's items are equal to a path's entries.
-    pub fn assert_eq_tab_path_contents(tab: &Tab, path: &Path) {
+    pub fn _assert_eq_tab_path_contents(tab: &Tab, path: &Path) {
         let Some(tab_path) = tab.location.path_opt() else {
             panic!("Expected tab's location to be a path");
         };

@@ -191,12 +191,12 @@ item-audio-languange = Languages: {$text}
 item-subtitle-language = Subtitles: {$text}
 item-media-actor = Actor: {$text}
 item-media-director = Director: {$text}
+item-media-tag = Tag: {$text}
 item-media-album = Album: {$text}
 item-media-composer = Composer: {$text}
 item-media-genre = Genre: {$text}
 item-media-artist = Artist: {$text}
 item-media-albumartist = Album Artist: {$text}
-item-media-composer = Composer: {$text}
 item-image-lense-model = Lense Model: {$text}
 item-image-focal-length = Focal length: {$text}
 item-image-exposure-time = Exposure time: {$text}
@@ -230,6 +230,7 @@ search-tooltip-date =
 search-tooltip-value = Numerical value
 search-filepath = Filepath
 search-title = Title
+search-tag = Tag
 search-description = Description
 search-actor = Actor/Actress
 search-director = Director
@@ -262,6 +263,10 @@ sorting-name = Sort by
 direction = Direction
 ascending = Ascending
 descending = Descending
+metadata = Metadata / Database
+metadata-delete = Delete Metadata / Database
+metadata-details = {$items} Files with size {$size} MB
+    at {$location}
 
 ### Appearance
 appearance = Appearance
@@ -272,6 +277,9 @@ light = Light
 
 # Context menu
 add-to-sidebar = Add to sidebar
+add-new-tag = Add tag to sidebar
+create-new-tag = Create new tag
+tag-name = Tag name
 compress = Compress
 extract-here = Extract
 new-file = New file...
@@ -279,7 +287,8 @@ new-folder = New folder...
 open-in-terminal = Open in terminal
 move-to-trash = Move to trash
 restore-from-trash = Restore from trash
-remove-from-sidebar = Remove from sidebar
+remove-from-sidebar = Remove path from sidebar
+remove-tag-from-sidebar = Remove tag from sidebar
 sort-by-name = Sort by name
 sort-by-modified = Sort by modified
 sort-by-size = Sort by size
@@ -312,7 +321,7 @@ list-view = List view
 show-hidden-files = Show hidden files
 list-directories-first = List directories first
 menu-settings = Settings...
-menu-about = About COSMIC Media Browser...
+menu-about = About Media Browser...
 
 ## Sort
 sort = Sort

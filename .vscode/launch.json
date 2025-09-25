@@ -7,7 +7,7 @@
         {
             "type": "lldb",
             "request": "launch",
-            "name": "Debug unit tests in library 'cosmic_media_browser'",
+            "name": "Debug unit tests in library 'media_browser'",
             "cargo": {
                 "args": [
                     "test",
@@ -16,7 +16,7 @@
                     "--package=media-browser"
                 ],
                 "filter": {
-                    "name": "cosmic_media_browser",
+                    "name": "media_browser",
                     "kind": "lib"
                 }
             },

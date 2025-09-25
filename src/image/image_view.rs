@@ -25,8 +25,8 @@ pub enum Message {
 pub struct ImageView {
     pub handle_opt: Option<super::image::Handle>,
     pub controls: bool,
-    pub controls_time: std::time::Instant,
-    pub fullscreen: bool,
+    pub _controls_time: std::time::Instant,
+    pub _fullscreen: bool,
     pub image_path: String,
     pub image_path_loaded: String,
     pub width: Length,
@@ -41,8 +41,8 @@ impl ImageView {
         ImageView {
             handle_opt: None,
             controls: true,
-            controls_time: std::time::Instant::now(),
-            fullscreen: false,
+            _controls_time: std::time::Instant::now(),
+            _fullscreen: false,
             image_path: "./examples/logo.png".to_string(),
             image_path_loaded: String::new(),
             width: Length::Fixed(4096.0),

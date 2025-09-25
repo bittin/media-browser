@@ -1,4 +1,4 @@
-media-browser = COSMIC Medien Betrachter
+media-browser = Medien Betrachter
 empty-folder = Leerer Ordner
 empty-folder-hidden = Leerer Ordner (mit versteckten Dateien)
 no-results = No results found
@@ -191,12 +191,12 @@ item-audio-languange = Sprachen: {$text}
 item-subtitle-language = Untertitel: {$text}
 item-media-actor = Darsteller: {$text}
 item-media-director = Regisseur: {$text}
+item-media-tag = Gruppe: {$text}
 item-media-artist = Künstler: {$text}
 item-media-album = Albumname: {$text}
 item-media-composer = Komponist: {$text}
 item-media-genre = Genre: {$text}
 item-media-albumartist = Album Künstler: {$text}
-item-media-composer = Komponist: {$text}
 item-image-lense-model = Linsenmodel: {$text}
 item-image-focal-length = Brennweite: {$text}
 item-image-exposure-time = Belichtungszeit: {$text}
@@ -230,6 +230,7 @@ search-tooltip-date =
 search-tooltip-value = Zahlen
 search-filepath = Dateipfad
 search-title = Titel
+search-tag = Gruppe
 search-description = Beschreibung
 search-actor = DarstellerInnen
 search-director = RegiseurInnen
@@ -262,6 +263,10 @@ sorting-name = Sortieren nach
 direction = Richtung
 ascending = Aufsteigend
 descending = Absteigend
+metadata = Metadaten / Datenbank
+metadata-delete = Metadaten / Datenbank löschen
+metadata-details = {$items} Dateien mit insgesamt {$size} MB
+    im Verzeichnis {$location}
 
 ### Appearance
 appearance = Aussehen
@@ -272,6 +277,9 @@ light = Hell
 
 # Context menu
 add-to-sidebar = Zur Seitenleiste hinzufügen
+add-new-tag = Add tag to sidebar
+create-new-tag = Neue Gruppe anlegen
+tag-name = Gruppenname
 compress = Komprimieren
 extract-here = Auspacken
 new-file = Neue Datei...
@@ -279,7 +287,8 @@ new-folder = Neuer Ordner...
 open-in-terminal = Im Terminal öffnen
 move-to-trash = Löschen
 restore-from-trash = Wiederherstellen
-remove-from-sidebar = Aus Seitenleiste entfernen
+remove-from-sidebar = Pfad aus Seitenleiste entfernen
+remove-tag-from-sidebar = Gruppe aus Seitenleiste entfernen
 sort-by-name = Nach Namen sortieren
 sort-by-modified = neueste zuerst
 sort-by-size = kleinste zuerst
@@ -312,7 +321,7 @@ list-view = Listenansicht
 show-hidden-files = versteckte Dateien anzeigen
 list-directories-first = Verzeichnisse zuerst
 menu-settings = Einstellungen...
-menu-about = Über COSMIC Medien Betrachter...
+menu-about = Über Medien Betrachter...
 
 ## Sort
 sort = Sort

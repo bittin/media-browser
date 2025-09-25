@@ -99,17 +99,32 @@ pub fn context_menu<'a>(
     match (&tab.mode, &tab.location) {
         (
             tab::Mode::Audio | tab::Mode::Image | tab::Mode::Video,
-            Location::DBSearch(_) | Location::Path(_) | Location::Search(_, _, _, _) | Location::Recents,
+            Location::DBSearch(_) | Location::Tag(_) | Location::Collection(_) | Location::Path(_) | Location::Search(_, _, _, _) | Location::Recents,
         ) => {
         }
         (
             tab::Mode::App | tab::Mode::Desktop | tab::Mode::Browser,
             Location::DBSearch(_),
         ) => {
+            children.push(menu_item(fl!("search-context"), Action::SearchDB).into());
+            children.push(divider::horizontal::light().into());
+            children.push(menu_item(fl!("zoom-in"), Action::ZoomIn).into());
+            children.push(menu_item(fl!("zoom-out"), Action::ZoomOut).into());
+            children.push(menu_item(fl!("default-size"), Action::ZoomDefault).into());
+            children.push(divider::horizontal::light().into());
+            children.push(sort_item(fl!("media-browser"), HeadingOptions::MediaSpecific));
+            children.push(sort_item(fl!("sort-by-name"), HeadingOptions::Name));
+            children.push(sort_item(fl!("sort-by-modified"), HeadingOptions::Modified));
+            children.push(sort_item(fl!("sort-by-size"), HeadingOptions::Size));
         }
         (
             tab::Mode::App | tab::Mode::Desktop | tab::Mode::Browser,
-            Location::Path(_) | Location::Search(_, _, _, _) | Location::Recents,
+            Location::Tag(_),
+        ) => {
+        }
+        (
+            tab::Mode::App | tab::Mode::Desktop | tab::Mode::Browser,
+            Location::Path(_) | Location::Collection(_) | Location::Search(_, _, _, _) | Location::Recents,
         ) => {
             children.push(menu_item(fl!("search-context"), Action::SearchDB).into());
             if selected > 0 {
@@ -136,6 +151,7 @@ pub fn context_menu<'a>(
                 children.push(divider::horizontal::light().into());
                 //TODO: Print?
                 children.push(menu_item(fl!("add-to-sidebar"), Action::AddToSidebar).into());
+                children.push(menu_item(fl!("add-new-tag"), Action::AddTagToSidebar).into());
                 children.push(divider::horizontal::light().into());
                 children.push(menu_item(fl!("move-to-trash"), Action::MoveToTrash).into());
             } else {
@@ -149,6 +165,7 @@ pub fn context_menu<'a>(
                 children.push(menu_item(fl!("paste"), Action::Paste).into());
                 children.push(divider::horizontal::light().into());
                 // TODO: Nested menu
+                children.push(sort_item(fl!("media-browser"), HeadingOptions::MediaSpecific));
                 children.push(sort_item(fl!("sort-by-name"), HeadingOptions::Name));
                 children.push(sort_item(fl!("sort-by-modified"), HeadingOptions::Modified));
                 children.push(sort_item(fl!("sort-by-size"), HeadingOptions::Size));
@@ -156,7 +173,7 @@ pub fn context_menu<'a>(
         }
         (
             tab::Mode::Dialog(dialog_kind),
-            Location::DBSearch(_) | Location::Path(_) | Location::Search(_, _, _, _) | Location::Recents,
+            Location::DBSearch(_) | Location::Tag(_) | Location::Collection(_) | Location::Path(_) | Location::Search(_, _, _, _) | Location::Recents,
         ) => {
             if selected > 0 {
                 if selected_dir == 1 && selected == 1 || selected_dir == 0 {
@@ -179,6 +196,7 @@ pub fn context_menu<'a>(
                 if !children.is_empty() {
                     children.push(divider::horizontal::light().into());
                 }
+                children.push(sort_item(fl!("media-browser"), HeadingOptions::MediaSpecific));
                 children.push(sort_item(fl!("sort-by-name"), HeadingOptions::Name));
                 children.push(sort_item(fl!("sort-by-modified"), HeadingOptions::Modified));
                 children.push(sort_item(fl!("sort-by-size"), HeadingOptions::Size));
@@ -196,6 +214,7 @@ pub fn context_menu<'a>(
                 if !children.is_empty() {
                     children.push(divider::horizontal::light().into());
                 }
+                children.push(sort_item(fl!("media-browser"), HeadingOptions::MediaSpecific));
                 children.push(sort_item(fl!("sort-by-name"), HeadingOptions::Name));
                 children.push(sort_item(fl!("sort-by-modified"), HeadingOptions::Modified));
                 children.push(sort_item(fl!("sort-by-size"), HeadingOptions::Size));
@@ -214,6 +233,7 @@ pub fn context_menu<'a>(
                     .push(menu_item(fl!("restore-from-trash"), Action::RestoreFromTrash).into());
             } else {
                 // TODO: Nested menu
+                children.push(sort_item(fl!("media-browser"), HeadingOptions::MediaSpecific));
                 children.push(sort_item(fl!("sort-by-name"), HeadingOptions::Name));
                 children.push(sort_item(fl!("sort-by-modified"), HeadingOptions::Modified));
                 children.push(sort_item(fl!("sort-by-size"), HeadingOptions::Size));
@@ -299,6 +319,7 @@ pub fn dialog_menu<'a>(
             menu::items(
                 key_binds,
                 vec![
+                    sort_item(fl!("media-browser"), tab::HeadingOptions::MediaSpecific, true),
                     sort_item(fl!("sort-a-z"), tab::HeadingOptions::Name, true),
                     sort_item(fl!("sort-z-a"), tab::HeadingOptions::Name, false),
                     sort_item(
@@ -417,6 +438,7 @@ pub fn menu_bar<'a>(
                     menu::Item::Button(fl!("search-context"), None, Action::SearchDB),
                     menu::Item::Divider,
                     menu::Item::Button(fl!("add-to-sidebar"), None, Action::AddToSidebar),
+                    menu::Item::Button(fl!("add-new-tag"), None, Action::AddTagToSidebar),
                     menu::Item::Divider,
                     menu::Item::Button(fl!("move-to-trash"), None, Action::MoveToTrash),
                     menu::Item::Divider,
@@ -492,6 +514,7 @@ pub fn menu_bar<'a>(
             menu::items(
                 key_binds,
                 vec![
+                    sort_item(fl!("media-browser"), tab::HeadingOptions::MediaSpecific, true),
                     sort_item(fl!("sort-a-z"), tab::HeadingOptions::Name, true),
                     sort_item(fl!("sort-z-a"), tab::HeadingOptions::Name, false),
                     sort_item(

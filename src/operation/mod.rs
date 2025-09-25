@@ -13,21 +13,21 @@ use std::{
     sync::Arc,
 };
 use tokio::sync::{mpsc, Mutex as TokioMutex};
-use walkdir::WalkDir;
+//use walkdir::WalkDir;
 
 use crate::{
     app::{DialogPage, Message},
     config::IconSizes,
     err_str, fl,
-    mime_icon::mime_for_path,
-    spawn_detached::spawn_detached,
-    tab,
+    //mime_icon::mime_for_path,
+    //spawn_detached::spawn_detached,
+    //tab,
 };
 
 pub use self::controller::{Controller, ControllerState};
 pub mod controller;
 
-use self::reader::OpReader;
+//use self::reader::OpReader;
 pub mod reader;
 
 use self::recursive::Context;
@@ -72,7 +72,7 @@ fn handle_replace(
     })
 }
 
-fn get_directory_name(file_name: &str) -> &str {
+fn _get_directory_name(file_name: &str) -> &str {
     const SUPPORTED_EXTENSIONS: [&str; 4] = [".tar.gz", ".tgz", ".tar", ".zip"];
 
     for ext in &SUPPORTED_EXTENSIONS {
@@ -84,7 +84,7 @@ fn get_directory_name(file_name: &str) -> &str {
 }
 
 // From https://docs.rs/zip/latest/zip/read/struct.ZipArchive.html#method.extract, with cancellation and progress added
-fn zip_extract<R: io::Read + io::Seek, P: AsRef<Path>>(
+fn _zip_extract<R: io::Read + io::Seek, P: AsRef<Path>>(
     archive: &mut zip::ZipArchive<R>,
     directory: P,
     controller: Controller,
@@ -439,8 +439,8 @@ pub enum Operation {
 }
 
 impl Operation {
-    pub fn pending_text(&self, ratio: f32, state: ControllerState) -> String {
-        let percent = (ratio * 100.0) as i32;
+    pub fn pending_text(&self, _ratio: f32, _state: ControllerState) -> String {
+        //let percent = (ratio * 100.0) as i32;
         //let progress = || match state {
         //    ControllerState::Running => fl!("progress", percent = percent),
         //    ControllerState::Paused => fl!("progress-paused", percent = percent),
@@ -661,7 +661,7 @@ mod tests {
     };
 
     use cosmic::iced::futures::{channel::mpsc, StreamExt};
-    use log::{debug, trace};
+    use log::debug;
     use test_log::test;
     use tokio::sync;
 
@@ -669,7 +669,7 @@ mod tests {
     use crate::{
         app::{
             test_utils::{
-                empty_fs, filter_dirs, filter_files, read_dir_sorted, simple_fs, NAME_LEN,
+                empty_fs, filter_dirs, filter_files, simple_fs, NAME_LEN,
                 NUM_DIRS, NUM_FILES, NUM_HIDDEN, NUM_NESTED,
             },
             DialogPage, Message,

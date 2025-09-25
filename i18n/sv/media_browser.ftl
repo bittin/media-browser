@@ -197,7 +197,6 @@ item-media-composer = Kompositör: {$text}
 item-media-genre = Genre: {$text}
 item-media-artist = Artist: {$text}
 item-media-albumartist = Album Artist: {$text}
-item-media-composer = Kompositör: {$text}
 item-image-lense-model = Linsmodell: {$text}
 item-image-focal-length = Brännvidd: {$text}
 item-image-exposure-time = Exponeringstid: {$text}
@@ -264,6 +263,10 @@ sorting-name = Sort efter
 direction = Riktning
 ascending = Stigande
 descending = Fallande
+metadata = Metadata / Database
+metadata-delete = Delete Metadata / Database
+metadata-details = {$items} Files with size {$size} MB
+    at {$location}
 
 ### Utseende
 appearance = Utseende
@@ -285,6 +288,7 @@ open-in-terminal = Öppna i terminal
 move-to-trash = Move to trash
 restore-from-trash = Flytta till papperskorg
 remove-from-sidebar = Ta bort från sidofält
+remove-tag-from-sidebar = Ta bort tagg från sidofält
 sort-by-name = Sortera efter namn
 sort-by-modified = Sortera efter modifierad
 sort-by-size = Sortera efter storlek

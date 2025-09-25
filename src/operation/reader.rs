@@ -17,7 +17,7 @@ pub struct OpReader {
 }
 
 impl OpReader {
-    pub fn new<P: AsRef<Path>>(path: P, controller: Controller) -> io::Result<Self> {
+    pub fn _new<P: AsRef<Path>>(path: P, controller: Controller) -> io::Result<Self> {
         let file = fs::File::open(&path)?;
         let metadata = file.metadata()?;
         Ok(Self {

@@ -11,12 +11,12 @@ use cosmic::iced::{
     Element
 };
 use cosmic::iced_wgpu::primitive::Renderer as PrimitiveRenderer;
-use std::{marker::PhantomData, sync::atomic::Ordering};
+use std::marker::PhantomData;
 use std::{sync::Arc, time::Instant};
 
 pub use gstreamer as gst;
 pub use gstreamer_pbutils as gst_pbutils;
-use gstreamer::prelude::*;
+//use gstreamer::prelude::*;
 
 /// Video player widget which displays the current frame of a [`Video`](crate::Video).
 pub struct AudioPlayer<'a, Message, Theme = cosmic::iced::Theme, Renderer = cosmic::iced::Renderer>
@@ -29,8 +29,8 @@ where
     height: cosmic::iced::Length,
     mouse_hidden: bool,
     on_end_of_stream: Option<Message>,
-    on_new_frame: Option<Message>,
-    on_subtitle_text: Option<Box<dyn Fn(Option<String>) -> Message + 'a>>,
+    _on_new_frame: Option<Message>,
+    _on_subtitle_text: Option<Box<dyn Fn(Option<String>) -> Message + 'a>>,
     on_error: Option<Box<dyn Fn(gst::glib::Error) -> Message + 'a>>,
     on_missing_plugin: Option<Box<dyn Fn(gst::Message) -> Message + 'a>>,
     on_warning: Option<Box<dyn Fn(gst::glib::Error) -> Message + 'a>>,
@@ -50,8 +50,8 @@ where
             height: cosmic::iced::Length::Shrink,
             mouse_hidden: false,
             on_end_of_stream: None,
-            on_new_frame: None,
-            on_subtitle_text: None,
+            _on_new_frame: None,
+            _on_subtitle_text: None,
             on_error: None,
             on_missing_plugin: None,
             on_warning: None,
@@ -101,7 +101,7 @@ where
     /// Message to send when the video receives a new frame.
     pub fn on_new_frame(self, on_new_frame: Message) -> Self {
         AudioPlayer {
-            on_new_frame: Some(on_new_frame),
+            _on_new_frame: Some(on_new_frame),
             ..self
         }
     }
@@ -112,7 +112,7 @@ where
         F: 'a + Fn(Option<String>) -> Message,
     {
         AudioPlayer {
-            on_subtitle_text: Some(Box::new(on_subtitle_text)),
+            _on_subtitle_text: Some(Box::new(on_subtitle_text)),
             ..self
         }
     }

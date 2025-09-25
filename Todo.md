@@ -44,13 +44,22 @@ Positions ended with a ? are *stretch goals*. If it is possible AND somebody doe
 - unbounded searches will kill the machine. Make sanity checks!
 - fix release date 1970-01-01
 - recursive_scan needs to check if a file is already in the database
+- scroll-wheel sometimes starts seeking at the position it last operated, not the current playback position
+- Search Results have no context menu
+- Search results do not change sort order
+- Check that updates to the database actually work
+- deactivate creation time and access time for files
+- Parsing directory structures of TV Series does not ignore unnecessary metadata
+- for single Movie directories thumbnails are generated for unused metadata images instead of just the poster
+- When parsing TV Show metadata PNG crashes while reading PNG file it should not try to read.
+- TV Shows show no episodes
+- Collection episode view back button works
+- Collection episode view breadcrumbs do not work and path is not editable.
 
 #### Open Bugs
 
-- check creation date newer than modification date
 - Automatically close Popup GUI after 5 Seconds of no activity?
-- key bindings only work in browsewr mode
-- Check that updates to the database actually work
+- key bindings only work in browser mode
 
 ### Features
 
@@ -79,6 +88,17 @@ Positions ended with a ? are *stretch goals*. If it is possible AND somebody doe
 - manage previous searches in the search context menu
 - make the details page information clickable - on click it will search for the value (for example: "Director: Quentin Tarantino)
 - make the search text appear in the search tab title
+- user defined tags
+- search for user defined tags
+- display user defined tags in detail view (search by clicking)
+- add user defined tags to the navigation panel like locations and add them to the database
+- add context menu to remove user defined tags from the navigation panel and remove them and their entries from the database
+- on click on a tag open a search with all elements that have a user defined tag assigned to them
+- assign user defined tags by dragging files onto a tag in the navigation panel
+- display size of metadata in settings panel
+- display location of metadata in settings panel
+- settings option to delete metadata
+- sort audio from one album by track id
 
 #### Open Features
 
@@ -127,7 +147,7 @@ Positions ended with a ? are *stretch goals*. If it is possible AND somebody doe
 - stop playback when switching to Browser view
 - add chapter navigation
 - make the player zoom a video that is smaller than the display area
-- make the primary metadata directly searchable form the preview
+- make the primary metadata directly searchable from the preview
 
 #### Video Open Features
 
@@ -156,3 +176,4 @@ Positions ended with a ? are *stretch goals*. If it is possible AND somebody doe
 #### Audio Open Features
 
 - add playback speed control?
+- add playback of lyrics files (.lrc) as subtitles

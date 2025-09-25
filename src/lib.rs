@@ -25,6 +25,7 @@ mod mounter;
 mod mouse_area;
 mod operation;
 pub mod parsers;
+pub mod scanmetadata;
 mod spawn_detached;
 pub mod sql;
 pub mod tab;
@@ -86,17 +87,20 @@ pub fn desktop() -> Result<(), Box<dyn std::error::Error>> {
 /// Runs application with these settings
 #[rustfmt::skip]
 pub fn main() -> Result<(), Box<dyn std::error::Error>> {
-    /*
-    #[cfg(all(unix, not(target_os = "redox")))]
-    match fork::daemon(true, true) {
-        Ok(fork::Fork::Child) => (),
-        Ok(fork::Fork::Parent(_child_pid)) => process::exit(0),
-        Err(err) => {
-            eprintln!("failed to daemonize: {:?}", err);
-            process::exit(1);
+    let daemonize = true;
+
+    if daemonize {
+        #[cfg(all(unix, not(target_os = "redox")))]
+        match fork::daemon(true, true) {
+            Ok(fork::Fork::Child) => (),
+            Ok(fork::Fork::Parent(_child_pid)) => process::exit(0),
+            Err(err) => {
+                eprintln!("failed to daemonize: {:?}", err);
+                process::exit(1);
+            }
         }
     }
-    */
+
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("warn")).init();
 
     localize::localize();
